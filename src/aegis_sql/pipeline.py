@@ -58,6 +58,18 @@ from aegis_sql.types import (
 
 log = get_logger("pipeline")
 
+#: Static defects that make a statement *run* and still be wrong.
+#:
+#: Comparing a ``YYYYMMDD`` column against ``'2025-07-01'`` parses, executes and
+#: returns a perfectly formatted zero — which reads like an answer.  There is no
+#: reading of the question under which that comparison is intended, so these
+#: codes are treated as failures even though the executor reported success.
+#: Note that "empty result" is *not* a usable signal here: ``COUNT(*)`` returns
+#: one row containing 0, so the defect has to be detected statically.
+_SILENT_FAILURE_CODES = frozenset(
+    {"DATE_FORMAT_MISMATCH", "DATE_FUNCTION_ON_TEXT", "CODE_LITERAL_MISMATCH"}
+)
+
 #: Tiers whose generator consumes a rendered prompt (and therefore few-shots).
 _PROMPTED_TIERS = frozenset({Tier.SLM, Tier.LLM, Tier.ENSEMBLE})
 
@@ -478,10 +490,28 @@ class AegisEngine:
             STAGE_LATENCY.labels(stage="execute").observe(sp.duration_ms)
         bundle.result = result
 
-        if not result.ok:
+        # A statement can be *wrong without erroring*.  Comparing a YYYYMMDD
+        # column against '2025-07-01' parses, runs, and returns zero rows — the
+        # single most dangerous failure mode on this schema, because an empty
+        # table reads like a real answer.  When the static checker already
+        # flagged a mechanically-fixable defect and the result came back empty,
+        # treat it as a failure and let the repairer try; the repair is kept only
+        # if it actually produces rows.
+        silent_defects = [
+            v for v in issues
+            if v.code in _SILENT_FAILURE_CODES and v.severity in {"error", "block"}
+        ]
+        if result.ok and silent_defects:
+            log.info(
+                "statement ran but carries a known-wrong comparison — attempting repair",
+                codes=[v.code for v in silent_defects],
+            )
+
+        if not result.ok or silent_defects:
             with tracer.span("repair") as sp:
+                reason = result.error or "; ".join(v.message for v in silent_defects)
                 fixed, steps = c.repairer.repair(
-                    executed, result.error or "", self._repair_ctx(nq, linked, executed, result)
+                    executed, reason, self._repair_ctx(nq, linked, executed, result)
                 )
                 sp.attributes.update(attempts=len(steps), fixed=fixed is not None)
             bundle.repairs = steps
@@ -492,13 +522,19 @@ class AegisEngine:
                 # a repaired statement is untrusted again — re-guard before running it
                 reverdict = c.guard.check(fixed, ctx)
                 if reverdict.allowed:
-                    bundle.guard = reverdict
-                    bundle.sql = fixed
-                    bundle.executed_sql = reverdict.rewritten_sql or fixed
+                    candidate_sql = reverdict.rewritten_sql or fixed
                     with tracer.span("execute_repaired") as sp:
-                        result = c.executor.execute(bundle.executed_sql)
-                        sp.attributes.update(ok=result.ok, rows=result.row_count)
-                    bundle.result = result
+                        repaired = c.executor.execute(candidate_sql)
+                        sp.attributes.update(ok=repaired.ok, rows=repaired.row_count)
+                    # Never trade a working answer for a worse one: a repair of a
+                    # silently-empty query is accepted only when it finds rows.
+                    # Never trade a working answer for a broken one.
+                    if repaired.ok:
+                        bundle.guard = reverdict
+                        bundle.sql = fixed
+                        bundle.executed_sql = candidate_sql
+                        bundle.result = repaired
+                        result = repaired
             if not result.ok:
                 bundle.status = AnswerStatus.FAILED
                 bundle.answer_text = f"SQL 실행에 실패했습니다: {result.error}"
