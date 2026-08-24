@@ -42,6 +42,7 @@ from aegis_sql.verify.ast_guard import (
     DIALECT,
     ColumnResolver,
     aggregate_ancestor,
+    function_name,
     in_group_by,
 )
 
@@ -50,7 +51,7 @@ log = get_logger("verify.static_check")
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$")
 _HANGUL_RE = re.compile(r"[가-힣]")
 #: Functions that assume an ISO/epoch date and therefore break on 'YYYYMMDD'.
-_DATE_FUNCS = {"date", "datetime", "year", "month", "day", "strftime", "julianday", "date_trunc"}
+DATE_FUNCTIONS = {"date", "datetime", "year", "month", "day", "strftime", "julianday", "date_trunc"}
 _COMPARISONS = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.Like, exp.ILike)
 
 
@@ -259,8 +260,9 @@ class StaticChecker:
             out.append(
                 Violation(
                     "DATE_FORMAT_MISMATCH",
-                    f"{qualified}는 'YYYYMMDD' 문자열이므로 {wrapper}() 함수가 동작하지 않습니다. "
-                    f"연도는 substr({qualified},1,4), 기간 비교는 문자열 BETWEEN을 사용하세요.",
+                    f"{qualified}는 'YYYYMMDD' 문자열이므로 {wrapper}() 함수가 "
+                    f"동작하지 않습니다. 연도는 substr({qualified},1,4), "
+                    "기간 비교는 문자열 BETWEEN을 사용하세요.",
                     "error",
                     qualified,
                 )
@@ -359,13 +361,8 @@ def _date_function_ancestor(column: exp.Column) -> str | None:
     """Name of the date function wrapping this column, if any."""
     node: exp.Expr | None = column.parent
     while node is not None and not isinstance(node, exp.Select):
-        name: str | None = None
-        if isinstance(node, exp.Anonymous):
-            name = str(node.this)
-        elif isinstance(node, exp.Func):
-            name = node.sql_name()
-        if name and name.lower() in _DATE_FUNCS:
-            return name.lower()
+        if isinstance(node, exp.Func) and function_name(node) in DATE_FUNCTIONS:
+            return function_name(node)
         node = node.parent
     return None
 

@@ -307,11 +307,14 @@ def benchmark_evaluator(
     items = harness.select(limit=dev_limit, difficulties=difficulties, include_probes=False)
 
     def evaluate(registry: PromptRegistry) -> tuple[float, dict[str, Any]]:
+        def install_registry(engine: Any) -> None:
+            engine.c.prompt_registry = registry
+            _rebind_registry(engine, registry)
+
         variant = Variant(
             name=f"prompt-{registry.name}",
             description="prompt variant",
-            mutate=lambda engine: setattr(engine.c, "prompt_registry", registry)
-            or _rebind_registry(engine, registry),
+            mutate=install_registry,
         )
         result = harness.run_variant(variant, items=items, progress=False)
         return result.overall.execution_accuracy, {

@@ -76,7 +76,8 @@ LLM은 "정말 필요한 질문"에 대해 **한 번** 호출된다.
 ### 원칙 3 — 학습과 서빙을 분리한다
 - 라우터: **Keras로 학습 → numpy 가중치로 export → 서빙은 numpy만** (`router/tf_router.py`)
 - sLLM: PyTorch 체크포인트, 서빙 시에만 lazy 로드
-- 결과적으로 런타임 Docker 이미지에 TensorFlow가 들어가지 않는다(약 4GB 절감).
+- 결과적으로 런타임 Docker 이미지에 TensorFlow도 PyTorch도 들어가지 않는다.
+  (`pip install -e ".[llm]"` 과 `".[all]"` 의 설치 용량 차이는 수 GB 규모다.)
 
 ### 원칙 4 — 재현 가능해야 측정이다
 데모 DB, 플라이휠, 학습, 평가 전부 시드가 고정되어 있고, 평가 리포트에는
@@ -147,7 +148,7 @@ POST /v1/query {"question": "..."}
   │
   ├─ span: normalize        (~1ms)   KoreanNormalizer
   ├─ span: ambiguity        (~1ms)   모호하면 여기서 status=clarify 로 종료
-  ├─ span: link             (~15ms)  하이브리드 스키마 링킹 → 2,554토큰 → 219토큰
+  ├─ span: link             (~15ms)  하이브리드 스키마 링킹 (전체 스키마 2,554토큰 → 400~850토큰)
   ├─ span: fewshot          (~5ms)   마스킹 유사도 + MMR
   ├─ span: route            (~0.3ms) numpy 라우터 → tier + confidence
   ├─ span: generate         (티어에 따라 3ms ~ 3s)
