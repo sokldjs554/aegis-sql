@@ -413,7 +413,26 @@ class AegisEngine:
     def _attempt(self, nq, linked, few_shots, decision, ctx, tracer, bundle, emit) -> bool:
         c = self.c
         st = self.settings
-        generator = c.generators.get(decision.tier) or c.generators[Tier.TEMPLATE]
+        generator = c.generators.get(decision.tier)
+        if generator is None or not generator.available():
+            # Falling back silently would let an evaluation report label a
+            # template-tier number as an sLLM number — the single most damaging
+            # kind of measurement bug, because it is invisible in the output.
+            fallback = c.generators[Tier.TEMPLATE]
+            log.warning(
+                "requested tier unavailable, falling back",
+                requested=decision.tier.value, used=fallback.tier.value,
+            )
+            decision.reason = (
+                f"{decision.tier.value} 티어를 사용할 수 없어 {fallback.tier.value}로 대체됨"
+                f" · {decision.reason}"
+            )
+            decision.escalated_from = decision.tier
+            decision.tier = fallback.tier
+            bundle.route = decision
+            generator = fallback
+            emit("tier_fallback", {"requested": decision.escalated_from.value,
+                                   "used": decision.tier.value})
 
         style = cast(
             "CardStyle", "slm" if decision.tier is Tier.SLM else st.generation.schema_card_style

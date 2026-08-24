@@ -62,7 +62,12 @@ class GenerationConfig(BaseModel):
     n_samples: int = 1
     ensemble_samples: int = 5
     ensemble_temperature: float = 0.7
-    slm_checkpoint: str = str(DATA_DIR / "generated" / "slm" / "aegis-lm-tiny")
+    #: Must match `scripts/train_slm.py --out`.
+    slm_checkpoint: str = str(DATA_DIR / "generated" / "slm")
+    #: Generation cap for the in-house tier.  SQL targets in the flywheel corpus
+    #: average ~60 tokens; a 1024-token budget only buys latency on the runs
+    #: where an under-trained model never emits EOS.
+    slm_max_new_tokens: int = 192
     prompt_set: str = "default"
     #: How the linked schema is written into the prompt (see schema/card.py).
     schema_card_style: str = "mschema"
