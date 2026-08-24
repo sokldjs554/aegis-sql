@@ -20,7 +20,8 @@ Q          ?= 작년 하반기에 체결된 계약 중 월납보험료가 20만�
 
 .DEFAULT_GOAL := help
 .PHONY: help setup venv install install-all demo-db benchmark profile demo ask serve \
-        flywheel train-slm train-router eval eval-quick test test-fast lint fmt typecheck \
+        flywheel train-slm train-slm-quick routing-data train-router eval eval-quick \
+        test test-fast lint fmt typecheck \
         check docker-build docker-up docker-down clean distclean tree
 
 help: ## 사용 가능한 타깃 목록
@@ -48,7 +49,7 @@ demo-db: ## 한국 보험 레거시 스키마 데모 DB 생성 (결정론적, 37
 demo-db-force: ## 데모 DB 재생성
 	@$(PYTHON) scripts/build_demo_db.py --scale $(SCALE) --force
 
-benchmark: ## KorFin-Bench 생성 + gold SQL 실행 검증 (104문항)
+benchmark: ## KorFin-Bench 생성 + gold SQL 실행 검증 (106문항)
 	@$(PYTHON) scripts/build_benchmark.py
 
 profile: ## 컬럼 프로파일 캐시 생성 (값 링킹용)
@@ -68,11 +69,23 @@ serve: ## FastAPI 서버 기동 (웹 콘솔 포함)
 flywheel: ## 스키마 → SQL 샘플링 → 역번역 → 증강 → 실행검증 → 학습셋
 	@$(PYTHON) -m aegis_sql.cli flywheel --n-programs 4000
 
-train-slm: ## 자체 구현 PyTorch Transformer + LoRA SFT 학습
-	@$(PYTHON) scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm
+train-slm: ## 자체 구현 PyTorch Transformer 학습 (BPE → SFT → LoRA → DPO)
+	@$(PYTHON) scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm \
+	  --epochs 3 --limit 9000 --d-model 256 --n-layers 4 --n-heads 8 --d-ff 1024 \
+	  --max-seq-len 288 --vocab-size 8000 --batch-size 32 --dpo
 
-train-router: ## TensorFlow 캐스케이드 라우터 학습 후 numpy 가중치로 export
-	@$(PYTHON) scripts/train_router.py --out data/generated/router
+train-slm-quick: ## 빠른 학습 스모크 (CPU 2분)
+	@$(PYTHON) scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm \
+	  --epochs 1 --limit 300 --d-model 96 --n-layers 2 --n-heads 4 --d-ff 256 \
+	  --max-seq-len 192 --vocab-size 2000 --batch-size 16
+
+routing-data: ## 평가 로그에서 라우터 학습용 (features, label) 수집
+	@$(PYTHON) -m aegis_sql.cli eval --bench data/generated/flywheel/test.jsonl \
+	  --routing-log data/generated/router/routing_train.jsonl --report reports/flywheel_eval.md
+
+train-router: routing-data ## TensorFlow 라우터 학습 → numpy 가중치 export (관측 라벨 사용)
+	@$(PYTHON) scripts/train_router.py --out data/generated/router \
+	  --data data/generated/router/routing_train.jsonl
 
 # --------------------------------------------------------------------- 평가
 eval: ## 전체 벤치마크 평가 + 어블레이션 리포트 (reports/)
