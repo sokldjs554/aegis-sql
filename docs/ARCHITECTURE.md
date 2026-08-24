@@ -155,7 +155,9 @@ POST /v1/query {"question": "..."}
   ├─ span: static_check     (~2ms)   실행 전에 잡히는 오류
   ├─ span: guard            (~3ms)   PII 차단 / 마스킹 / LIMIT / 행정책
   ├─ span: execute          (~5~50ms)
-  ├─ span: repair           (실패 시) 규칙 8종 → 재실행 → 그래도 실패면 LLM
+  ├─ span: repair           (실행 실패 시 — 그리고 **성공했더라도 정적 검사가
+  │                          "확실히 틀린 비교"를 잡았을 때**) 규칙 8종 → 재실행
+  │                          → 그래도 실패면 LLM 수리. 교정본은 가드를 다시 통과해야 한다
   ├─ span: vote             (앙상블 시) 실행 결과 해시 다수결
   └─ span: answer           한국어 요약 (LLM 있을 때만)
   │

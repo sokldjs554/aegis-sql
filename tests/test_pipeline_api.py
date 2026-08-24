@@ -168,3 +168,65 @@ def test_feedback_endpoint(client, tmp_path):
         "corrected_sql": "SELECT 2", "comment": "틀림",
     })
     assert r.status_code == 200 and r.json()["ok"]
+
+
+# --------------------------------------------------------------------------- #
+# the self-repair path
+# --------------------------------------------------------------------------- #
+
+
+class _BrokenGenerator:
+    """A generator that emits the two mistakes this schema provokes most often."""
+
+    from aegis_sql.types import Tier as _Tier
+
+    tier = _Tier.TEMPLATE
+    name = "broken"
+
+    def __init__(self, sql: str) -> None:
+        self.sql = sql
+
+    def available(self) -> bool:
+        return True
+
+    def generate(self, ctx):
+        from aegis_sql.types import GenerationResult, SQLCandidate, Tier
+
+        return GenerationResult(
+            candidates=[SQLCandidate(sql=self.sql, tier=Tier.TEMPLATE)],
+            tier=Tier.TEMPLATE,
+            model="broken",
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_sql,expect_strategy",
+    [
+        # ISO date literal against a YYYYMMDD TEXT column — the single most common
+        # semantic failure on this schema.
+        ("SELECT COUNT(*) AS c FROM TB_CTRT WHERE CTRT_DT BETWEEN '2025-07-01' AND '2025-12-31'",
+         "date-format"),
+        # A column that does not exist but is one edit away from one that does.
+        ("SELECT COUNT(*) AS c FROM TB_CTRT WHERE CTRT_STAT_CODE = '02'", "unknown-column"),
+    ],
+)
+def test_pipeline_repairs_and_reexecutes(settings, bad_sql, expect_strategy):
+    from aegis_sql.pipeline import AegisEngine
+    from aegis_sql.types import Tier
+
+    engine = AegisEngine.build(settings)
+    original = engine.c.generators[Tier.TEMPLATE]
+    engine.c.generators[Tier.TEMPLATE] = _BrokenGenerator(bad_sql)
+    try:
+        bundle = engine.ask("작년 하반기에 체결된 계약 건수", tier=Tier.TEMPLATE)
+    finally:
+        engine.c.generators[Tier.TEMPLATE] = original
+        engine.close()
+
+    assert bundle.repairs, "the repair loop never ran"
+    assert expect_strategy in {s.strategy for s in bundle.repairs}, [s.strategy for s in bundle.repairs]
+    assert bundle.status is AnswerStatus.OK, bundle.answer_text
+    assert bundle.result is not None and bundle.result.ok
+    assert bundle.result.rows[0][0] > 0, "the repaired query returned nothing"
+    # The repaired statement is untrusted again and must go back through the guard.
+    assert bundle.guard is not None and bundle.guard.allowed
