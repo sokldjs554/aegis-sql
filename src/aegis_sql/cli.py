@@ -415,11 +415,34 @@ def version() -> None:
         console.print(f"  providers : (확인 불가: {exc})")
     for name, mod in (("torch", "torch"), ("tensorflow", "tensorflow"),
                       ("chromadb", "chromadb"), ("langchain", "langchain_core")):
-        try:
-            __import__(mod)
-            console.print(f"  {name:<10}: 사용 가능")
-        except Exception:
-            console.print(f"  {name:<10}: 미설치", style="dim")
+        console.print(f"  {name:<10}: {'사용 가능' if _importable(mod) else '미설치'}",
+                      style=None if _importable(mod) else "dim")
+
+
+def _importable(module: str) -> bool:
+    """Import a module purely to see whether it is installed, silently.
+
+    TensorFlow writes oneDNN and absl banners straight to file descriptor 2
+    before any Python-level logging config can intervene, so the fd itself has
+    to be redirected for the duration of the import.
+    """
+    import importlib
+    import os
+
+    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+    os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+    saved = os.dup(2)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull, 2)
+        importlib.import_module(module)
+        return True
+    except Exception:
+        return False
+    finally:
+        os.dup2(saved, 2)
+        os.close(saved)
+        os.close(devnull)
 
 
 def main() -> None:  # pragma: no cover - console entry point
