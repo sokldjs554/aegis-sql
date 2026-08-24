@@ -1,0 +1,263 @@
+# =====================================================================
+# AEGIS-SQL 프롬프트 레지스트리 — set: default
+# ---------------------------------------------------------------------
+# 모든 프롬프트는 id / version / hash 로 추적된다.  평가 리포트에는
+# 사용된 프롬프트의 ref(id@version#hash)가 그대로 박히므로, 어떤 수치가
+# 어떤 프롬프트에서 나왔는지 사후에 100% 재현할 수 있다.
+# 변경 이력과 실측 델타는 docs/PROMPT_ENGINEERING.md 참고.
+# =====================================================================
+set: default
+description: 한국 보험/금융 레거시 스키마용 Text-to-SQL 기본 프롬프트 세트
+
+prompts:
+
+  # ------------------------------------------------------------------ #
+  nl2sql.system:
+    version: "1.4.0"
+    role: system
+    description: SQL 생성 시스템 프롬프트. 방언/날짜형식/코드값/보안 제약을 못 박는다.
+    variables: [dialect, today]
+    tags: [core, generation]
+    changelog: |
+      # 각 항목은 "관측된 실패 모드 → 그 실패를 겨냥한 변경"이다.
+      # 실측 델타는 scripts/optimize_prompts.py 로 산출하며 reports/prompt_opt.json 에 남는다
+      # (LLM 티어가 활성화된 환경에서만 의미가 있다).
+      1.4.0 - 실패: 모델이 설명문과 SQL을 섞어 출력 → 단일 SELECT/코드블록 제약을 최상단으로 이동
+      1.3.0 - 실패: DATE()/YEAR()를 YYYYMMDD TEXT 컬럼에 적용 → 문자열 비교 규칙을 예시와 함께 명시
+      1.2.0 - 실패: 코드명이 필요 없는데도 TB_COMM_CD를 조인해 결과가 중복 → 직접 비교 허용 규칙 추가
+      1.1.0 - 실패: SELECT * 로 정책 차단 유발 → 컬럼 명시와 별칭 강제
+    template: |
+      당신은 한국 보험사 코어 시스템의 데이터를 다루는 시니어 데이터 엔지니어입니다.
+      자연어 질문을 **{{ dialect }}** 방언의 실행 가능한 SQL 한 문장으로 변환합니다.
+
+      [절대 규칙]
+      1. 출력은 단일 SELECT(또는 WITH ... SELECT) 문 하나뿐입니다. INSERT/UPDATE/DELETE/DDL/PRAGMA/ATTACH 금지.
+      2. 최종 답변은 ```sql 코드블록 하나만 출력합니다. 설명 문장을 코드블록 밖에 쓰지 마세요.
+      3. `SELECT *` 금지. 필요한 컬럼만 명시하고 테이블 별칭을 사용하세요.
+      4. 스키마에 존재하지 않는 테이블/컬럼을 만들어내지 마세요.
+
+      [이 데이터베이스의 특수 규칙]
+      5. 모든 날짜 컬럼(`*_DT`, `BRDT`)은 DATE 타입이 아니라 **'YYYYMMDD' 형식의 TEXT**입니다.
+         - 기간 조건은 문자열 비교로 씁니다:  `CTRT_DT BETWEEN '20250701' AND '20251231'`
+         - 연/월 추출은 substr을 씁니다:      `substr(CTRT_DT, 1, 4) = '2025'`
+         - `DATE()`, `YEAR()`, `EXTRACT()` 를 날짜 컬럼에 직접 쓰면 실패합니다.
+      6. 코드 컬럼(`*_CD`)의 값은 CODE DICTIONARY에 주어집니다. 사람이 읽는 이름이
+         결과에 필요하지 않다면 **TB_COMM_CD를 조인하지 말고 코드값을 직접 비교**하세요.
+         결과에 코드명을 보여줘야 할 때만 조인하고, 반드시 `CD_GRP`까지 함께 비교하세요:
+         `JOIN TB_COMM_CD cd ON cd.CD_GRP = 'CTRT_STAT' AND cd.CD = t.CTRT_STAT_CD`
+      7. 금액 컬럼은 원(KRW) 단위 정수입니다. "20만원"은 200000 입니다.
+      8. 비율/평균을 낼 때는 정수 나눗셈을 피하세요: `CAST(x AS REAL) / NULLIF(y, 0)`.
+
+      [기준일] 오늘은 {{ today }} 입니다. "작년", "최근 3개월" 같은 상대 표현은 이 날짜를 기준으로 계산하세요.
+
+  # ------------------------------------------------------------------ #
+  nl2sql.user:
+    version: "1.5.0"
+    role: user
+    description: 메인 생성 프롬프트. 스키마 카드 + 용어사전 + few-shot + 힌트.
+    variables: [schema_card, question]
+    tags: [core, generation]
+    changelog: |
+      1.5.0 - 실패: few-shot 표면형에 끌려 용어사전 정의를 무시 → 용어사전 블록을 예시보다 앞에 배치
+      1.4.0 - 실패: 자유 CoT 때문에 출력 파싱이 흔들림 → 사고 단계를 4단계로 고정
+      1.3.0 - 전체 스키마 대신 링킹된 서브스키마만 제시 (토큰 절감량은 /v1/link 응답에서 실측 가능)
+    template: |
+      {{ schema_card }}
+
+      {% if glossary %}
+      【사내 용어사전】 질문에 아래 용어가 등장하면 정의된 SQL 조각을 그대로 사용하세요.
+      {% for g in glossary %}
+        - {{ g.term }}{% if g.aliases %} ({{ g.aliases[:3] | join(', ') }}){% endif %}: {{ g.definition }}
+      {% if g.sql_hint %}    → SQL: {{ g.sql_hint }}
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+      {% if few_shots %}
+
+      【유사 질의 예시】
+      {% for ex in few_shots %}
+      Q: {{ ex.question }}
+      A: {{ ex.sql }}
+
+      {% endfor %}
+      {% endif %}
+      {% if hints %}
+      【추가 힌트】
+      {% for h in hints %}  - {{ h }}
+      {% endfor %}
+      {% endif %}
+      {% if failed_attempts %}
+      【이전 시도 (실패) — 같은 실수를 반복하지 마세요】
+      {% for f in failed_attempts %}  - {{ f.sql }}
+          ↳ 오류: {{ f.error }}
+      {% endfor %}
+      {% endif %}
+
+      【질문】
+      {{ question }}
+
+      【작업 절차】 아래 4단계를 코드블록 앞에 간결히 적은 뒤, 마지막에 SQL 코드블록 하나만 출력하세요.
+      1) 필요한 테이블과 조인 경로
+      2) 필터 조건 (날짜는 YYYYMMDD 문자열, 코드는 코드값)
+      3) 집계/그룹핑/정렬
+      4) 최종 SQL
+
+  # ------------------------------------------------------------------ #
+  repair.user:
+    version: "1.2.0"
+    role: user
+    description: 실행 오류 기반 자가교정(Self-Debugging) 프롬프트.
+    variables: [schema_card, question, sql, error]
+    tags: [core, repair]
+    changelog: |
+      1.2.0 - 실패: 모델이 SQL을 통째로 다시 써서 원래 의도를 잃음 → 진단 후 최소 수정 형식으로 고정
+      1.1.0 - 실패: 오류 메시지를 요약해 전달하니 원인 특정이 어려움 → 원문 그대로 전달
+    template: |
+      {{ schema_card }}
+
+      아래 SQL이 실행에 실패했습니다. 원인을 한 줄로 진단하고, **최소 수정**으로 고치세요.
+      전체를 새로 쓰지 말고 문제가 된 부분만 바꾸세요.
+
+      【원 질문】 {{ question }}
+
+      【실패한 SQL】
+      ```sql
+      {{ sql }}
+      ```
+
+      【오류】
+      {{ error }}
+      {% if attempted_fixes %}
+
+      【이미 시도했으나 실패한 수정】
+      {% for f in attempted_fixes %}  - {{ f }}
+      {% endfor %}
+      {% endif %}
+
+      진단: (한 줄)
+      그 다음 수정된 SQL을 ```sql 코드블록 하나로 출력하세요.
+
+  # ------------------------------------------------------------------ #
+  decompose.user:
+    version: "1.1.0"
+    role: user
+    description: 복잡 질의 분해 (DIN-SQL의 난이도 분류 + 서브질문 생성).
+    variables: [schema_card, question]
+    tags: [reasoning]
+    changelog: "1.1.0 - 실패: 난이도 라벨이 호출마다 흔들림 → EASY/JOIN/NESTED 3분류로 축소"
+    template: |
+      {{ schema_card }}
+
+      【질문】 {{ question }}
+
+      이 질문을 SQL로 만들기 위한 난이도를 판정하고, NESTED인 경우에만 서브질문으로 분해하세요.
+      - EASY   : 단일 테이블, 단순 필터/집계
+      - JOIN   : 여러 테이블 조인 + 그룹핑
+      - NESTED : 서브쿼리/CTE/집계 결과와의 비교가 필요
+
+      출력 형식(JSON 한 덩어리):
+      {"difficulty": "EASY|JOIN|NESTED", "tables": ["..."], "sub_questions": ["..."]}
+
+  # ------------------------------------------------------------------ #
+  clarify.user:
+    version: "1.0.0"
+    role: user
+    description: 모호한 질문에 대해 되묻는 한국어 질문 생성.
+    variables: [question, reasons]
+    tags: [nlu]
+    template: |
+      사용자의 질문이 SQL로 변환하기에 모호합니다.
+
+      【질문】 {{ question }}
+      【모호한 지점】
+      {% for r in reasons %}  - {{ r }}
+      {% endfor %}
+
+      사용자가 한 번의 답변으로 해소할 수 있도록, **하나의 짧은 한국어 질문**과
+      선택지 2~4개를 제시하세요. 출력 형식(JSON):
+      {"question": "...", "options": ["...", "..."]}
+
+  # ------------------------------------------------------------------ #
+  answer.user:
+    version: "1.2.0"
+    role: user
+    description: 조회 결과를 한국어 자연어 답변으로 요약.
+    variables: [question, sql, result_table, row_count]
+    tags: [presentation]
+    changelog: "1.2.0 - 실패: 1,234,000,000 을 그대로 읽어 가독성이 낮음 → 억/만 단위 표기 지시"
+    template: |
+      아래는 사용자의 질문과 그에 대해 실행된 SQL, 그리고 결과입니다.
+
+      【질문】 {{ question }}
+      【실행된 SQL】
+      ```sql
+      {{ sql }}
+      ```
+      【결과】 (총 {{ row_count }}행)
+      {{ result_table }}
+
+      결과를 2~3문장의 한국어로 요약하세요.
+      - 결과에 실제로 있는 숫자만 사용하고, 없는 수치를 지어내지 마세요.
+      - 금액은 한국식 단위로 읽어 주세요(예: 1,234,000,000 → 약 12억 3천만원).
+      - 결과가 0행이면 "조건에 해당하는 데이터가 없습니다"라고 명확히 알려 주세요.
+
+  # ------------------------------------------------------------------ #
+  backtranslate.user:
+    version: "1.1.0"
+    role: user
+    description: 플라이휠 — SQL을 자연스러운 한국어 실무 질문으로 역번역.
+    variables: [schema_card, sql]
+    tags: [flywheel]
+    changelog: "1.1.0 - 실패: 역번역 문장이 템플릿 티가 남 → '현업 담당자 말투' 지시 추가"
+    template: |
+      {{ schema_card }}
+
+      아래 SQL이 답하는 질문을, 보험사 현업 담당자가 실제로 물어볼 법한
+      자연스러운 한국어 한 문장으로 바꾸세요. 컬럼명(영문 약어)을 그대로 쓰지 말고
+      한글 업무 용어로 표현하세요.
+
+      ```sql
+      {{ sql }}
+      ```
+
+      질문 한 문장만 출력하세요.
+
+  # ------------------------------------------------------------------ #
+  paraphrase.user:
+    version: "1.0.0"
+    role: user
+    description: 플라이휠 — 한국어 질문 다양화 증강.
+    variables: [question, n]
+    tags: [flywheel, augmentation]
+    template: |
+      다음 질문과 **의미가 정확히 동일한** 한국어 표현을 {{ n }}개 만드세요.
+      말투(반말/존댓말/명령형/의문형), 어순, 동의어를 다양하게 바꾸되
+      숫자·기간·조건은 절대 바꾸지 마세요.
+
+      원문: {{ question }}
+
+      한 줄에 하나씩, 번호 없이 출력하세요.
+
+  # ------------------------------------------------------------------ #
+  selfcheck.user:
+    version: "1.0.0"
+    role: user
+    description: 실행 전 SQL 자기검증(critic). 실행은 됐지만 의미가 틀린 경우를 잡는다.
+    variables: [question, sql, schema_card]
+    tags: [verification]
+    template: |
+      {{ schema_card }}
+
+      【질문】 {{ question }}
+      【생성된 SQL】
+      ```sql
+      {{ sql }}
+      ```
+
+      이 SQL이 질문에 정확히 답하는지 점검하세요. 특히:
+      - 기간 조건이 질문과 일치하는가 (경계 포함/제외)
+      - 코드값 비교가 올바른가
+      - 집계 단위(건수/금액/고객수)가 질문과 일치하는가
+      - 중복 집계(1:N 조인으로 인한 금액 부풀림)가 발생하지 않는가
+
+      출력(JSON): {"ok": true|false, "issue": "문제 없으면 빈 문자열", "fixed_sql": "수정이 필요하면 SQL, 아니면 빈 문자열"}

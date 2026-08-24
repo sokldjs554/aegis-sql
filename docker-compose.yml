@@ -1,0 +1,23 @@
+services:
+  aegis:
+    build: .
+    image: aegis-sql:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # 키가 없으면 자동으로 template/sLLM 티어로만 동작한다 (에러 없음).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AEGIS_LOG_JSON: "true"
+      AEGIS_GENERATION__PROVIDER: auto
+      AEGIS_ROUTER__BUDGET_USD: "0.05"
+    volumes:
+      - aegis-generated:/app/data/generated
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  aegis-generated:

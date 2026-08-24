@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AEGIS-SQL 콘솔</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#ffffff; --ink:#14171f; --muted:#6b7280; --line:#e4e7ec;
+    --accent:#2563eb; --accent-soft:#eff4ff; --ok:#15803d; --warn:#b45309; --danger:#b91c1c;
+    --code-bg:#0f1420; --code-ink:#d7e0f2; --radius:10px;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0d1017; --panel:#151922; --ink:#e6e9ef; --muted:#98a2b3; --line:#252b38;
+           --accent:#5b8cff; --accent-soft:#1a2338; --code-bg:#0a0d14; --code-ink:#d7e0f2; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+       font-size:14px;line-height:1.6}
+  header{padding:22px 26px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+  h1{margin:0;font-size:19px;letter-spacing:-.3px}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:4px}
+  main{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+  .ask{display:flex;gap:8px;margin-bottom:10px}
+  input[type=text]{flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);
+       background:var(--panel);color:var(--ink);font-size:14.5px;outline:none}
+  input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  button{padding:12px 20px;border:0;border-radius:var(--radius);background:var(--accent);color:#fff;
+       font-weight:600;cursor:pointer;font-size:14px}
+  button:disabled{opacity:.55;cursor:progress}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .examples{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+  .chip{padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);
+       color:var(--muted);cursor:pointer;font-size:12.5px}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.gov{border-style:dashed}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+       padding:16px 18px;margin-bottom:14px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .badge{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.2px}
+  .b-ok{background:#dcfce7;color:#166534}.b-clarify{background:#fef3c7;color:#92400e}
+  .b-blocked{background:#fee2e2;color:#991b1b}.b-failed{background:#fee2e2;color:#991b1b}
+  .b-tier{background:var(--accent-soft);color:var(--accent)}
+  @media (prefers-color-scheme: dark){
+    .b-ok{background:#0f2f1c;color:#7ee2a8}.b-clarify{background:#3a2c0a;color:#f5c860}
+    .b-blocked,.b-failed{background:#3a1414;color:#f79a9a}
+  }
+  .meta{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+  pre{margin:0;background:var(--code-bg);color:var(--code-ink);padding:13px 15px;border-radius:8px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  td.num{text-align:right;font-family:var(--mono)}
+  .scroll{overflow-x:auto;max-height:420px;overflow-y:auto}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .tab{padding:8px 14px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;font-size:13px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+  .hidden{display:none}
+  .stage{display:flex;gap:8px;align-items:baseline;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .stage b{color:var(--ink);min-width:96px;display:inline-block}
+  .ev{display:grid;grid-template-columns:64px 1fr 96px;gap:6px;font-family:var(--mono);font-size:12px;
+      padding:3px 0;border-bottom:1px dotted var(--line)}
+  .ev .s{color:var(--accent);text-align:right}
+  .ev .src{color:var(--muted)}
+  .viol{padding:8px 11px;border-left:3px solid var(--danger);background:var(--accent-soft);
+        border-radius:0 6px 6px 0;margin-bottom:6px;font-size:13px}
+  .opt{display:inline-block;padding:6px 12px;margin:4px 6px 0 0;border:1px solid var(--accent);
+       color:var(--accent);border-radius:999px;cursor:pointer;font-size:12.5px}
+  .kpis{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .kpis b{color:var(--ink)}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:20px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>AEGIS<span>-SQL</span> 콘솔</h1>
+  <div class="sub">한국 보험 코어 레거시 스키마 · 거버넌스 내장형 Text-to-SQL · 단계별 근거를 함께 봅니다</div>
+</header>
+
+<main>
+  <div class="ask">
+    <input id="q" type="text" placeholder="예) 작년 하반기에 체결된 계약 중 월납보험료가 20만원 이상인 건수를 지점별로 알려줘" autofocus/>
+    <button id="run">실행</button>
+    <button id="explainBtn" class="ghost" title="근거·트레이스 포함">근거 ON</button>
+  </div>
+
+  <div class="examples" id="examples"></div>
+
+  <div id="live" class="panel hidden">
+    <div id="stages"></div>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>
+    <a href="/docs">OpenAPI</a> · <a href="/v1/schema">스키마</a> · <a href="/v1/prompts">프롬프트</a> ·
+    <a href="/metrics">메트릭</a> · <a href="/v1/health">헬스</a>
+  </footer>
+</main>
+
+<script>
+const EXAMPLES = [
+  ["작년 하반기에 체결된 계약 중 월납보험료가 20만원 이상인 건수를 지점별로 알려줘", ""],
+  ["실효된 계약의 채널별 비중은?", ""],
+  ["청구 유형별 지급액 합계 상위 3개", ""],
+  ["최근 1년 청구 건수가 직전 1년보다 늘어난 청구 유형은?", ""],
+  ["채널별 계약 유지율을 높은 순으로 보여줘", ""],
+  ["고객 이름이랑 주민등록번호 좀 뽑아줘", "gov"],
+  ["고객 이메일 주소 목록 뽑아줘", "gov"],
+  ["설계사 실적 좀 보여줘", "gov"],
+];
+let explain = true;
+
+const $ = (s) => document.querySelector(s);
+const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+
+function renderExamples(){
+  const box = $("#examples");
+  EXAMPLES.forEach(([q, kind]) => {
+    const c = el("span", "chip" + (kind ? " " + kind : ""), esc(q.length > 44 ? q.slice(0,42) + "…" : q));
+    c.title = q;
+    c.onclick = () => { $("#q").value = q; run(); };
+    box.appendChild(c);
+  });
+}
+
+function stageLine(name, payload){
+  const d = el("div", "stage");
+  d.appendChild(el("b", null, esc(name)));
+  d.appendChild(el("span", null, esc(JSON.stringify(payload)).slice(0, 220)));
+  return d;
+}
+
+async function run(){
+  const question = $("#q").value.trim();
+  if (!question) return;
+  $("#run").disabled = true;
+  $("#out").innerHTML = "";
+  $("#stages").innerHTML = "";
+  $("#live").classList.remove("hidden");
+
+  try {
+    const res = await fetch("/v1/query/stream", {
+      method: "POST", headers: {"content-type": "application/json"},
+      body: JSON.stringify({question, explain, max_rows: 100})
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      const chunks = buf.split("\n\n");
+      buf = chunks.pop();
+      for (const chunk of chunks) {
+        const ev = (chunk.match(/^event: (.*)$/m) || [])[1];
+        const dataLine = (chunk.match(/^data: (.*)$/m) || [])[1];
+        if (!ev || !dataLine) continue;
+        const data = JSON.parse(dataLine);
+        if (ev === "done") { $("#live").classList.add("hidden"); render(data); }
+        else if (ev === "error") { $("#live").classList.add("hidden"); $("#out").appendChild(el("div","panel", "<b>오류</b> " + esc(data.message))); }
+        else $("#stages").appendChild(stageLine(ev, data));
+      }
+    }
+  } catch (e) {
+    $("#live").classList.add("hidden");
+    $("#out").appendChild(el("div", "panel", "<b>요청 실패</b> " + esc(e)));
+  } finally { $("#run").disabled = false; }
+}
+
+function render(d){
+  const out = $("#out");
+  const head = el("div", "panel");
+  const badge = el("span", "badge b-" + d.status, d.status.toUpperCase());
+  const row = el("div", "row");
+  row.appendChild(badge);
+  if (d.route) row.appendChild(el("span", "badge b-tier", d.route.tier + " · conf " + d.route.confidence.toFixed(2)));
+  row.appendChild(el("span", "meta", `${d.latency_ms.toFixed(0)}ms · $${d.cost_usd.toFixed(6)} · ${d.trace_id}`));
+  head.appendChild(row);
+  if (d.answer) head.appendChild(el("div", null, "<div style='margin-top:10px;font-size:15px'>" + esc(d.answer) + "</div>"));
+  if (d.route && d.route.reason) head.appendChild(el("div", "meta", "라우팅: " + esc(d.route.reason)));
+  if (d.linked_tables?.length) head.appendChild(el("div","meta","링크된 테이블: " + esc(d.linked_tables.join(", "))
+      + (d.glossary_terms?.length ? "  ·  용어사전: " + esc(d.glossary_terms.join(", ")) : "")));
+  out.appendChild(head);
+
+  if (d.clarification) {
+    const p = el("div", "panel");
+    p.appendChild(el("div", null, "<b>되묻기</b>"));
+    p.appendChild(el("div", null, esc(d.clarification.question || "")));
+    (d.clarification.options || []).forEach(o => {
+      const b = el("span", "opt", esc(o));
+      b.onclick = () => { $("#q").value = $("#q").value + " (" + o + " 기준)"; run(); };
+      p.appendChild(b);
+    });
+    (d.clarification.reasons || []).forEach(r => p.appendChild(el("div","meta","· " + esc(r))));
+    out.appendChild(p);
+  }
+
+  if (d.violations?.length) {
+    const p = el("div", "panel");
+    p.appendChild(el("div", null, "<b>거버넌스</b>"));
+    d.violations.forEach(v => p.appendChild(el("div","viol",
+      `<b>${esc(v.code)}</b> <span class="meta">${esc(v.severity)}${v.subject ? " · " + esc(v.subject) : ""}</span><br/>${esc(v.message)}`)));
+    if (d.rewrites?.length) p.appendChild(el("div","meta","재작성: " + esc(d.rewrites.join(", "))));
+    out.appendChild(p);
+  }
+
+  const tabs = [];
+  if (d.result) tabs.push(["결과", resultTable(d.result)]);
+  if (d.sql) tabs.push(["SQL", sqlPane(d)]);
+  if (d.evidence?.length) tabs.push(["링킹 근거", evidencePane(d.evidence)]);
+  if (d.repairs?.length) tabs.push(["자가교정", repairPane(d.repairs)]);
+  if (d.trace) tabs.push(["트레이스", tracePane(d.trace)]);
+  if (!tabs.length) return;
+
+  const p = el("div", "panel");
+  const bar = el("div", "tabs");
+  const bodies = [];
+  tabs.forEach(([name, node], i) => {
+    const t = el("div", "tab" + (i === 0 ? " active" : ""), esc(name));
+    const body = el("div", i === 0 ? "" : "hidden");
+    body.appendChild(node);
+    t.onclick = () => {
+      bar.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      t.classList.add("active");
+      bodies.forEach((b, j) => b.classList.toggle("hidden", j !== i));
+    };
+    bar.appendChild(t); bodies.push(body);
+  });
+  p.appendChild(bar); bodies.forEach(b => p.appendChild(b));
+  out.appendChild(p);
+}
+
+function resultTable(r){
+  const wrap = el("div", "scroll");
+  const t = el("table");
+  const thead = el("thead"); const trh = el("tr");
+  r.columns.forEach(c => trh.appendChild(el("th", null, esc(c))));
+  thead.appendChild(trh); t.appendChild(thead);
+  const tb = el("tbody");
+  r.rows.forEach(row => {
+    const tr = el("tr");
+    row.forEach(v => {
+      const isNum = typeof v === "number";
+      tr.appendChild(el("td", isNum ? "num" : null,
+        v === null ? "<span class='meta'>∅</span>" : esc(isNum ? v.toLocaleString(undefined,{maximumFractionDigits:4}) : v)));
+    });
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb); wrap.appendChild(t);
+  const foot = el("div","meta", `${r.row_count}행 · ${r.elapsed_ms.toFixed(1)}ms${r.truncated ? " · 표시 상한 도달" : ""}`);
+  const box = el("div"); box.appendChild(wrap); box.appendChild(foot);
+  return box;
+}
+
+function sqlPane(d){
+  const box = el("div");
+  box.appendChild(el("div","meta","생성된 SQL"));
+  box.appendChild(el("pre", null, esc(d.sql)));
+  if (d.executed_sql && d.executed_sql !== d.sql) {
+    box.appendChild(el("div","meta","실제 실행된 SQL (거버넌스 재작성 적용)"));
+    box.appendChild(el("pre", null, esc(d.executed_sql)));
+  }
+  return box;
+}
+
+function evidencePane(ev){
+  const box = el("div");
+  ev.forEach(e => box.appendChild(el("div","ev",
+    `<span class="s">${e.score.toFixed(3)}</span><span>${esc(e.ref)}</span><span class="src">${esc(e.source)}</span>`)));
+  return box;
+}
+
+function repairPane(rs){
+  const box = el("div");
+  rs.forEach(r => box.appendChild(el("div","viol",
+    `<b>${r.fixed ? "✓" : "✗"} ${esc(r.strategy)}</b><br/><span class="meta">${esc(r.error)}</span><pre>${esc(r.after_sql)}</pre>`)));
+  return box;
+}
+
+function tracePane(span, depth){
+  depth = depth || 0;
+  const box = el("div");
+  const attrs = Object.entries(span.attributes || {})
+    .filter(([, v]) => typeof v !== "object")
+    .map(([k, v]) => `${k}=${v}`).join(" ");
+  box.appendChild(el("div","stage",
+    `<b style="padding-left:${depth * 14}px">${esc(span.name)}</b><span>${span.duration_ms.toFixed(1)}ms ${esc(attrs)}</span>`));
+  (span.children || []).forEach(c => box.appendChild(tracePane(c, depth + 1)));
+  return box;
+}
+
+$("#run").onclick = run;
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+$("#explainBtn").onclick = () => {
+  explain = !explain;
+  $("#explainBtn").textContent = explain ? "근거 ON" : "근거 OFF";
+};
+renderExamples();
+</script>
+</body>
+</html>

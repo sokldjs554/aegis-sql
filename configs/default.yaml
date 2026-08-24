@@ -1,0 +1,81 @@
+# AEGIS-SQL 기본 설정.  AEGIS_<SECTION>__<KEY> 환경변수로 덮어쓸 수 있다.
+#   예) AEGIS_ROUTER__ESCALATE_THRESHOLD=0.7  AEGIS_GENERATION__PROVIDER=anthropic
+env: dev
+log_level: INFO
+log_json: false
+
+database:
+  dialect: sqlite
+  path: data/demo/aegis_demo.sqlite
+  timeout_s: 8.0
+  max_rows: 500
+  profile_sample: 200
+
+retrieval:
+  embedder: auto            # auto | sentence-transformers | hashing
+  vector_store: auto        # auto | chroma | faiss | numpy
+  top_k_tables: 6
+  top_k_columns: 32
+  dense_weight: 0.5
+  glossary_weight: 0.35
+  value_match_weight: 0.25
+  fk_expand_hops: 1
+  few_shot_k: 6
+  min_tables: 2
+
+generation:
+  provider: auto            # auto | anthropic | openai | slm | template | mock
+  model: claude-sonnet-5
+  temperature: 0.0
+  max_tokens: 1024
+  n_samples: 1
+  ensemble_samples: 5
+  ensemble_temperature: 0.7
+  prompt_set: default
+
+router:
+  enabled: true
+  escalate_threshold: 0.55
+  ensemble_threshold: 0.35
+  budget_usd: 0.05
+  heuristic_threshold: 0.5
+
+verify:
+  max_repair_attempts: 3
+  self_consistency: true
+  force_limit: true
+  default_limit: 200
+  max_join_tables: 8
+  dry_run_first: true
+
+policy:
+  enabled: true
+  path: configs/policy/insurance.yaml
+  default_sensitivity: public
+  mask_strategy: partial
+
+flywheel:
+  n_programs: 4000
+  augment_per_example: 3
+  seed: 20260824
+  require_nonempty_result: true
+
+training:
+  d_model: 256
+  n_layers: 6
+  n_heads: 8
+  d_ff: 1024
+  max_seq_len: 512
+  vocab_size: 8000
+  batch_size: 16
+  epochs: 4
+  lr: 0.0003
+  lora_rank: 16
+  lora_alpha: 32
+  seed: 20260824
+  device: auto
+
+server:
+  host: 0.0.0.0
+  port: 8000
+  enable_docs: true
