@@ -66,12 +66,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[all]"
       - run: python scripts/build_demo_db.py --scale 0.25 --force
-      - name: Flywheel (synthetic training data from the schema alone)
-        run: python -m aegis_sql.cli flywheel --n-programs 400
-      - name: Train the cascade router (Keras) and export numpy weights
-        run: python scripts/train_router.py --out data/generated/router --epochs 20
+      - run: python scripts/build_benchmark.py
+
+      - name: Flywheel — training data from the schema alone
+        run: |
+          python -m aegis_sql.cli flywheel --n-programs 400 --augment-per-example 2
+          python - <<'EOF'
+          import json, pathlib
+          m = json.loads(pathlib.Path("data/generated/flywheel/manifest.json").read_text())
+          assert m["leakage"]["train_test_overlap"] == 0, m["leakage"]
+          assert m["counts"]["splits"]["train"] > 0, m["counts"]
+          print("flywheel ok:", m["counts"]["total"], "pairs, 0 skeleton leakage")
+          EOF
+
+      - name: Routing labels — observed, not synthetic
+        run: |
+          python -m aegis_sql.cli eval --limit 40 \
+            --routing-log data/generated/router/routing_train.jsonl \
+            --report reports/ci-routing.md
+
+      - name: Train the cascade router (Keras) → export numpy weights
+        run: |
+          python scripts/train_router.py --out data/generated/router \
+            --data data/generated/router/routing_train.jsonl --epochs 40
+
       - name: Train the in-house sLLM (PyTorch, CPU, tiny config)
-        run: python scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm --epochs 1 --smoke
+        run: |
+          python scripts/train_slm.py --data-dir data/generated/flywheel \
+            --out data/generated/slm --epochs 1 --limit 300 \
+            --d-model 96 --n-layers 2 --n-heads 4 --d-ff 256 \
+            --max-seq-len 192 --vocab-size 2000 --batch-size 16
       - name: ML-marked tests
         run: pytest -q -m "slow"
 
