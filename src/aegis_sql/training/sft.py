@@ -187,14 +187,20 @@ class SFTTrainer:
         cfg: TrainingConfig,
         device: str = "auto",
         log_every: int = 20,
+        select_by: str = "loss",
     ) -> None:
         require_torch()
+        if select_by not in {"loss", "token-acc"}:
+            raise ValueError(f"select_by must be 'loss' or 'token-acc', got {select_by!r}")
         self.cfg = cfg
         self.tokenizer = tokenizer
         self.device = resolve_device(device if device != "auto" else cfg.device)
         self.model = model.to(self.device)
         self.log_every = max(1, log_every)
         self.use_amp = self.device.type == "cuda"
+        #: Which dev metric picks the checkpoint.  See the note at the selection
+        #: site — the two criteria genuinely disagree on this corpus.
+        self.select_by = select_by
 
     # -- public ------------------------------------------------------------ #
 
@@ -288,7 +294,16 @@ class SFTTrainer:
                 history["dev_token_acc"].append(round(dev_acc, 5))
                 log.info("epoch", epoch=epoch + 1, train_loss=round(epoch_loss, 4),
                          dev_loss=round(dev_loss, 4), dev_token_acc=round(dev_acc, 4))
-                score = dev_loss
+                # On this corpus the two criteria disagree: dev loss bottoms out
+                # early while dev token accuracy keeps climbing, because the loss
+                # is dominated by a handful of hard tokens (literals, rare column
+                # names) that the model grows over-confident about, while the
+                # structural tokens it actually has to get right keep improving.
+                # `loss` is the conservative default — a criterion that saves
+                # while the loss rises will happily save an over-fitted model —
+                # but `token-acc` is closer to generation quality and is offered
+                # explicitly rather than left as a hidden assumption.
+                score = -dev_acc if self.select_by == "token-acc" else dev_loss
             else:
                 log.info("epoch", epoch=epoch + 1, train_loss=round(epoch_loss, 4))
                 score = epoch_loss
@@ -305,6 +320,7 @@ class SFTTrainer:
         if best_state is not None:
             self.model.load_state_dict(best_state)
         history["wall_s"] = round(time.perf_counter() - started, 2)
+        history["select_by"] = self.select_by
         history["best_score"] = round(best_dev, 5) if math.isfinite(best_dev) else None
         log.info("SFT done", steps=history["steps"], wall_s=history["wall_s"], best=history["best_score"])
         return history
