@@ -110,7 +110,9 @@ def build(
     _report(progress, "augmented", len(pairs), len(programs) * (1 + augment_per_example))
 
     with tracer.span("filter", n=len(pairs)):
-        executor = SQLExecutor(db_path, timeout_s=settings.database.timeout_s, max_rows=settings.database.max_rows)
+        executor = SQLExecutor(
+            db_path, timeout_s=settings.database.timeout_s, max_rows=settings.database.max_rows
+        )
         try:
             kept, stats = QualityFilter(executor, settings).filter(pairs)
         finally:
@@ -175,7 +177,7 @@ def _expand(
 ) -> list[Pair]:
     """One back-translated pair per program, plus its augmented siblings."""
     pairs: list[Pair] = []
-    for program, question in zip(programs, questions):
+    for program, question in zip(programs, questions, strict=True):
         base = {
             "schema": schema_name,
             "tables": list(program.tables),
@@ -222,7 +224,8 @@ def _write(
 
     for split, members in by_split.items():
         lines = [json.dumps(_record(p), ensure_ascii=False) for p in members]
-        (output_dir / f"{split}.jsonl").write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        body = "\n".join(lines) + ("\n" if lines else "")
+        (output_dir / f"{split}.jsonl").write_text(body, encoding="utf-8")
 
     return {
         "schema": {

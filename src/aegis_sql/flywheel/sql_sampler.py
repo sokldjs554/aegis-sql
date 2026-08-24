@@ -228,6 +228,9 @@ class SQLSampler:
         self._descending: set[tuple[str, str, str, str]] = {
             (fk.from_table, fk.from_column, fk.to_table, fk.to_column) for fk in schema.foreign_keys
         }
+        self._edges: dict[str, list[JoinEdge]] = {
+            t: self._neighbour_edges(t) for t in sorted(schema.tables)
+        }
         self.sources: list[str] = self._pick_sources()
         log.info(
             "sql sampler ready",
@@ -330,9 +333,14 @@ class SQLSampler:
                 continue
             elif col.name.upper().endswith("_NM") and prof.distinct_count > 1:
                 roles.labels.append(qualified)
-            elif prof.is_categorical and 1 < prof.distinct_count <= 40:
-                if prof.avg_length <= _MAX_CATEGORICAL_LENGTH and not col.is_primary_key:
-                    roles.categoricals.append(qualified)
+            elif (
+                prof.is_categorical
+                and 1 < prof.distinct_count <= 40
+                and prof.avg_length <= _MAX_CATEGORICAL_LENGTH
+                and not col.is_primary_key
+            ):
+                roles.categoricals.append(qualified)
+
         return roles
 
     def _pick_sources(self) -> list[str]:
@@ -454,6 +462,35 @@ class SQLSampler:
         return viable[rng.randrange(len(viable))] if viable else None
 
     # -- join helpers ------------------------------------------------------ #
+
+    def _neighbour_edges(self, table: str) -> list[JoinEdge]:
+        edges: list[JoinEdge] = []
+        for neighbour in sorted(self.join_graph.neighbours(table)):
+            if neighbour == self.code_table:
+                continue
+            hop = self.join_graph.shortest_path(table, neighbour)
+            if hop:
+                edges.append(hop[0])
+        return edges
+
+    def _parents(self, table: str) -> list[JoinEdge]:
+        """Many→one edges: the dimensions ``table`` can be grouped by."""
+        return [e for e in self._edges.get(table, []) if self._descends(e)]
+
+    def _children(self, table: str) -> list[JoinEdge]:
+        """One→many edges: the detail tables whose absence an anti-join tests."""
+        return [e for e in self._edges.get(table, []) if not self._descends(e)]
+
+    def _source_with(self, rng: random.Random, *requirements: Callable[[str], bool]) -> str | None:
+        """Draw a source table that satisfies every requirement.
+
+        Drawing blind and rejecting is fine for a template whose slots almost
+        always bind; for the anti-join shapes, only two tables in the schema
+        qualify, and blind draws lose the round-robin race often enough that the
+        template never reaches the corpus.
+        """
+        pool = [t for t in self.sources if all(req(t) for req in requirements)]
+        return pool[rng.randrange(len(pool))] if pool else None
 
     def _descends(self, edge: JoinEdge) -> bool:
         left_col, right_col = edge.on[0]
@@ -1102,17 +1139,15 @@ class SQLSampler:
 
     @_template("hard_anti_join_not_exists", "hard")
     def _t_anti_join_not_exists(self, rng: random.Random) -> SQLProgram | None:
-        parent = self._source(rng)
+        # An anti-join needs the one→many direction: rows of the parent with no
+        # matching child row.
+        parent = self._source_with(
+            rng, lambda t: bool(self._children(t)), lambda t: bool(self._roles[t].dates)
+        )
         if parent is None:
             return None
-        # An anti-join needs the one→many direction: rows of the parent with no
-        # matching child row.  ``descending_only=False`` allows that edge.
-        chain = self._chain(rng, parent, 1, descending_only=False)
-        if chain is None:
-            return None
-        edge = chain[0]
-        if self._descends(edge):
-            return None
+        children = self._children(parent)
+        edge = children[rng.randrange(len(children))]
         child = edge.right_table
         date_col = self._pick(rng, self._roles[parent].dates)
         if date_col is None:
@@ -1136,20 +1171,21 @@ class SQLSampler:
 
     @_template("hard_left_join_is_null", "hard")
     def _t_left_join_is_null(self, rng: random.Random) -> SQLProgram | None:
-        parent = self._source(rng)
+        parent = self._source_with(
+            rng, lambda t: bool(self._children(t)), lambda t: bool(self._parents(t))
+        )
         if parent is None:
             return None
-        child_chain = self._chain(rng, parent, 1, descending_only=False)
-        dim_chain = self._chain(rng, parent, 1)
-        if child_chain is None or dim_chain is None:
-            return None
-        child_edge, dim_edge = child_chain[0], dim_chain[0]
-        if self._descends(child_edge) or child_edge.right_table == dim_edge.right_table:
+        children, dims = self._children(parent), self._parents(parent)
+        child_edge = children[rng.randrange(len(children))]
+        dim_edge = dims[rng.randrange(len(dims))]
+        if child_edge.right_table == dim_edge.right_table:
             return None
         child, dim = child_edge.right_table, dim_edge.right_table
         axis = self._group_axis(rng, dim)
         child_info = self.schema.table(child)
-        child_key = self._roles[child].key or (child_info.primary_key[0] if child_info and child_info.primary_key else None)
+        fallback_key = child_info.primary_key[0] if child_info and child_info.primary_key else None
+        child_key = self._roles[child].key or fallback_key
         date_col = self._pick(rng, self._roles[child].dates)
         if axis is None or child_key is None or date_col is None:
             return None
@@ -1359,11 +1395,14 @@ class SQLSampler:
             # schema linker actually struggles with, so it is kept in the pool.
             reachable: list[tuple[str, str]] = [(parent, parent_key)]
             for other in sorted(self.schema.tables):
-                if other in {fact, parent} or other == self.code_table:
+                info = self.schema.table(other)
+                if info is None or other in {fact, parent} or other == self.code_table:
                     continue
-                for fk in (self.schema.table(other).foreign_keys if self.schema.table(other) else []):
-                    if fk.to_table == parent and fk.to_column == parent_key:
-                        reachable.append((other, fk.from_column))
+                reachable.extend(
+                    (other, fk.from_column)
+                    for fk in info.foreign_keys
+                    if fk.to_table == parent and fk.to_column == parent_key
+                )
             for table, select_col in reachable:
                 if table in blocked:
                     continue
@@ -1376,13 +1415,12 @@ class SQLSampler:
             return None
         fk_col, target, target_key, filter_col = options[rng.randrange(len(options))]
         picked = self._code_value(rng, target, filter_col)
-        if picked is not None:
-            value, label = picked
-        else:
-            value = self._categorical_value(rng, target, filter_col)
-            if value is None:
+        if picked is None:
+            raw = self._categorical_value(rng, target, filter_col)
+            if raw is None:
                 return None
-            label = value
+            picked = (raw, raw)
+        value, label = picked
         sql = (
             f"a.{fk_col} IN (SELECT {target_key} FROM {target} WHERE {filter_col} = {_lit(value)})"
         )
@@ -1446,10 +1484,7 @@ def _lit(value: str) -> str:
 
 def _month_end(year: int, month: int) -> str:
     year, month = (year + 1, month - 12) if month > 12 else (year, month)
-    if month == 12:
-        last = date(year, 12, 31)
-    else:
-        last = date(year, month + 1, 1) - timedelta(days=1)
+    last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
     return last.strftime("%Y%m%d")
 
 

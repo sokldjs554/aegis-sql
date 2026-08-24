@@ -130,4 +130,8 @@ def test_dpo_increases_reward_margin(tokenizer, settings):
     cfg = settings.training.model_copy(update={"batch_size": 2, "epochs": 4, "lr": 1e-3,
                                                "max_seq_len": 96, "grad_accum": 1})
     history = DPOTrainer(policy, reference, tokenizer, cfg, beta=0.1, device="cpu").train(examples)
-    assert history["reward_margin"][-1] > history["reward_margin"][0]
+    # The implicit reward margin is what actually has to move: the DPO loss can
+    # fall while the policy stays indifferent between the two completions.
+    assert history["margin_end"] > history["margin_start"], history
+    assert history["final_acc"] >= 0.5
+    assert history["margin"][-1] > history["margin"][0]

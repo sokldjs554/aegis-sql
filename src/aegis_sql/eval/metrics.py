@@ -238,6 +238,10 @@ class ItemScore:
     #: Governance probes: the end-to-end pipeline status, recorded even when the
     #: probe is scored at the guard layer.
     e2e_status: str = ""
+    #: The router's feature vector for this question, kept so that an evaluation
+    #: run can be turned into a *real* routing training set — the cheap tier's
+    #: success or failure is exactly the label the router needs.
+    features: dict[str, float] = field(default_factory=dict)
     pred_sql: str | None = None
     gold_sql: str | None = None
     tags: list[str] = field(default_factory=list)

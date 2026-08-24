@@ -67,21 +67,34 @@ try:  # The generation package owns these; the flywheel must not depend on load 
 except Exception:  # pragma: no cover - exercised only before generation/ lands
     _NATIVE_SKELETON = False
 
-    _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
-    _LITERAL_RE = re.compile(r"'(?:[^']|'')*'|\b\d+(?:\.\d+)?\b")
+    _TOKEN_RE = re.compile(
+        r"'(?:[^']|'')*'|\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_.]*|<=|>=|<>|!=|\|\||[(),;.*=<>+\-/%]"
+    )
     _KEYWORDS = frozenset(
-        ["select", "from", "where", "group", "by", "order", "having", "limit", "join", "left", "right", "inner", "outer", "on", "and", "or", "not", "in", "exists", "between", "like", "is", "null", "as", "union", "all", "distinct", "case", "when", "then", "else", "end", "with", "count", "sum", "avg", "min", "max", "cast", "real", "integer", "nullif", "substr", "round", "desc", "asc"]
+        [
+            "select", "from", "where", "group", "by", "order", "having", "limit", "join",
+            "left", "right", "inner", "outer", "on", "and", "or", "not", "in", "exists",
+            "between", "like", "is", "null", "as", "union", "all", "distinct", "case", "when",
+            "then", "else", "end", "with", "count", "sum", "avg", "min", "max", "cast", "real",
+            "integer", "nullif", "substr", "round", "desc", "asc",
+        ]
     )
 
     def normalize_sql(sql: str, dialect: str = "sqlite") -> str:
         return " ".join((sql or "").lower().split())
 
     def sql_skeleton(sql: str, dialect: str = "sqlite") -> str:
-        text = _LITERAL_RE.sub("?", " ".join((sql or "").split()))
-        return " ".join(
-            token if token.lower() in _KEYWORDS or token == "?" else "_"
-            for token in _IDENT_RE.sub(lambda m: m.group(0), text).split()
-        ).lower()
+        out: list[str] = []
+        for token in _TOKEN_RE.findall(sql or ""):
+            if token.lower() in _KEYWORDS:
+                out.append(token.lower())
+            elif token.startswith("'") or token[0].isdigit():
+                out.append("?")
+            elif token[0].isalpha() or token[0] == "_":
+                out.append("_")
+            else:
+                out.append(token)
+        return " ".join(out)
 
     def mask_question(text: str) -> str:
         return re.sub(r"\d[\d,]*", "<NUM>", (text or "").strip())

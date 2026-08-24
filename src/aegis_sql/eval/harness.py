@@ -65,6 +65,44 @@ class BenchItem:
     note: str = ""
 
 
+def write_routing_dataset(results: list["RunResult"], path: str | Path) -> dict[str, Any]:
+    """Turn an evaluation run into a routing training set.
+
+    The router has to predict "will the cheap tier get this one wrong?".  An
+    evaluation run answers exactly that question for every benchmark item, so
+    the labels here are observed rather than synthesised — which is the
+    difference between a router that models this schema and one that models a
+    heuristic's opinion of it.
+    """
+    out = Path(path)
+    if not out.is_absolute():
+        out = PROJECT_ROOT / out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rows = 0
+    positives = 0
+    with out.open("w", encoding="utf-8") as fh:
+        for result in results:
+            for score in result.scores:
+                if score.expect != "ok" or not score.features:
+                    continue
+                label = 0 if score.correct else 1
+                positives += label
+                fh.write(
+                    json.dumps(
+                        {
+                            "id": score.id, "features": score.features, "label": label,
+                            "tier": score.tier, "difficulty": score.difficulty,
+                            "variant": result.variant,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                rows += 1
+    log.info("routing dataset written", path=str(out), rows=rows, positives=positives)
+    return {"path": str(out), "rows": rows, "positives": positives}
+
+
 def load_benchmark(path: str | Path) -> list[BenchItem]:
     p = Path(path)
     if not p.is_absolute():
@@ -76,6 +114,18 @@ def load_benchmark(path: str | Path) -> list[BenchItem]:
         if not line.strip():
             continue
         raw = json.loads(line)
+        # A flywheel split is a benchmark too: it carries a question and the SQL
+        # that produced it.  Accepting it here means the same harness can score
+        # the engine on 10k generated pairs — which is how the cascade router
+        # gets a training set with observed labels instead of synthetic ones.
+        if "gold_sql" not in raw and "sql" in raw:
+            raw = {
+                **raw,
+                "gold_sql": raw["sql"],
+                "id": raw.get("id") or f"fw-{len(items):06d}",
+                "difficulty": raw.get("difficulty", "medium"),
+                "tags": raw.get("tags") or ([raw["template_id"]] if raw.get("template_id") else []),
+            }
         items.append(
             BenchItem(
                 id=raw["id"], question=raw["question"], gold_sql=raw.get("gold_sql"),
@@ -281,6 +331,11 @@ class EvalHarness:
         score.repair_strategies = [s.strategy for s in bundle.repairs]
         score.escalated = bool(bundle.route and bundle.route.escalated_from)
         score.pred_sql = bundle.sql
+        if bundle.route is not None and bundle.route.features is not None:
+            score.features = {
+                name: float(getattr(bundle.route.features, name))
+                for name in type(bundle.route.features).ORDER
+            }
 
         if item.expect == "blocked":
             self._score_governance(engine, item, bundle, score)
