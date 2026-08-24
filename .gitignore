@@ -15,6 +15,9 @@ build/
 # Generated artefacts — reproducible via `make setup` / `make flywheel` / `make train`
 data/demo/*.sqlite
 data/generated/
+
+# 사전 학습된 라우터(서빙용 numpy 가중치, 17KB)는 저장소에 포함한다.
+!models/router/
 reports/*.json
 reports/*.md
 !reports/.gitkeep

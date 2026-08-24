@@ -1,0 +1,40 @@
+{
+  "activations": [
+    "relu",
+    "relu",
+    "sigmoid"
+  ],
+  "feature_order": [
+    "n_tokens",
+    "n_value_candidates",
+    "n_linked_tables",
+    "n_linked_columns",
+    "max_join_depth",
+    "has_aggregate_cue",
+    "has_ranking_cue",
+    "has_temporal_cue",
+    "has_comparison_cue",
+    "has_nested_cue",
+    "has_ratio_cue",
+    "has_set_op_cue",
+    "glossary_hits",
+    "link_score_mean",
+    "link_score_gap",
+    "ambiguity_score",
+    "schema_coverage"
+  ],
+  "format_version": 1,
+  "input_dim": 17,
+  "metrics": {
+    "acc": 0.9260326609029779,
+    "auc": 0.9812370727863685,
+    "epochs_ran": 60.0,
+    "n": 1041.0,
+    "pos_rate": 0.7502401471138,
+    "val_acc": 0.9086538461538461,
+    "val_auc": 0.9695926563396443,
+    "val_loss": 0.21758320927619934
+  },
+  "norm_epsilon": 1e-07,
+  "threshold": 0.5
+}
