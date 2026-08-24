@@ -89,7 +89,7 @@ with a valid query and can do nothing at all with an exception.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -250,6 +250,15 @@ _COUNT_TAIL_RE = re.compile(r"(?:계약|고객|건|개|명|사람|티켓|청구|
 _COUNT_CUE_RE = re.compile(r"건수|개수|몇\s*건|몇\s*개|몇\s*명|인원|카운트")
 #: ``… 가장 큰 청구 10건`` — a trailing row count the NLU's ``top_k`` rules miss
 #: because they require an explicit 상위/top marker.
+#: Ranking words that actually *cut* the result set, as opposed to merely
+#: ordering it ("많은 순으로" sorts; "상위 5개" sorts and truncates).
+_CUT_CUE_RE = re.compile(r"상위|하위|최다|베스트|랭킹|순위|top\s*\d", re.I)
+#: Aggregate named outright in the question; overrides a ranking intent.
+_EXPLICIT_AGG: dict[str, str] = {
+    "합계": "SUM", "총합": "SUM", "합산": "SUM", "총액": "SUM", "총계": "SUM",
+    "평균": "AVG", "최대": "MAX", "최소": "MIN", "최고": "MAX", "최저": "MIN",
+}
+_EXPLICIT_AGG_RE = re.compile(r"(합계|총합|합산|총액|총계|평균|최대|최소|최고|최저)")
 _ROW_COUNT_RE = re.compile(r"(\d{1,4})\s*(?:건|개|명|위|가지)(?:\s*만)?\s*[.?!]?\s*$")
 _DISTINCT_CUE_RE = re.compile(r"고유|중복\s*제거|서로\s*다른|distinct|유니크", re.I)
 #: ``100건 이상`` after a group-by — a HAVING condition, not a row filter.
@@ -358,12 +367,20 @@ class TemplateGenerator:
         join_graph: JoinGraph,
         glossary: Glossary | Sequence[GlossaryEntry] | None,
         settings: Settings,
+        excluded_columns: Iterable[str] | None = None,
     ) -> None:
         self.schema = schema
         self.profile = profile
         self.join_graph = join_graph
         self.glossary_entries: list[GlossaryEntry] = _as_entries(glossary)
         self.settings = settings
+        #: Qualified columns the governance policy will refuse or mask.  Emitting
+        #: them costs a round trip and turns a legitimate question into a policy
+        #: block, so the generator declines to project them in the first place —
+        #: the guard remains the enforcement point, this is just not being silly.
+        self.excluded_columns: frozenset[str] = frozenset(
+            c.upper() for c in (excluded_columns or ())
+        )
         self._max_degree = max((join_graph.degree(t) for t in schema.tables), default=1) or 1
         self._vocabulary = self._build_vocabulary()
 
@@ -782,7 +799,8 @@ class TemplateGenerator:
         text = (nq.normalized or nq.raw).replace(" ", "")
         if near is None:
             return text
-        surfaces = [s for s, value in (nq.entities.get("amount") or []) if value == near]
+        amounts = (nq.entities or {}).get("amount") or []
+        surfaces = [s for s, value in amounts if value == near]
         for surface in surfaces:
             position = (nq.normalized or nq.raw).replace(" ", "").find(surface.replace(" ", ""))
             if position > 0:
@@ -927,6 +945,11 @@ class TemplateGenerator:
         ranking = intent in {"rank", "max", "min"} or bool(_RANK_CUE_RE.search(text))
         if ranking and not dimensions and measure is not None and _top_k(entities, text) is not None:
             return "TOPN"
+        # "청구 유형별 지급액 **합계** 상위 3개" is intent=rank, but 상위 only
+        # orders and cuts — the *shape* is the aggregate the sentence names.
+        explicit = _EXPLICIT_AGG_RE.search(text)
+        if explicit is not None and measure is not None:
+            return _EXPLICIT_AGG[explicit.group(1)]
         if intent in {"sum", "avg", "max", "min"}:
             return intent.upper()
         if intent == "count" or _COUNT_CUE_RE.search(text) or _COUNT_TAIL_RE.search(text.strip()):
@@ -1228,10 +1251,21 @@ class TemplateGenerator:
         for column in columns:
             if len(chosen) >= 6:
                 break
-            if column.table == from_table and column.qualified not in picked:
-                picked.add(column.qualified)
-                chosen.append(column)
+            if column.table != from_table or column.qualified in picked:
+                continue
+            if column.qualified.upper() in self.excluded_columns:
+                continue
+            picked.add(column.qualified)
+            chosen.append(column)
         if not chosen:
+            # ``SELECT *`` expands to every column, forbidden ones included, so it
+            # is never a safe fallback here.
+            safe = [
+                c for c in (table.columns if table else [])
+                if c.qualified.upper() not in self.excluded_columns
+            ][:6]
+            if safe:
+                return [Projection(f"{alias}.{c.name}", c.label) for c in safe]
             return [Projection("*")]
         return [Projection(f"{alias}.{c.name}", c.label) for c in chosen]
 
@@ -1259,7 +1293,9 @@ class TemplateGenerator:
 
         if top_k is not None:
             ir.limit = int(top_k)
-        elif ranking and (ir.group_by or aggregate == "TOPN"):
+        elif _CUT_CUE_RE.search(text) and (ir.group_by or aggregate == "TOPN"):
+            # "…많은 **순으로**" asks for an ordering, not a top-N cut; only an
+            # explicit 상위/하위/top marker justifies dropping rows the user asked for.
             ir.limit = DEFAULT_TOP_K
         elif aggregate == "NONE":
             ir.limit = int(self.settings.verify.default_limit)

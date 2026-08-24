@@ -65,7 +65,28 @@ _AMBIGUOUS_METRICS: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 #: When one of these appears the measure is already pinned, so ``"많은"`` is not vague.
-_EXPLICIT_MEASURE = re.compile(r"보험료|금액|건수|개수|수납액|청구액|지급액|점수|일수|횟수")
+_EXPLICIT_MEASURE = re.compile(
+    r"보험료|금액|건수|개수|수납액|청구액|지급액|점수|일수|횟수|비중|비율|"
+    r"(?:고객|계약|사람|설계사|상품|담보|지점|가입자|청구|민원|티켓)\s*수(?![준치익납])"
+)
+
+#: Bare "실적" is ambiguous; "**모집** 실적" is a defined industry term with one
+#: conventional reading (신계약 건수).  A qualifier resolves the ambiguity, which
+#: is exactly what the business glossary is for.
+_QUALIFIED_METRIC = re.compile(r"(?:모집|판매|영업|수금|신계약)\s*(?:실적|성과)")
+
+#: "**계약이** 가장 많은 설계사" — the countable noun *governing* the superlative
+#: is itself the measure, even though the word "건수" never appears.  This one
+#: overlaps the ambiguous term by construction, so it suppresses the rule
+#: outright rather than going through the positional check.
+_GOVERNED_MEASURE = re.compile(
+    r"(?:계약|청구|민원|고객|건|담보|수납|보험료|금액)(?:이|가|을|를)?\s*"
+    r"(?:가장|제일)\s*(?:많|적|큰|작|높|낮)"
+)
+
+#: Grouping *by time* answers a "추이" question on its own — the buckets are the
+#: period.  Only a bare "추이" with nothing to bucket by is genuinely underspecified.
+_TEMPORAL_GROUPING = re.compile(r"(연도|년도|해|월|분기|주|일|기간)\s*별|연간|월간|분기별")
 
 _P_DEIXIS = re.compile(r"(그|저|해당|이|동)\s*(고객|계약|상품|건|지점|설계사|담보|청구|티켓|민원)")
 #: Anything that could pin the referent down: an ID-shaped literal or a quoted value.
@@ -186,6 +207,8 @@ class AmbiguityDetector:
             return []
         if nq.entities.get("date_range") or nq.entities.get("date_point"):
             return []
+        if _TEMPORAL_GROUPING.search(nq.normalized):
+            return []
         return [
             _Finding(
                 "기간",
@@ -198,9 +221,20 @@ class AmbiguityDetector:
         text = nq.normalized
         out: list[_Finding] = []
         for term, (why, _options) in _AMBIGUOUS_METRICS.items():
-            if term not in text or term in self.glossary_terms:
+            start = text.find(term)
+            if start < 0 or term in self.glossary_terms:
                 continue
-            if term == "많은" and _EXPLICIT_MEASURE.search(text):
+            # A question that names its measure elsewhere ("지역별 **고객 수**를
+            # **많은** 순으로") is not ambiguous — the superlative only chooses a
+            # direction.  The match must not be the ambiguous term itself, though:
+            # in "고객수 알려줘" the measure *is* the underspecified part.
+            if _GOVERNED_MEASURE.search(text) or _QUALIFIED_METRIC.search(text):
+                continue
+            span = (start, start + len(term))
+            if any(
+                m.end() <= span[0] or m.start() >= span[1]
+                for m in _EXPLICIT_MEASURE.finditer(text)
+            ):
                 continue
             out.append(
                 _Finding(
@@ -255,10 +289,21 @@ class AmbiguityDetector:
             return []
         if cues.get("aggregate") and _EXPLICIT_MEASURE.search(nq.normalized):
             return []
+        # "상위 지점 알려줘" names neither a measure nor a count — nothing at all
+        # pins the ranking down, which is a stronger signal than a partially
+        # specified one ("상위 상품을 계약 건수로").
+        measured = (
+            _EXPLICIT_MEASURE.search(nq.normalized)
+            or _GOVERNED_MEASURE.search(nq.normalized)
+            or _QUALIFIED_METRIC.search(nq.normalized)
+        )
+        if measured and (cues.get("aggregate") or _GOVERNED_MEASURE.search(nq.normalized)):
+            return []
+        bare = not cues.get("aggregate") and not measured
         return [
             _Finding(
                 "랭킹",
-                _W_RANKING,
+                _W_RANKING * 2 if bare else _W_RANKING,
                 "[랭킹] 상위/하위를 물었지만 조회 건수와 정렬 기준이 명시되지 않았습니다.",
             )
         ]

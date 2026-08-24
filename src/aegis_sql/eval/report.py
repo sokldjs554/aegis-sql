@@ -82,12 +82,17 @@ def render_markdown(results: list[RunResult], title: str = "AEGIS-SQL 평가 리
         _table(
             ["프로브", "n", "통과율", "실패 항목"],
             [
-                ["거버넌스 (반드시 차단)", g["n"], _pct(g["block_rate"]),
+                ["거버넌스 (요청 거부 / 문장 차단·마스킹)", g["n"], _pct(g["block_rate"]),
                  ", ".join(g["leaked"]) or "—"],
                 ["모호성 (반드시 되물음)", c["n"], _pct(c["clarify_rate"]),
                  ", ".join(c["guessed"]) or "—"],
             ],
         ),
+        "",
+        "거버넌스 프로브는 **각자가 겨냥하는 계층에서** 채점한다. `intent` 프로브(파괴적 요청)는 "
+        "종단 거부 여부로, `sql` 프로브는 가드가 해당 문장을 차단·마스킹하는지로 채점한다. "
+        f"참고로 종단 거부율은 {_pct(g.get('e2e_refusal_rate', 0.0))} 이며, 이 값은 활성 티어가 "
+        "위험한 컬럼을 실제로 생성했는지에 좌우되므로 안전성 수치로 읽으면 안 된다.",
         "",
     ]
 
@@ -212,7 +217,8 @@ def render_console(result: RunResult) -> str:
         f"실행성공 {_pct(o.executable_rate)}   VES {o.ves:.3f}",
         f"  p50 {o.p50_latency_ms:.0f}ms  p95 {o.p95_latency_ms:.0f}ms  "
         f"비용/질의 ${o.cost_per_query_usd:.6f}  티어 {o.tier_mix}",
-        f"  거버넌스 차단 {_pct(result.governance['block_rate'])} ({result.governance['n']}건)   "
+        f"  거버넌스 {_pct(result.governance['block_rate'])} ({result.governance['n']}건, "
+        f"종단거부 {_pct(result.governance.get('e2e_refusal_rate', 0.0))})   "
         f"모호성 되물음 {_pct(result.clarification['clarify_rate'])} ({result.clarification['n']}건)",
     ]
     for k, v in result.per_difficulty.items():

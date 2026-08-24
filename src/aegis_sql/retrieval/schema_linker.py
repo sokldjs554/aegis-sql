@@ -76,6 +76,12 @@ MAX_INDEXED_VALUE_CHARS = 32
 MAX_INDEXED_VALUE_WORDS = 3.0
 #: A contributing signal must carry at least this much of the total to be cited.
 SOURCE_EPSILON = 0.05
+
+#: Weight of the ``~별`` dimension signal.  Set above the glossary weight on
+#: purpose: when a question names its grouping dimension, that is the most
+#: reliable statement it makes about the schema.
+DIMENSION_WEIGHT = 0.45
+
 MAX_EVIDENCE = 20
 
 _WORD_RE = re.compile(r"[a-z0-9_]+|[가-힣]+")
@@ -90,6 +96,7 @@ class LinkCandidate:
     lexical: float = 0.0
     glossary: float = 0.0
     value: float = 0.0
+    dimension: float = 0.0
     total: float = 0.0
     sources: list[str] = field(default_factory=list)
 
@@ -294,6 +301,7 @@ class SchemaLinker:
         matches = self.glossary.match(tokens, text)
         gloss_boost = self._glossary_boosts(matches)
         value_boost = self._value_boosts(nq, tokens, matches, index)
+        dim_boost = self._dimension_boosts(nq, text)
 
         dw = float(cfg.dense_weight)
         candidates: dict[str, LinkCandidate] = {}
@@ -304,12 +312,14 @@ class SchemaLinker:
                 lexical=float(lexical[i]),
                 glossary=float(gloss_boost.get(ref, 0.0)),
                 value=float(value_boost.get(ref, 0.0)),
+                dimension=float(dim_boost.get(ref, 0.0)),
             )
             weighted = {
                 "dense": dw * cand.dense,
                 "lexical": (1.0 - dw) * cand.lexical,
                 "glossary": float(cfg.glossary_weight) * cand.glossary,
                 "value": float(cfg.value_match_weight) * cand.value,
+                "dimension": DIMENSION_WEIGHT * cand.dimension,
             }
             cand.total = round(sum(weighted.values()), 6)
             cand.sources = [k for k, v in weighted.items() if v > SOURCE_EPSILON]
@@ -421,6 +431,47 @@ class SchemaLinker:
         return boosts
 
     # -- selection ---------------------------------------------------------- #
+
+    # -- dimension linking -------------------------------------------------- #
+
+    def _dimension_boosts(self, nq: NormalizedQuestion, text: str) -> dict[str, float]:
+        """Boost the column a ``~별`` phrase is asking to group by.
+
+        ``"고객 등급별 평균 총가입금액"`` fails on similarity alone: the stem
+        ``등급`` matches ``TB_CUST.VIP_GRD_CD`` (고객등급코드) and
+        ``TB_AGNT.GRD_CD`` (설계사등급코드) equally well, and a hashing embedder
+        on a 101-column schema will happily rank an unrelated column above both.
+
+        The disambiguator is already in the sentence: the noun *modifying* the
+        dimension (``고객`` 등급별) names the entity, so we score a column by
+        (stem in its label) × (modifier in its table's label or its own).  This
+        is the single highest-yield signal for grouped questions, which is most
+        of what analysts actually ask.
+        """
+        hints = nq.entities.get("group_by_hint") or []
+        if not hints:
+            return {}
+        boosts: dict[str, float] = {}
+        for stem in hints:
+            if not stem or len(stem) < 2:
+                continue
+            modifier = _modifier_before(text, stem)
+            for col in self.schema.all_columns:
+                label = col.comment or col.name
+                if stem not in label:
+                    continue
+                score = 0.6
+                table = self.schema.table(col.table)
+                table_label = (table.comment or table.name) if table else ""
+                if modifier and (modifier in table_label or modifier in label):
+                    score = 1.0
+                elif modifier:
+                    # Another entity owns this dimension — actively demote it.
+                    score = 0.2
+                boosts[col.qualified] = max(boosts.get(col.qualified, 0.0), score)
+                if table is not None:
+                    boosts[table.name] = max(boosts.get(table.name, 0.0), score * 0.8)
+        return boosts
 
     def _select_tables(
         self,
@@ -656,3 +707,15 @@ def _dominant(cand: LinkCandidate, settings: Settings) -> str:
         "value": float(cfg.value_match_weight) * cand.value,
     }
     return max(weighted, key=lambda k: weighted[k])
+
+
+def _modifier_before(text: str, stem: str) -> str:
+    """The noun immediately preceding a ``~별`` phrase — ``고객`` in ``고객 등급별``."""
+    idx = text.find(stem + "별")
+    if idx <= 0:
+        return ""
+    head = text[:idx].rstrip()
+    if not head:
+        return ""
+    word = re.split(r"[\s,·/]+", head)[-1]
+    return word[-6:] if len(word) > 6 else word
