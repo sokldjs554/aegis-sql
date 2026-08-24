@@ -371,14 +371,17 @@ aegis-sql/
 ## 개발
 
 ```bash
-make install-all     # PyTorch / TensorFlow / VectorDB 포함
-make check           # ruff + pytest
-make test            # 전체 테스트 (slow 포함)
-make flywheel        # 스키마 → 학습 데이터
-make train-router    # TensorFlow 라우터 학습 → numpy export
-make train-slm       # 자체 sLLM 학습 (SFT + LoRA + DPO)
-make eval            # 벤치마크 + 어블레이션 리포트
-make docker-up       # 컨테이너 기동
+make install-all      # PyTorch / TensorFlow / VectorDB 포함
+make check            # ruff + pytest
+make test             # 전체 테스트 (학습 포함)
+make flywheel         # 스키마 → 학습 데이터 12,540쌍
+make routing-data     # 평가를 돌려 라우터 라벨(관측값) 수집
+make train-router     # TensorFlow 학습 → numpy 가중치 export
+make train-slm        # 자체 sLLM 학습 (BPE → SFT → LoRA → DPO, CPU 25분)
+make train-slm-quick  # 학습 파이프라인 스모크 (CPU 2분)
+make eval             # 벤치마크 평가 리포트
+aegis eval --ablation # 어블레이션 매트릭스
+make docker-up        # 컨테이너 기동
 ```
 
 LLM 티어를 켜려면 `.env.example` 을 참고해 `ANTHROPIC_API_KEY` 또는 `OPENAI_API_KEY` 를 설정하세요.
