@@ -52,6 +52,27 @@ def test_amount_parsing(normalizer, text, expected):
     assert expected in values, f"{text} → {values}"
 
 
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # An explicit range must stay one range.  Matching the two dates
+        # independently yields BETWEEN start AND start, which runs, returns
+        # almost nothing, and looks like a real answer.
+        ("2025년 7월 1일부터 12월 31일까지 체결된 계약", ("20250701", "20251231")),
+        ("2025년 7월부터 12월까지 신계약", ("20250701", "20251231")),
+        ("2024년 3월 1일부터 2025년 2월 28일까지", ("20240301", "20250228")),
+        ("2025-03-01부터 2025-03-31까지", ("20250301", "20250331")),
+        ("2025.01.01 ~ 2025.06.30 계약", ("20250101", "20250630")),
+        ("20250101부터 20250630까지", ("20250101", "20250630")),
+    ],
+)
+def test_explicit_date_ranges_stay_ranges(normalizer, text, expected):
+    nq = normalizer.normalize(text)
+    ranges = [r for _, r in nq.entities.get("date_range", [])]
+    assert expected in ranges, f"{text} → {ranges}"
+    assert len(ranges) == 1, f"the range was split into {ranges}"
+
+
 def test_particles_are_stripped_but_raw_kept(normalizer):
     nq = normalizer.normalize("계약자의 보험료가 얼마인가요")
     assert "계약자" in nq.tokens
