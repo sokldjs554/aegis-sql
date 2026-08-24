@@ -294,7 +294,8 @@ def schema(
     style: str = typer.Option("mschema", "--style", help="mschema|ddl|compact|slm"),
 ) -> None:
     """스키마 카드를 출력한다 (프롬프트에 실제로 들어가는 형태)."""
-    from aegis_sql.schema.card import SchemaCardBuilder, Style as CardStyle, token_estimate
+    from aegis_sql.schema.card import SchemaCardBuilder, token_estimate
+    from aegis_sql.schema.card import Style as CardStyle
     from aegis_sql.schema.introspect import introspect
     from aegis_sql.schema.profile import Profiler
     from aegis_sql.types import LinkedSchema

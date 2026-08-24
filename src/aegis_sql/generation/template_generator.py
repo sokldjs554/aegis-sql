@@ -89,8 +89,9 @@ with a valid query and can do nothing at all with an exception.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any
 
 import sqlglot
 from sqlglot import exp
@@ -355,7 +356,7 @@ class TemplateGenerator:
         schema: SchemaGraph,
         profile: SchemaProfile | None,
         join_graph: JoinGraph,
-        glossary: "Glossary | Sequence[GlossaryEntry] | None",
+        glossary: Glossary | Sequence[GlossaryEntry] | None,
         settings: Settings,
     ) -> None:
         self.schema = schema
@@ -436,6 +437,12 @@ class TemplateGenerator:
         dimensions = self._dimensions(nq, entities, from_table, columns)
         measure = self._measure_column(nq, from_table, columns)
         aggregate = self._aggregate(nq, entities, text, dimensions, measure)
+
+        # A measure the chosen aggregate never reads is *not* a reason to join its
+        # table — that is how a COUNT silently acquires a fan-out.  Dropping it here
+        # also lets the fan-out-to-EXISTS rewrite see the table as filter-only.
+        if aggregate not in {"SUM", "AVG", "MAX", "MIN", "TOPN"}:
+            measure = None
 
         # Everything that must be reachable from the FROM grain.
         required: list[str] = [from_table]
@@ -904,7 +911,7 @@ class TemplateGenerator:
         nq: NormalizedQuestion,
         entities: dict[str, Any],
         text: str,
-        dimensions: Sequence["_Dimension"],
+        dimensions: Sequence[_Dimension],
         measure: ColumnInfo | None,
     ) -> str:
         """Pick the projection shape: ``RATIO | SUM | AVG | MAX | MIN | COUNT | TOPN | NONE``.
@@ -937,7 +944,7 @@ class TemplateGenerator:
         entities: dict[str, Any],
         from_table: str,
         columns: Sequence[ColumnInfo],
-    ) -> list["_Dimension"]:
+    ) -> list[_Dimension]:
         out: list[_Dimension] = []
         for hint in entities.get("group_by_hint") or []:
             dimension = self._resolve_dimension(hint, nq, from_table, columns)
@@ -951,7 +958,7 @@ class TemplateGenerator:
         nq: NormalizedQuestion,
         from_table: str,
         columns: Sequence[ColumnInfo],
-    ) -> "_Dimension | None":
+    ) -> _Dimension | None:
         if hint in _DATE_DIMENSION:
             width, label = _DATE_DIMENSION[hint]
             column = self._date_column(nq, from_table)
@@ -998,7 +1005,7 @@ class TemplateGenerator:
         scored.sort(key=lambda item: (-item[0], item[1], item[2].name))
         return self._column_dimension(scored[0][2], hint)
 
-    def _column_dimension(self, column: ColumnInfo, hint: str) -> "_Dimension":
+    def _column_dimension(self, column: ColumnInfo, hint: str) -> _Dimension:
         label = column.label if column.label != column.name else hint
         if column.code_group and label.endswith("코드") and len(label) > 2:
             # The output column holds the *label*, so ``모집채널코드`` would be a lie.
@@ -1040,9 +1047,9 @@ class TemplateGenerator:
         from_table: str,
         required: Sequence[str],
         predicates: Sequence[Predicate],
-        dimensions: Sequence["_Dimension"],
+        dimensions: Sequence[_Dimension],
         measure: ColumnInfo | None,
-    ) -> "_JoinPlan":
+    ) -> _JoinPlan:
         plan = _JoinPlan(from_table)
         edges = self._steiner_edges(from_table, required)
 
@@ -1122,7 +1129,7 @@ class TemplateGenerator:
         return not keys or not all(rc.upper() in keys for _lc, rc in edge.on)
 
     def _exists_fragment(
-        self, edge: JoinEdge, plan: "_JoinPlan", predicates: Sequence[Predicate]
+        self, edge: JoinEdge, plan: _JoinPlan, predicates: Sequence[Predicate]
     ) -> str:
         alias = f"x{plan.next_exists()}"
         conditions = [
@@ -1137,8 +1144,8 @@ class TemplateGenerator:
         self,
         aggregate: str,
         measure: ColumnInfo | None,
-        dimensions: Sequence["_Dimension"],
-        plan: "_JoinPlan",
+        dimensions: Sequence[_Dimension],
+        plan: _JoinPlan,
         from_table: str,
         columns: Sequence[ColumnInfo],
         ratio_numerator: Predicate | None,
@@ -1203,7 +1210,7 @@ class TemplateGenerator:
         self,
         from_table: str,
         columns: Sequence[ColumnInfo],
-        plan: "_JoinPlan",
+        plan: _JoinPlan,
         must_include: ColumnInfo | None = None,
     ) -> list[Projection]:
         """No aggregate was requested: show the key plus the best-linked columns."""
@@ -1235,7 +1242,7 @@ class TemplateGenerator:
         entities: dict[str, Any],
         text: str,
         ir: QueryIR,
-        dimensions: Sequence["_Dimension"],
+        dimensions: Sequence[_Dimension],
         order_expression: str | None,
         aggregate: str,
     ) -> None:
@@ -1258,7 +1265,7 @@ class TemplateGenerator:
 
     # -- HAVING ------------------------------------------------------------- #
 
-    def _having_conditions(self, text: str, entities: dict[str, Any]) -> "_Having":
+    def _having_conditions(self, text: str, entities: dict[str, Any]) -> _Having:
         """``…이 100건 이상인 지점`` filters groups, not rows."""
         if not entities.get("group_by_hint"):
             return _Having([], frozenset())
