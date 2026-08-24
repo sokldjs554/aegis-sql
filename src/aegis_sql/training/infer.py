@@ -130,7 +130,8 @@ class SLMGenerator:
 
         from aegis_sql.training.sft import build_prompt
 
-        model, tok = self._model, self._tokenizer
+        model: Any = self._model
+        tok: Any = self._tokenizer
         gen_cfg = getattr(self.settings, "generation", None)
 
         n_samples = max(1, ctx.n_samples)

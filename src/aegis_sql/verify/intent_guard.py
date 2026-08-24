@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from aegis_sql.observability.logging import get_logger
 from aegis_sql.types import NormalizedQuestion, SchemaGraph, Violation

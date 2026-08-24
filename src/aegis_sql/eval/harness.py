@@ -65,7 +65,7 @@ class BenchItem:
     note: str = ""
 
 
-def write_routing_dataset(results: list["RunResult"], path: str | Path) -> dict[str, Any]:
+def write_routing_dataset(results: list[RunResult], path: str | Path) -> dict[str, Any]:
     """Turn an evaluation run into a routing training set.
 
     The router has to predict "will the cheap tier get this one wrong?".  An
