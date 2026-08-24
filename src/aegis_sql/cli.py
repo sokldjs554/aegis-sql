@@ -214,11 +214,19 @@ def eval_cmd(
     ablation: bool = typer.Option(False, "--ablation", help="어블레이션 매트릭스 실행"),
     tier: str | None = typer.Option(None, "--tier"),
     report: str | None = typer.Option(None, "--report", help="마크다운 리포트 경로"),
+    routing_log: str | None = typer.Option(
+        None, "--routing-log", help="라우터 학습용 (features, label) jsonl 출력 경로"
+    ),
     show_failures: bool = typer.Option(True, "--failures/--no-failures"),
     log_level: str = typer.Option("WARNING", "--log-level"),
 ) -> None:
     """벤치마크를 돌리고 리포트를 만든다."""
-    from aegis_sql.eval.harness import DEFAULT_ABLATIONS, EvalHarness, Variant
+    from aegis_sql.eval.harness import (
+        DEFAULT_ABLATIONS,
+        EvalHarness,
+        Variant,
+        write_routing_dataset,
+    )
     from aegis_sql.eval.report import failure_details, render_console, write_report
 
     st = _settings(log_level)
@@ -253,6 +261,11 @@ def eval_cmd(
         if detail:
             console.rule("[bold]실패 사례")
             console.print(detail, style="dim")
+
+    if routing_log:
+        stats = write_routing_dataset(results, routing_log)
+        console.print(f"라우터 학습셋: [green]{stats['path']}[/green] "
+                      f"({stats['rows']}행, 실패 라벨 {stats['positives']}건)")
 
     md, js = write_report(results, markdown_path=report or "reports/eval.md")
     console.print(f"\n리포트: [green]{md}[/green]" + (f" · [green]{js}[/green]" if js else ""))

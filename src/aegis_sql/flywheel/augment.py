@@ -289,7 +289,8 @@ class KoreanAugmenter:
             if len(out) >= n:
                 break
             chain = rng.sample(list(TRANSFORMS), rng.choice((1, 1, 2, 2, 3)))
-            text, applied = source, []
+            text: str = source
+            applied: list[str] = []
             for name in chain:
                 candidate = getattr(self, name)(text, rng)
                 if candidate and candidate != text:
@@ -325,7 +326,7 @@ class KoreanAugmenter:
 
     def _particle_variation(self, text: str, rng: random.Random) -> str | None:
         """Replace a 조사 with a neighbouring allomorph, or drop it entirely."""
-        matches = [m for m in _PARTICLE_RE.finditer(text)]
+        matches = list(_PARTICLE_RE.finditer(text))
         if not matches:
             return None
         match = matches[rng.randrange(len(matches))]
@@ -373,15 +374,16 @@ class KoreanAugmenter:
             start = end
             while start > 0 and (_DIGIT_RE.search(chunks[start - 1]) or chunks[start - 1] in _TIME_MODIFIERS):
                 start -= 1
-            if len(chunks) - (end - start + 1) >= 2:
+            # Only *fronting* is unconditionally grammatical.  Moving an
+            # adverbial rightward lands it inside the predicate group
+            # ("어떻게 … 되나요"), which fronting can never do.
+            if start > 0 and len(chunks) - (end - start + 1) >= 2:
                 spans.append((start, end))
         if not spans:
             return None
         start, end = spans[rng.randrange(len(spans))]
         span = chunks[start : end + 1]
-        rest = chunks[:start] + chunks[end + 1 :]
-        target = len(rest) - 1 if start == 0 else 0
-        return " ".join(rest[:target] + span + rest[target:])
+        return " ".join(span + chunks[:start] + chunks[end + 1 :])
 
     def _abbreviate(self, text: str, rng: random.Random) -> str | None:
         """Contract a compound the way an analyst types it in a hurry."""

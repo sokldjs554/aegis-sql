@@ -250,8 +250,8 @@ class DPOTrainer:
             "loss": float(loss.detach()),
             "margin": margin,
             "acc": acc,
-            "chosen_reward": float(chosen_reward.mean()),
-            "rejected_reward": float(rejected_reward.mean()),
+            "chosen_reward": float(chosen_reward.detach().mean()),
+            "rejected_reward": float(rejected_reward.detach().mean()),
         }
 
     def _to_device(self, batch: dict[str, Tensor]) -> dict[str, Tensor]:

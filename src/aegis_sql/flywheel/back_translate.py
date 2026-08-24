@@ -228,7 +228,9 @@ class BackTranslator:
         kind = slots.get(f"{prefix}_kind")
         if not kind:
             return ""
-        year, part, n = slots.get(f"{prefix}_year", 0), slots.get(f"{prefix}_part", 0), slots.get(f"{prefix}_n", 0)
+        year = slots.get(f"{prefix}_year", 0)
+        part = slots.get(f"{prefix}_part", 0)
+        n = slots.get(f"{prefix}_n", 0)
         start, end = slots.get(f"{prefix}_start", ""), slots.get(f"{prefix}_end", "")
 
         if kind == "year":
@@ -324,7 +326,8 @@ class BackTranslator:
         if not measure or op is None or value is None:
             return ""
         term = self._measure(str(measure), rng)
-        return f"{josa(term, '이/가')} {_quantity(self._column_label(str(measure)), int(value))} {_OPERATORS[op]}인"
+        amount = _quantity(self._column_label(str(measure)), int(value))
+        return f"{josa(term, '이/가')} {amount} {_OPERATORS[op]}인"
 
     def _top(self, slots: dict[str, Any], rng: random.Random) -> str:
         limit = slots.get("limit")
@@ -572,7 +575,9 @@ class BackTranslator:
 
     def _period(self, slots: dict[str, Any], prefix: str) -> str:
         """Bare period name for comparison sentences (no event verb)."""
-        kind, year, part = slots.get(f"{prefix}_kind"), slots.get(f"{prefix}_year", 0), slots.get(f"{prefix}_part", 0)
+        kind = slots.get(f"{prefix}_kind")
+        year = slots.get(f"{prefix}_year", 0)
+        part = slots.get(f"{prefix}_part", 0)
         if kind == "half":
             return f"{year}년 {'상반기' if part == 1 else '하반기'}"
         if kind == "quarter":
