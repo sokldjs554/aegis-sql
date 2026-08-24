@@ -413,7 +413,6 @@ class TemplateGenerator:
 
     def _plan(self, nq: NormalizedQuestion, linked: LinkedSchema, ctx: GenerationContext) -> QueryIR:
         text = nq.normalized or nq.raw
-        tokens = nq.tokens or _WORD_RE.findall(text)
         entities: dict[str, Any] = nq.entities or {}
         scores = _evidence_scores(linked)
 
@@ -1027,7 +1026,9 @@ class TemplateGenerator:
     ) -> ColumnInfo | None:
         if table_hint:
             column = self.schema.column(table_hint, column_name)
-            return column if column and self.join_graph.shortest_path(from_table, table_hint) is not None else None
+            if column is None or self.join_graph.shortest_path(from_table, table_hint) is None:
+                return None  # a dimension we cannot reach is not a dimension
+            return column
         matches = [c for c in columns if c.name.upper() == column_name.upper()]
         matches.sort(key=lambda c: (0 if c.table == from_table else 1, c.table))
         return matches[0] if matches else None

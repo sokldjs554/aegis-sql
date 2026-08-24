@@ -79,9 +79,15 @@ _SQL_TOKEN_RE = re.compile(
 
 #: Reserved words that must survive skeletonisation.  Anything else that looks
 #: like a word is an identifier and collapses to ``_``.
-_SQL_KEYWORDS = frozenset(
-    ["SELECT", "DISTINCT", "ALL", "FROM", "WHERE", "GROUP", "BY", "HAVING", "ORDER", "LIMIT", "OFFSET", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "CROSS", "NATURAL", "ON", "USING", "AND", "OR", "NOT", "IN", "EXISTS", "BETWEEN", "LIKE", "GLOB", "IS", "NULL", "AS", "UNION", "INTERSECT", "EXCEPT", "CASE", "WHEN", "THEN", "ELSE", "END", "CAST", "ASC", "DESC", "WITH", "RECURSIVE", "OVER", "PARTITION", "COUNT", "SUM", "AVG", "MIN", "MAX", "ROUND", "ABS", "COALESCE", "NULLIF", "SUBSTR", "STRFTIME", "JULIANDAY", "LENGTH", "IFNULL", "REAL", "INTEGER", "TEXT", "NUMERIC"]
-)
+_SQL_KEYWORDS = frozenset((
+    "SELECT", "DISTINCT", "ALL", "FROM", "WHERE", "GROUP", "BY", "HAVING", "ORDER", "LIMIT",
+    "OFFSET", "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "CROSS", "NATURAL", "ON",
+    "USING", "AND", "OR", "NOT", "IN", "EXISTS", "BETWEEN", "LIKE", "GLOB", "IS", "NULL", "AS",
+    "UNION", "INTERSECT", "EXCEPT", "CASE", "WHEN", "THEN", "ELSE", "END", "CAST", "ASC", "DESC",
+    "WITH", "RECURSIVE", "OVER", "PARTITION", "COUNT", "SUM", "AVG", "MIN", "MAX", "ROUND", "ABS",
+    "COALESCE", "NULLIF", "SUBSTR", "STRFTIME", "JULIANDAY", "LENGTH", "IFNULL", "REAL",
+    "INTEGER", "TEXT", "NUMERIC",
+))
 
 #: Aggregate node types.  ``sqlglot`` has no single base class for these.
 _AGG_NODES: tuple[type[exp.Expression], ...] = (
@@ -131,7 +137,7 @@ def normalize_sql(sql: str, dialect: str = "sqlite") -> str:
     if tree is None:  # pragma: no cover - empty statement
         return _regex_normalize(text)
 
-    tree = _canonicalise_aliases(exp.Expression(this=tree) if False else tree)  # type: ignore[arg-type]
+    tree = _canonicalise_aliases(tree)
     tree = tree.transform(_drop_output_alias)
     tree = tree.transform(_lower_identifier)
     try:
@@ -142,7 +148,7 @@ def normalize_sql(sql: str, dialect: str = "sqlite") -> str:
     return _tidy(_lower_outside_literals(rendered))
 
 
-def _canonicalise_aliases(tree: exp.Expression) -> exp.Expression:
+def _canonicalise_aliases(tree: exp.Expr) -> exp.Expr:
     """Rename table aliases to ``t1..tn`` and rewrite the column qualifiers.
 
     Aliases are numbered across the whole statement rather than per scope.  A
