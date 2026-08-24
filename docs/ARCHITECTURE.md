@@ -16,7 +16,7 @@ flowchart TB
     subgraph RAG["2. 스키마 링킹 (하이브리드 RAG)"]
         R1["Dense: 임베딩 유사도"]
         R2["Lexical: BM25 (자체 구현)"]
-        R3["Glossary: 사내 용어사전 37종"]
+        R3["Glossary: 사내 용어사전 41종"]
         R4["Value: 프로파일된 실제 값·코드명"]
         R5["FK 그래프 확장 + 조인 경로 탐색"]
     end
