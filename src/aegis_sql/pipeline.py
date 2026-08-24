@@ -84,6 +84,7 @@ class EngineComponents:
     executor: Any
     guard: Any
     static_checker: Any
+    intent_guard: Any
     repairer: Any
     generators: dict[Tier, Generator] = field(default_factory=dict)
     llm_generator: Any = None
@@ -115,6 +116,7 @@ class AegisEngine:
         from aegis_sql.router.cascade import CascadeRouter
         from aegis_sql.verify.ast_guard import PolicyDocument, PolicyGuard
         from aegis_sql.verify.executor import SQLExecutor
+        from aegis_sql.verify.intent_guard import RequestIntentGuard
         from aegis_sql.verify.repair import SelfRepairer
         from aegis_sql.verify.static_check import StaticChecker
 
@@ -150,11 +152,21 @@ class AegisEngine:
         executor = SQLExecutor(db_path, timeout_s=st.database.timeout_s, max_rows=st.database.max_rows)
         policy = PolicyDocument.load(_resolve(st.policy.path)) if st.policy.enabled else PolicyDocument.permissive()
         guard = PolicyGuard(schema, policy, st)
+        intent_guard = RequestIntentGuard(schema, enabled=st.policy.enabled)
         static_checker = StaticChecker(schema, join_graph, profile)
         registry = PromptRegistry.load(st.generation.prompt_set)
 
+        # Columns the policy will refuse or mask.  Handing this to the generator
+        # is not a second enforcement point — the guard still runs — it simply
+        # stops the cheap tier from spending a round trip on a statement that is
+        # certain to be blocked.
+        excluded = {
+            col.qualified
+            for col in schema.all_columns
+            if policy.sensitivity(col.table, col.name).value in {"forbidden", "internal"}
+        }
         generators, llm_generator = cls._build_generators(
-            st, schema, profile, join_graph, glossary, registry
+            st, schema, profile, join_graph, glossary, registry, excluded
         )
         repairer = SelfRepairer(
             schema=schema, profile=profile, join_graph=join_graph,
@@ -182,17 +194,20 @@ class AegisEngine:
                 ambiguity=AmbiguityDetector(schema, [e.term for e in glossary.entries]),
                 decomposer=QuestionDecomposer(), glossary=glossary, linker=linker,
                 fewshot=fewshot, router=router, executor=executor, guard=guard,
-                static_checker=static_checker, repairer=repairer, generators=generators,
+                static_checker=static_checker, intent_guard=intent_guard,
+                repairer=repairer, generators=generators,
                 llm_generator=llm_generator, prompt_registry=registry,
             )
         )
 
     @staticmethod
-    def _build_generators(st, schema, profile, join_graph, glossary, registry):
+    def _build_generators(st, schema, profile, join_graph, glossary, registry, excluded_columns=None):
         from aegis_sql.generation.template_generator import TemplateGenerator
 
         generators: dict[Tier, Generator] = {
-            Tier.TEMPLATE: TemplateGenerator(schema, profile, join_graph, glossary, st)
+            Tier.TEMPLATE: TemplateGenerator(
+                schema, profile, join_graph, glossary, st, excluded_columns=excluded_columns
+            )
         }
         llm_generator = None
 
@@ -276,6 +291,21 @@ class AegisEngine:
             sp.attributes.update(tokens=len(nq.tokens), intent=nq.intent)
             STAGE_LATENCY.labels(stage="normalize").observe(sp.duration_ms)
         emit("normalize", {"intent": nq.intent, "tokens": nq.tokens[:12]})
+
+        # -- 1b. request intent -------------------------------------------- #
+        # A destructive request must be named and refused here.  Leaving it to
+        # the AST guard would let a read-only generator "answer" a DELETE with a
+        # SELECT, which is a silent reinterpretation of the user's ask.
+        with tracer.span("intent_guard") as sp:
+            intent_violation = c.intent_guard.check(nq)
+            sp.attributes["refused"] = intent_violation is not None
+        if intent_violation is not None:
+            GUARD_BLOCKS.labels(code=intent_violation.code).inc()
+            bundle.status = AnswerStatus.BLOCKED
+            bundle.guard = GuardVerdict(allowed=False, violations=[intent_violation])
+            bundle.answer_text = intent_violation.message
+            emit("blocked", {"violations": [str(intent_violation)]})
+            return
 
         # -- 2. link ----------------------------------------------------- #
         with tracer.span("link") as sp:

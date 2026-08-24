@@ -300,11 +300,13 @@ _P_MONTH = re.compile(r"(?<!\d)(\d{1,2})\s*월(?!\s*\d)")
 
 _CUE_RE: dict[str, re.Pattern[str]] = {
     "aggregate": re.compile(
-        r"합계|합산|총액|총계|총\s|총건|전체|평균|최대|최소|개수|건수|몇\s*건|몇\s*개|"
+        r"합계|합산|총합|총액|총계|총\s|총건|전체|평균|최대|최소|개수|건수|"
+        r"몇\s*건|몇\s*개|몇\s*명|몇\s*가지|몇\s*종류|"
         r"(?<![가-힣])명|인원|비율|비중|퍼센트|%|카운트|누적"
     ),
     "ranking": re.compile(
         r"상위|하위|최다|최소|가장|제일|베스트|순위|랭킹|top\s*\d|top\d|"
+        r"(?<!\d)\d{1,3}\s*위(?![원험])|"
         r"\d+\s*(?:개|건|명)\s*만",
         re.IGNORECASE,
     ),
@@ -331,9 +333,11 @@ _P_BETWEEN = re.compile(
     rf"(?<![\d.,])(?P<a>{_AMOUNT_BODY})\s*{_CMP_UNIT}\s*(?:부터|에서|~|-)\s*"
     rf"(?P<b>{_AMOUNT_BODY})\s*{_CMP_UNIT}\s*(?:까지|사이|이내)"
 )
+# ``30일**을** 초과한 건`` — the object particle sits between the value and the
+# operator, and the operator itself is often adnominal (``초과한``, ``넘은``).
 _P_CMP_SUFFIX = re.compile(
-    rf"(?<![\d.,])(?P<val>{_AMOUNT_BODY})\s*{_CMP_UNIT}\s*"
-    r"(?P<op>이상인|이하인|미만인|초과하는|이상|이하|초과|미만|넘는|넘게)"
+    rf"(?<![\d.,])(?P<val>{_AMOUNT_BODY})\s*{_CMP_UNIT}\s*(?:을|를|이|가)?\s*"
+    r"(?P<op>이상인|이하인|미만인|초과하는|초과한|초과|이상|이하|미만|넘는|넘게|넘은|넘어선)"
 )
 _P_CMP_BODA = re.compile(
     rf"(?<![\d.,])(?P<val>{_AMOUNT_BODY})\s*{_CMP_UNIT}\s*보다\s*(?:더\s*)?"
@@ -341,7 +345,8 @@ _P_CMP_BODA = re.compile(
 )
 _CMP_OPS: dict[str, str] = {
     "이상": ">=", "이상인": ">=", "이하": "<=", "이하인": "<=",
-    "초과": ">", "초과하는": ">", "넘는": ">", "넘게": ">",
+    "초과": ">", "초과하는": ">", "초과한": ">", "넘는": ">", "넘게": ">",
+    "넘은": ">", "넘어선": ">",
     "미만": "<", "미만인": "<",
     "많": ">", "큰": ">", "높": ">", "적": "<", "작": "<", "낮": "<",
 }
@@ -356,13 +361,22 @@ _P_QUOTED = re.compile(r"[\"'“‘「『]([^\"'”’」』\n]{1,40})[\"'”’
 
 _INTENT_RE: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ratio", re.compile(r"비율|비중|퍼센트|률|율|(?:인|건|명|계약|고객)\s*당(?![가-힣])")),
-    ("rank", re.compile(r"상위|하위|순위|랭킹|최다|가장|제일|베스트|top\s*\d", re.IGNORECASE)),
+    ("rank", re.compile(
+        r"상위|하위|순위|랭킹|최다|가장|제일|베스트|top\s*\d|(?<!\d)\d{1,3}\s*위(?![원험])",
+        re.IGNORECASE)),
     # ``평균보다`` is a *comparison against* an average, not a request for one.
     ("avg", re.compile(r"평균(?!\s*(?:보다|대비|이상|이하|초과|미만))")),
     ("max", re.compile(r"최대|최고|가장\s*큰|가장\s*많은")),
     ("min", re.compile(r"최저|가장\s*작은|가장\s*적은")),
-    ("count", re.compile(r"건수|개수|몇\s*건|몇\s*개|몇\s*명|인원|카운트|(?<![가-힣])명\s*수")),
-    ("sum", re.compile(r"합계|합산|총액|총계|누적|총\s|얼마")),
+    # ``<대상>수`` is a count only when a countable noun governs it; the negative
+    # lookahead keeps 수준/수치/수익/수납 out.
+    ("count", re.compile(
+        r"건수|개수|몇\s*건|몇\s*개|몇\s*명|몇\s*가지|몇\s*종류|인원|카운트|"
+        r"(?<![가-힣])명\s*수|"
+        r"(?:고객|계약|사람|설계사|상품|담보|지점|가입자|피보험자|청구|민원|티켓|건|명)\s*수"
+        r"(?![준치익납요])"
+    )),
+    ("sum", re.compile(r"합계|합산|총합|총액|총계|누적|총\s*금액|총\s|얼마")),
 )
 
 
@@ -469,7 +483,7 @@ class KoreanNormalizer:
             tokens=self.tokenize(norm),
             entities=entities,
             value_candidates=_extract_value_candidates(norm, mask),
-            intent=_classify_intent(norm, cues, top_k),
+            intent=_classify_intent(norm, cues, top_k, entities.get("group_by_hint")),
         )
         log.debug(
             "question normalized",
@@ -744,9 +758,26 @@ def _extract_value_candidates(text: str, mask: bytearray) -> list[str]:
     return out[:24]
 
 
-def _classify_intent(text: str, cues: dict[str, bool], top_k: int | None) -> str:
+#: ``가장 큰 값은 얼마`` asks for MAX(x); ``가장 계약이 많은 지점`` asks for the
+#: argmax *row*.  The difference is whether a grouping dimension is in play.
+_P_SUPERLATIVE_VALUE = re.compile(
+    r"(최대값|최댓값|최소값|최솟값|최고값|최저값|"
+    r"가장\s*(?:큰|많은|높은|작은|적은|낮은)\s*(?:값|금액|액수|수치|보험료|건수)|"
+    r"(?:가장|제일)\s*(?:크|많|높|작|적|낮)[가-힣]*\s*(?:값|금액)?[은는이가]?\s*얼마)"
+)
+
+
+def _classify_intent(
+    text: str,
+    cues: dict[str, bool],
+    top_k: int | None,
+    group_by: list[str] | None = None,
+) -> str:
     if top_k is not None and not cues["ratio"]:
         return "rank"
+    # A superlative with no dimension to rank over is an aggregate, not a ranking.
+    if not group_by and _P_SUPERLATIVE_VALUE.search(text):
+        return "min" if re.search(r"최소|최저|최솟|가장\s*(?:작|적|낮)", text) else "max"
     for intent, pattern in _INTENT_RE:
         if pattern.search(text):
             return intent

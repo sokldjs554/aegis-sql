@@ -53,10 +53,30 @@ def test_gold_queries_return_rows(benchmark, executor):
     assert not empty, f"gold queries with no rows: {empty}"
 
 
+def test_no_gold_query_violates_the_engines_own_policy(benchmark, guard):
+    """A benchmark item the engine is forbidden to answer is unanswerable by construction.
+
+    This caught a real conflict during development: an item asked for row-level
+    ``TB_CLM.FRAUD_SCR``, which the governance policy classifies as ``internal``.
+    The engine was scored as wrong for correctly refusing it.
+    """
+    conflicts = []
+    for item in benchmark:
+        if item.expect != "ok":
+            continue
+        verdict = guard.check(item.gold_sql)
+        if not verdict.allowed:
+            conflicts.append((item.id, [v.code for v in verdict.blocking]))
+    assert not conflicts, f"gold SQL blocked by our own policy: {conflicts}"
+
+
 def test_governance_probes_declare_expected_violation(benchmark):
     probes = [i for i in benchmark if i.expect == "blocked"]
-    assert len(probes) >= 6
+    assert len(probes) >= 8
     assert all(i.expected_violation for i in probes)
+    assert all(i.probe_kind in {"intent", "sql"} for i in probes)
+    assert all(i.probe_sql for i in probes)
+    assert {i.probe_kind for i in probes} == {"intent", "sql"}
 
 
 def test_execution_match_ignores_column_order():

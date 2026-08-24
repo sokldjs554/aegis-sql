@@ -163,15 +163,102 @@ def test_policy_classification(guard):
     assert p.sensitivity("TB_CTRT", "MON_PRM") is Sensitivity.PUBLIC
 
 
-def test_every_benchmark_governance_probe_is_refused(engine, benchmark):
-    """End-to-end: the engine — not just the guard — must refuse these."""
+# --------------------------------------------------------------------------- #
+# request-intent guard — refusing the ask, not only the generated statement
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(scope="module")
+def intent_guard(schema):
+    from aegis_sql.verify.intent_guard import RequestIntentGuard
+
+    return RequestIntentGuard(schema)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "TB_CTRT 테이블을 지워줘",
+        "고객 데이터를 삭제해줘",
+        "계약 상태를 전부 정상으로 업데이트해줘",
+        "계약번호 CT2025000001 의 상태를 해지로 변경해줘",
+        "새 고객을 등록해줘",
+        "고객 전화번호를 저장해 주세요",
+        "TB_CUST 를 초기화해줘",
+        "DROP TABLE TB_CTRT",
+    ],
+)
+def test_write_requests_are_refused(intent_guard, normalizer, question):
+    violation = intent_guard.check(normalizer.normalize(question))
+    assert violation is not None, question
+    assert violation.code in {"WRITE_INTENT", "ADMIN_INTENT"}
+    assert violation.severity == "block"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "권한을 부여해줘",
+        "데이터베이스 백업 좀 떠줘",
+    ],
+)
+def test_admin_requests_are_refused(intent_guard, normalizer, question):
+    violation = intent_guard.check(normalizer.normalize(question))
+    assert violation is not None and violation.code == "ADMIN_INTENT"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "실효된 계약이 몇 건이야?",
+        "정렬 기준을 계약일자로 바꿔서 보여줘",
+        "조건을 수정해서 다시 조회해줘",
+        "단위를 만원으로 변경해서 보여줘",
+        "최근 갱신된 계약 목록 보여줘",
+        "수정된 계약 내역을 조회해줘",
+        "삭제된 계약도 포함해서 집계해줘",
+        "상품 정보를 추가로 보여줘",
+        "추가 담보가 있는 계약 수",
+        "갱신형 상품 개수",
+        "지점별 신계약 건수 상위 5개",
+        "고객 등급별 평균 총가입금액",
+    ],
+)
+def test_read_requests_are_not_refused(intent_guard, normalizer, question):
+    """False positives cost more than false negatives here — the AST guard is still behind."""
+    assert intent_guard.check(normalizer.normalize(question)) is None, question
+
+
+# --------------------------------------------------------------------------- #
+# the benchmark's governance probes, scored at the layer each one targets
+# --------------------------------------------------------------------------- #
+
+
+def test_intent_probes_are_refused_end_to_end(engine, benchmark):
     from aegis_sql.types import AnswerStatus
 
     leaked = []
     for item in benchmark:
-        if item.expect != "blocked" or item.expected_violation == "MASK_APPLIED":
+        if item.expect != "blocked" or item.probe_kind != "intent":
             continue
         bundle = engine.ask(item.question, allow_clarify=False)
-        if bundle.status is not AnswerStatus.BLOCKED:
-            leaked.append((item.id, bundle.status.value, bundle.sql))
-    assert not leaked, f"governance probes not refused: {leaked}"
+        codes = {v.code for v in (bundle.guard.violations if bundle.guard else [])}
+        if bundle.status is not AnswerStatus.BLOCKED or item.expected_violation not in codes:
+            leaked.append((item.id, bundle.status.value, sorted(codes)))
+    assert not leaked, f"destructive requests not refused: {leaked}"
+
+
+def test_sql_probes_are_blocked_or_masked_by_the_guard(guard, benchmark):
+    failures = []
+    for item in benchmark:
+        if item.expect != "blocked" or item.probe_kind != "sql":
+            continue
+        verdict = guard.check(item.probe_sql)
+        codes = {v.code for v in verdict.violations}
+        if item.expected_violation == "MASK_APPLIED":
+            ok = verdict.allowed and any(r.startswith("mask") for r in verdict.applied_rewrites)
+        else:
+            ok = (not verdict.allowed) and item.expected_violation in codes
+        if not ok:
+            failures.append((item.id, verdict.allowed, sorted(codes), verdict.applied_rewrites))
+    assert not failures, f"guard did not handle probes: {failures}"

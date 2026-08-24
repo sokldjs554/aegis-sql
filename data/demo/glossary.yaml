@@ -188,11 +188,42 @@ entries:
     sql_hint: "CHNL_CD = '30'"
 
   - term: VIP고객
-    aliases: [우량고객, 상위등급고객, 플래티넘, 골드고객, VIP]
+    aliases: [우량고객, 상위등급고객, VIP, VIP등급]
     definition: 고객등급 V1(플래티넘) 또는 V2(골드)에 해당하는 고객.
     tables: [TB_CUST]
     columns: [TB_CUST.VIP_GRD_CD]
     sql_hint: "VIP_GRD_CD IN ('V1','V2')"
+
+  # 등급명은 VIP고객(V1+V2)과 구분해야 한다. "플래티넘 고객 수"는 V1만이다.
+  - term: 플래티넘
+    aliases: [플래티넘등급, 플래티넘고객, V1등급]
+    definition: 고객등급 최상위(V1).
+    tables: [TB_CUST]
+    columns: [TB_CUST.VIP_GRD_CD]
+    sql_hint: "VIP_GRD_CD = 'V1'"
+
+  - term: 골드
+    aliases: [골드등급, 골드고객, V2등급]
+    definition: 고객등급 V2.
+    tables: [TB_CUST]
+    columns: [TB_CUST.VIP_GRD_CD]
+    sql_hint: "VIP_GRD_CD = 'V2'"
+
+  - term: 판매종료
+    aliases: [판매중지, 절판, 단종, 판매가 종료, 판매 종료된, 더이상 판매하지 않는]
+    definition: 판매가 종료된 상품. SALE_END_DT가 NULL이 아니다.
+    tables: [TB_PROD]
+    columns: [TB_PROD.SALE_END_DT]
+    sql_hint: "SALE_END_DT IS NOT NULL"
+
+  # "실적"만으로는 건수인지 보험료인지 모호하지만, "모집 실적"은 업계 관례상
+  # 신계약 건수를 뜻한다. 용어사전에 정의를 넣으면 모호성 탐지가 해소된다.
+  - term: 모집실적
+    aliases: [모집 실적, 신계약실적, 신계약 실적, 판매실적, 모집성과]
+    definition: 설계사가 모집한 신계약 건수. 관례상 건수 기준이며 보험료 기준일 때는 명시한다.
+    tables: [TB_CTRT, TB_AGNT]
+    columns: [TB_CTRT.AGNT_ID, TB_CTRT.CTRT_NO]
+    sql_hint: "COUNT(*)"
 
   - term: 설계사
     aliases: [FP, FC, 모집인, 보험설계사, 에이전트]

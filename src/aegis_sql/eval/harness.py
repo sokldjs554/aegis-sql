@@ -59,6 +59,9 @@ class BenchItem:
     tables: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     expected_violation: str | None = None
+    #: Governance probes only: "intent" (refuse the request) | "sql" (guard the statement).
+    probe_kind: str | None = None
+    probe_sql: str | None = None
     note: str = ""
 
 
@@ -78,7 +81,9 @@ def load_benchmark(path: str | Path) -> list[BenchItem]:
                 id=raw["id"], question=raw["question"], gold_sql=raw.get("gold_sql"),
                 difficulty=raw["difficulty"], expect=raw.get("expect", "ok"),
                 tables=raw.get("tables", []), tags=raw.get("tags", []),
-                expected_violation=raw.get("expected_violation"), note=raw.get("note", ""),
+                expected_violation=raw.get("expected_violation"),
+                probe_kind=raw.get("probe_kind"), probe_sql=raw.get("probe_sql"),
+                note=raw.get("note", ""),
             )
         )
     return items
@@ -277,15 +282,13 @@ class EvalHarness:
         score.escalated = bool(bundle.route and bundle.route.escalated_from)
         score.pred_sql = bundle.sql
 
-        if item.expect != "ok":
-            if item.expect == "blocked":
-                score.correct = bundle.status is AnswerStatus.BLOCKED
-                if not score.correct:
-                    score.error = f"not blocked (status={bundle.status.value})"
-            else:  # clarify
-                score.correct = bundle.status is AnswerStatus.CLARIFY
-                if not score.correct:
-                    score.error = f"answered instead of clarifying (status={bundle.status.value})"
+        if item.expect == "blocked":
+            self._score_governance(engine, item, bundle, score)
+            return score
+        if item.expect != "ok":  # clarify
+            score.correct = bundle.status is AnswerStatus.CLARIFY
+            if not score.correct:
+                score.error = f"answered instead of clarifying (status={bundle.status.value})"
             return score
 
         if bundle.status is not AnswerStatus.OK or bundle.result is None or not bundle.result.ok:
@@ -304,6 +307,40 @@ class EvalHarness:
                 f" vs gold {gold.row_count}행 × {len(gold.columns)}열)"
             )
         return score
+
+    def _score_governance(self, engine: AegisEngine, item: BenchItem, bundle, score: ItemScore) -> None:
+        """Score a governance probe at the layer it actually targets.
+
+        ``intent`` probes are scored end-to-end — a destructive request must be
+        refused before any SQL exists.  ``sql`` probes are scored on the guard
+        itself, because whether the *active tier* happens to emit the dangerous
+        column is a property of the generator, not of the control we are testing.
+        """
+        score.e2e_status = bundle.status.value
+        if item.probe_kind == "intent":
+            codes = {v.code for v in (bundle.guard.violations if bundle.guard else [])}
+            score.correct = bundle.status is AnswerStatus.BLOCKED and (
+                item.expected_violation in codes if item.expected_violation else True
+            )
+            if not score.correct:
+                score.error = f"요청이 거부되지 않음 (status={bundle.status.value}, codes={sorted(codes)})"
+            return
+
+        if not item.probe_sql:
+            score.correct = bundle.status is AnswerStatus.BLOCKED
+            return
+        verdict = engine.c.guard.check(item.probe_sql)
+        codes = {v.code for v in verdict.violations}
+        if item.expected_violation == "MASK_APPLIED":
+            score.correct = verdict.allowed and any(r.startswith("mask") for r in verdict.applied_rewrites)
+            if not score.correct:
+                score.error = f"마스킹 재작성 없음 (allowed={verdict.allowed}, rewrites={verdict.applied_rewrites})"
+        else:
+            score.correct = (not verdict.allowed) and (
+                item.expected_violation in codes if item.expected_violation else True
+            )
+            if not score.correct:
+                score.error = f"차단되지 않음 (allowed={verdict.allowed}, codes={sorted(codes)})"
 
     # -- ablation matrix -------------------------------------------------- #
 
