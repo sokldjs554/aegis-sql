@@ -314,6 +314,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
                         help="train LoRA adapters instead of the full model")
     parser.add_argument("--dpo", action="store_true", help="run a DPO pass after SFT")
     parser.add_argument("--dpo-steps", type=int, default=0, help="cap DPO steps (0 = full pass)")
+    parser.add_argument(
+        "--select-by", default="loss", choices=["loss", "token-acc"],
+        help="dev metric that picks the checkpoint — the two disagree here, see docs/SLM.md §6",
+    )
     parser.add_argument("--device", default=settings.training.device)
     parser.add_argument("--seed", type=int, default=settings.training.seed)
     parser.add_argument("--log-level", default="INFO")
@@ -393,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
                      "trainable_pct": round(100.0 * trainable / max(1, total), 3)}
 
     # -- SFT ------------------------------------------------------------------ #
-    trainer = SFTTrainer(model, tokenizer, cfg, device=args.device)
+    trainer = SFTTrainer(model, tokenizer, cfg, device=args.device, select_by=args.select_by)
     sft_history = trainer.train(train_examples, dev_examples, output_dir=out_dir)
 
     if args.lora:
