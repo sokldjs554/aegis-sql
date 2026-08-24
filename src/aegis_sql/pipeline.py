@@ -189,11 +189,13 @@ class AegisEngine:
             llm_repair=(llm_generator.repair if llm_generator and llm_generator.available() else None),
             max_attempts=st.verify.max_repair_attempts,
         )
-        router = CascadeRouter(
-            st,
-            router=cls._load_router(st),
-            available_tiers={t for t, g in generators.items() if g.available()},
-        )
+        # The sLLM tier is *built* whenever a checkpoint exists — `--tier slm`
+        # must be able to evaluate it — but it only enters automatic routing
+        # once `router.enable_slm` says it has earned its place.
+        routable = {t for t, g in generators.items() if g.available()}
+        if not st.router.enable_slm:
+            routable.discard(Tier.SLM)
+        router = CascadeRouter(st, router=cls._load_router(st), available_tiers=routable)
 
         log.info(
             "engine ready",
