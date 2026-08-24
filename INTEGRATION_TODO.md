@@ -6,3 +6,4 @@
 - [ ] README "실제 출력" 블록 3개를 실제 `aegis ask` / `aegis demo` 캡처로 교체 (conf/latency/trace 값이 예시로 들어가 있음)
 - [ ] README `<!-- RESULTS -->` 구간을 reports/eval.md 실측 표로 교체
 - [ ] template_generator.py:416 F841 (agent 편집 중이라 보류)
+- [ ] fk_expand_hops 0 vs 1 을 어블레이션 EX로 비교해 default 확정 (링킹 recall 동일, hops=0이 토큰 5.7x vs 5.1x)

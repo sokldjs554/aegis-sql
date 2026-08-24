@@ -139,6 +139,8 @@ DEFAULT_ABLATIONS: list[Variant] = [
             {"retrieval": {"dense_weight": 1.0}}),
     Variant("lexical-only", "임베딩 제거 (BM25만)",
             {"retrieval": {"dense_weight": 0.0}}),
+    Variant("no-fk-expand", "FK 1-hop 확장 없이 링킹 (조인 브리지만 유지)",
+            {"retrieval": {"fk_expand_hops": 0}}),
     Variant("no-repair", "실행 기반 자가교정 제거",
             {"verify": {"max_repair_attempts": 0}}),
     Variant("card-compact", "스키마 카드를 compact 형식으로",
