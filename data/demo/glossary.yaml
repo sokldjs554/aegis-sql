@@ -1,0 +1,262 @@
+# =====================================================================
+# 사내 용어사전 (Business Glossary)
+# ---------------------------------------------------------------------
+# 임베딩 유사도만으로는 "유지율"이 TB_CTRT.CTRT_STAT_CD 라는 사실을 알 수 없다.
+# 실제 금융권 Text-to-SQL의 정확도를 가르는 것은 모델 크기가 아니라
+# 이런 도메인 지식이 스키마 링킹 단계에 주입되는지 여부다.
+# 각 항목은 검색 대상(term/aliases/definition)과
+# 주입 대상(tables/columns/sql_hint)으로 나뉜다.
+# =====================================================================
+version: 1
+domain: "생명보험 / 손해보험 코어"
+
+entries:
+  - term: 유지율
+    aliases: [계약유지율, 보유율, persistency, 13회차유지율, 25회차유지율]
+    definition: 체결된 계약 중 특정 시점까지 효력이 유지(정상 또는 부활)되고 있는 계약의 비율.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_STAT_CD, TB_CTRT.CTRT_DT]
+    sql_hint: "CAST(SUM(CASE WHEN CTRT_STAT_CD IN ('01','05') THEN 1 ELSE 0 END) AS REAL) / COUNT(*)"
+
+  - term: 실효
+    aliases: [효력상실, 실효계약, lapse, 실효율]
+    definition: 보험료 미납으로 계약의 효력이 상실된 상태. CTRT_STAT_CD = '02'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_STAT_CD]
+    sql_hint: "CTRT_STAT_CD = '02'"
+
+  - term: 해지
+    aliases: [중도해지, 임의해지, surrender, 해지계약]
+    definition: 계약자의 청구 또는 회사 사유로 계약이 소멸된 상태. CTRT_STAT_CD = '03'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_STAT_CD, TB_CTRT.TERM_DT]
+    sql_hint: "CTRT_STAT_CD = '03'"
+
+  - term: 보유계약
+    aliases: [유효계약, 정상계약, 인포스, in-force, 살아있는계약]
+    definition: 현재 효력이 살아있는 계약(정상 + 부활). 실효/해지/만기는 제외한다.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_STAT_CD]
+    sql_hint: "CTRT_STAT_CD IN ('01','05')"
+
+  - term: 신계약
+    aliases: [신규계약, 신규가입, 새로가입, 신규체결]
+    definition: 해당 기간에 새로 체결된 계약. 기준 컬럼은 계약체결일자(CTRT_DT).
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_DT]
+    sql_hint: "CTRT_DT BETWEEN :start AND :end"
+
+  - term: 월납보험료
+    aliases: [월보험료, 월납, 월납입액, MON_PRM]
+    definition: 계약의 월 환산 납입 보험료(원).
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.MON_PRM]
+
+  - term: 연납화보험료
+    aliases: [APE, 연납환산보험료, annualized premium, 연환산보험료]
+    definition: 월납보험료를 연 단위로 환산한 값. 일반적으로 월납보험료 x 12.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.MON_PRM]
+    sql_hint: "SUM(MON_PRM) * 12"
+
+  - term: 가입금액
+    aliases: [총가입금액, 보장금액, 보험가입금액, 부보금액]
+    definition: 계약이 보장하는 총 금액(원).
+    tables: [TB_CTRT, TB_CVRG]
+    columns: [TB_CTRT.TOT_INSD_AMT, TB_CVRG.INSD_AMT]
+
+  - term: 손해율
+    aliases: [지급률, loss ratio, 보험금지급률]
+    definition: 수입보험료 대비 지급보험금의 비율.
+    tables: [TB_CLM, TB_PAY]
+    columns: [TB_CLM.PAY_AMT, TB_PAY.PAY_AMT]
+    sql_hint: "CAST(SUM(c.PAY_AMT) AS REAL) / NULLIF(SUM(p.PAY_AMT),0)"
+
+  - term: 부지급
+    aliases: [지급거절, 면책, 보험금부지급, 미지급]
+    definition: 면책 사유 등으로 보험금이 지급되지 않은 청구. CLM_STAT_CD = '40'.
+    tables: [TB_CLM]
+    columns: [TB_CLM.CLM_STAT_CD]
+    sql_hint: "CLM_STAT_CD = '40'"
+
+  - term: 지급완료
+    aliases: [보험금지급, 지급건, 전액지급]
+    definition: 청구 보험금이 전액 지급 완료된 상태. CLM_STAT_CD = '30'.
+    tables: [TB_CLM]
+    columns: [TB_CLM.CLM_STAT_CD, TB_CLM.PAY_AMT, TB_CLM.DEDT_DT]
+    sql_hint: "CLM_STAT_CD = '30'"
+
+  - term: 일부지급
+    aliases: [부분지급, 감액지급]
+    definition: 청구액 중 일부만 지급된 상태. CLM_STAT_CD = '50'.
+    tables: [TB_CLM]
+    columns: [TB_CLM.CLM_STAT_CD]
+    sql_hint: "CLM_STAT_CD = '50'"
+
+  - term: 지급소요일
+    aliases: [보험금지급기간, 처리소요일, 지급리드타임, TAT]
+    definition: 청구 접수일(CLM_DT)부터 보험금 지급일(DEDT_DT)까지 걸린 일수.
+    tables: [TB_CLM]
+    columns: [TB_CLM.CLM_DT, TB_CLM.DEDT_DT]
+    sql_hint: "julianday(substr(DEDT_DT,1,4)||'-'||substr(DEDT_DT,5,2)||'-'||substr(DEDT_DT,7,2)) - julianday(substr(CLM_DT,1,4)||'-'||substr(CLM_DT,5,2)||'-'||substr(CLM_DT,7,2))"
+
+  - term: 이상징후
+    aliases: [보험사기, fraud, 사기의심, FDS점수, 이상징후점수]
+    definition: 청구 건의 보험사기 의심 점수(0~100). 높을수록 위험.
+    tables: [TB_CLM]
+    columns: [TB_CLM.FRAUD_SCR]
+
+  - term: 연체
+    aliases: [미납, 보험료연체, 연체계약, 실효예정]
+    definition: 납입기일(DUE_DT)까지 보험료가 수납되지 않은 건.
+    tables: [TB_PAY]
+    columns: [TB_PAY.DLQ_YN, TB_PAY.DLQ_DAYS]
+    sql_hint: "DLQ_YN = 'Y'"
+
+  - term: 자동이체
+    aliases: [계좌이체, CMS, 자동납]
+    definition: 은행 계좌에서 자동으로 출금되는 납입방법. PAY_MTHD_CD = '01'.
+    tables: [TB_PAY]
+    columns: [TB_PAY.PAY_MTHD_CD]
+    sql_hint: "PAY_MTHD_CD = '01'"
+
+  - term: 인수심사
+    aliases: [언더라이팅, UW, 계약심사, 언더라이터]
+    definition: 계약 인수 여부와 조건을 결정하는 심사. 결과는 UW_RSLT_CD.
+    tables: [TB_UW]
+    columns: [TB_UW.UW_RSLT_CD, TB_UW.RISK_SCR]
+
+  - term: 표준체
+    aliases: [표준체승낙, 표준인수, 정상인수]
+    definition: 할증이나 부담보 없이 그대로 인수된 계약. UW_RSLT_CD = 'A'.
+    tables: [TB_UW]
+    columns: [TB_UW.UW_RSLT_CD]
+    sql_hint: "UW_RSLT_CD = 'A'"
+
+  - term: 부담보
+    aliases: [부담보승낙, 특정부위부담보, exclusion]
+    definition: 특정 질병/부위를 보장에서 제외하는 조건부 인수. UW_RSLT_CD = 'C'.
+    tables: [TB_UW]
+    columns: [TB_UW.UW_RSLT_CD]
+    sql_hint: "UW_RSLT_CD = 'C'"
+
+  - term: 불완전판매
+    aliases: [불판, 설명의무위반, 부당권유, 민원유형06]
+    definition: 상품 설명의무 위반 등으로 접수된 민원 유형. CTGY_CD = '06'.
+    tables: [TB_CS_TCKT]
+    columns: [TB_CS_TCKT.CTGY_CD]
+    sql_hint: "CTGY_CD = '06'"
+
+  - term: 민원
+    aliases: [컴플레인, 고객불만, 상담티켓, VOC, 접수건]
+    definition: 고객이 접수한 상담/민원 티켓.
+    tables: [TB_CS_TCKT]
+    columns: [TB_CS_TCKT.TCKT_ID, TB_CS_TCKT.CTGY_CD, TB_CS_TCKT.PROC_STAT_CD]
+
+  - term: 민원처리기간
+    aliases: [처리소요일수, 민원TAT, 완결소요일]
+    definition: 민원 접수일(RCPT_DT)부터 처리완료일(CMPL_DT)까지의 일수.
+    tables: [TB_CS_TCKT]
+    columns: [TB_CS_TCKT.RCPT_DT, TB_CS_TCKT.CMPL_DT]
+
+  - term: 대면채널
+    aliases: [설계사채널, FC채널, 전속채널]
+    definition: 소속 설계사를 통한 모집 채널. CHNL_CD = '10'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CHNL_CD]
+    sql_hint: "CHNL_CD = '10'"
+
+  - term: GA
+    aliases: [독립대리점, 법인대리점, 지에이]
+    definition: 독립법인대리점 모집 채널. CHNL_CD = '50'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CHNL_CD]
+    sql_hint: "CHNL_CD = '50'"
+
+  - term: 방카슈랑스
+    aliases: [방카, 은행채널, bancassurance]
+    definition: 은행 창구를 통한 모집 채널. CHNL_CD = '40'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CHNL_CD]
+    sql_hint: "CHNL_CD = '40'"
+
+  - term: 다이렉트
+    aliases: [온라인채널, CM채널, 인터넷가입, 비대면]
+    definition: 온라인 직판(CM) 채널. CHNL_CD = '30'. 모집설계사가 없다.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CHNL_CD, TB_CTRT.AGNT_ID]
+    sql_hint: "CHNL_CD = '30'"
+
+  - term: VIP고객
+    aliases: [우량고객, 상위등급고객, 플래티넘, 골드고객, VIP]
+    definition: 고객등급 V1(플래티넘) 또는 V2(골드)에 해당하는 고객.
+    tables: [TB_CUST]
+    columns: [TB_CUST.VIP_GRD_CD]
+    sql_hint: "VIP_GRD_CD IN ('V1','V2')"
+
+  - term: 설계사
+    aliases: [FP, FC, 모집인, 보험설계사, 에이전트]
+    definition: 계약을 모집한 사람. TB_AGNT.
+    tables: [TB_AGNT]
+    columns: [TB_AGNT.AGNT_ID, TB_AGNT.AGNT_NM]
+
+  - term: 해촉
+    aliases: [퇴사설계사, 위촉해지, 이탈설계사]
+    definition: 위촉이 해지된 설계사. RSGN_DT가 NULL이 아니다.
+    tables: [TB_AGNT]
+    columns: [TB_AGNT.RSGN_DT]
+    sql_hint: "RSGN_DT IS NOT NULL"
+
+  - term: 현직설계사
+    aliases: [재직설계사, 활동설계사, 활동중인설계사]
+    definition: 아직 해촉되지 않은 설계사. RSGN_DT가 NULL이다.
+    tables: [TB_AGNT]
+    columns: [TB_AGNT.RSGN_DT]
+    sql_hint: "RSGN_DT IS NULL"
+
+  - term: 담보
+    aliases: [특약, 보장항목, 커버리지, 담보명]
+    definition: 계약에 부가된 개별 보장 항목.
+    tables: [TB_CVRG]
+    columns: [TB_CVRG.CVRG_NM, TB_CVRG.INSD_AMT, TB_CVRG.CVRG_PRM]
+
+  - term: 실손
+    aliases: [실손의료비, 실비, 실손보험]
+    definition: 실제 발생한 의료비를 보상하는 담보/청구 유형. CLM_TYP_CD = '07'.
+    tables: [TB_CLM, TB_CVRG]
+    columns: [TB_CLM.CLM_TYP_CD]
+    sql_hint: "CLM_TYP_CD = '07'"
+
+  - term: 갱신형
+    aliases: [갱신상품, 갱신형상품, renewable]
+    definition: 일정 주기마다 보험료가 재산출되는 상품. RNW_YN = 'Y'.
+    tables: [TB_PROD]
+    columns: [TB_PROD.RNW_YN]
+    sql_hint: "RNW_YN = 'Y'"
+
+  - term: 판매중지
+    aliases: [절판, 판매종료, 단종상품]
+    definition: 판매가 종료된 상품. SALE_END_DT가 NULL이 아니다.
+    tables: [TB_PROD]
+    columns: [TB_PROD.SALE_END_DT]
+    sql_hint: "SALE_END_DT IS NOT NULL"
+
+  - term: 계약연령
+    aliases: [가입연령, 가입시나이, 보험나이]
+    definition: 계약 체결 시점의 고객 나이. 계약체결일자와 생년월일로 계산한다.
+    tables: [TB_CTRT, TB_CUST]
+    columns: [TB_CTRT.CTRT_DT, TB_CUST.BRDT]
+    sql_hint: "CAST(substr(t.CTRT_DT,1,4) AS INTEGER) - CAST(substr(c.BRDT,1,4) AS INTEGER)"
+
+  - term: 부활
+    aliases: [계약부활, 효력회복, reinstatement]
+    definition: 실효된 계약을 다시 살린 상태. CTRT_STAT_CD = '05'.
+    tables: [TB_CTRT]
+    columns: [TB_CTRT.CTRT_STAT_CD, TB_CTRT.RVIV_CNT]
+    sql_hint: "CTRT_STAT_CD = '05'"
+
+  - term: 만족도
+    aliases: [CSAT, 만족도점수, 상담만족도]
+    definition: 민원 처리 후 고객이 남긴 1~5점 만족도.
+    tables: [TB_CS_TCKT]
+    columns: [TB_CS_TCKT.SATIS_SCR]

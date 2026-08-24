@@ -1,0 +1,106 @@
+# =====================================================================
+# 데이터 거버넌스 정책 (금융/보험 코어 DB)
+# ---------------------------------------------------------------------
+# LLM이 생성한 SQL은 "사람이 쓴 SQL"이 아니라 "신뢰할 수 없는 입력"이다.
+# 따라서 실행 전에 sqlglot AST 위에서 강제한다:
+#   - 읽기 전용   : SELECT/WITH 이외의 모든 구문 차단
+#   - 컬럼 등급   : forbidden(절대 반출 불가) / masked(마스킹) / internal(집계만)
+#   - 행 정책     : 세션 컨텍스트 기반 필터 자동 주입
+#   - 결과량 제한 : LIMIT 미지정 시 자동 주입
+#   - k-익명성    : 소집단 재식별 방지 (선택)
+# 프롬프트로 "PII는 조회하지 마세요"라고 부탁하는 것과는 보증 수준이 다르다.
+# =====================================================================
+version: 1
+name: insurance-core-default
+description: 국내 보험 코어 DB 기본 정책 (개인정보보호법/신용정보법 기준 축약)
+
+engine:
+  read_only: true                 # SELECT / WITH 만 허용
+  allow_temp_tables: false
+  max_rows: 500
+  force_limit: true
+  default_limit: 200
+  max_join_tables: 8
+  statement_timeout_s: 8.0
+  forbid_functions: [load_extension, readfile, writefile, edit, fts3_tokenizer]
+  forbid_pragma: true
+  forbid_attach: true
+  # 단일 SELECT 문만 허용 (스택 쿼리로 정책 우회 방지)
+  single_statement: true
+
+# ---------------------------------------------------------------------
+# 컬럼 등급
+#   forbidden : 어떤 형태로도 조회 불가 (SELECT/WHERE/GROUP BY/ORDER BY 전부)
+#   masked    : 조회 시 마스킹 함수로 대체 (부분 마스킹)
+#   internal  : 개별 행 조회 불가, 집계 함수 안에서만 허용
+#   public    : 제한 없음
+# ---------------------------------------------------------------------
+default_sensitivity: public
+
+columns:
+  # --- 고객 개인정보 -------------------------------------------------
+  TB_CUST.RRNO_ENC:   forbidden     # 주민등록번호(암호화) — 고유식별정보
+  TB_CUST.TELNO:      masked        # 휴대전화번호
+  TB_CUST.EMAIL:      masked        # 이메일
+  TB_CUST.ADDR:       masked        # 상세주소 (지역코드 RGN_CD는 public 유지)
+  TB_CUST.CUST_NM:    masked        # 성명
+  TB_CUST.BRDT:       internal      # 생년월일 — 연령 집계는 허용, 개별 조회 불가
+  TB_CUST.ZIP_CD:     masked
+
+  # --- 설계사 개인정보 -----------------------------------------------
+  TB_AGNT.TELNO:      masked
+  TB_AGNT.LIC_NO:     masked
+  TB_AGNT.AGNT_NM:    public        # 사내 조직 정보로 취급
+
+  # --- 민감 업무정보 -------------------------------------------------
+  TB_CS_TCKT.CNTN:    masked        # 상담 원문 (민감정보 혼입 가능)
+  TB_UW.RMRK:         internal      # 심사 의견 — 개별 계약 노출 시 분쟁 소지
+  TB_CLM.DIAG_CD:     internal      # 진단코드 — 건강정보(민감정보)
+  TB_CLM.HOSP_NM:     internal      # 병원명 — 건강정보 추론 가능
+  TB_CLM.FRAUD_SCR:   internal      # 이상징후 점수 — 내부 스코어 비공개
+
+masking:
+  strategy: partial                 # partial | hash | null
+  rules:
+    TB_CUST.CUST_NM:  "substr({col},1,1) || '**'"
+    TB_CUST.TELNO:    "substr({col},1,3) || '-****-' || substr({col},-4)"
+    TB_CUST.EMAIL:    "substr({col},1,2) || '***@' || substr({col}, instr({col},'@')+1)"
+    TB_CUST.ADDR:     "substr({col},1, instr({col},' ')-1) || ' ***'"
+    TB_CUST.ZIP_CD:   "substr({col},1,2) || '***'"
+    TB_AGNT.TELNO:    "substr({col},1,3) || '-****-' || substr({col},-4)"
+    TB_AGNT.LIC_NO:   "'LIC-****'"
+    TB_CS_TCKT.CNTN:  "substr({col},1,10) || '…'"
+
+# ---------------------------------------------------------------------
+# 행 수준 정책 — 세션 컨텍스트({{var}})가 주입되면 WHERE에 AND로 결합된다.
+# 예) 지점 관리자 세션이면 자기 지점 계약만 보이도록.
+# ---------------------------------------------------------------------
+row_policies:
+  - id: BRANCH_SCOPE
+    table: TB_AGNT
+    when: "ctx.branch_cd"
+    filter: "TB_AGNT.BRCH_CD = '{{ctx.branch_cd}}'"
+    description: 지점 관리자는 자기 지점 설계사만 조회 가능
+  - id: MKT_CONSENT
+    table: TB_CUST
+    when: "ctx.purpose == 'marketing'"
+    filter: "TB_CUST.MKT_AGR_YN = 'Y'"
+    description: 마케팅 목적 조회는 수신동의 고객으로 한정 (개인정보보호법 제22조)
+
+# ---------------------------------------------------------------------
+# k-익명성 — 소집단 재식별 방지. 활성화 시 GROUP BY 질의에
+# HAVING COUNT(*) >= k 를 자동 주입한다.
+# ---------------------------------------------------------------------
+k_anonymity:
+  enabled: false
+  k: 5
+  applies_to_tables: [TB_CUST, TB_CLM, TB_CS_TCKT]
+
+# ---------------------------------------------------------------------
+# 감사 로그 — 차단/마스킹/재작성 이벤트는 항상 남긴다.
+# ---------------------------------------------------------------------
+audit:
+  log_all_queries: true
+  log_blocked: true
+  log_rewrites: true
+  redact_values_in_log: true
