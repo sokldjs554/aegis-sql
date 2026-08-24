@@ -266,6 +266,29 @@ _REL_YEAR_OFFSET: dict[str, int] = {
     "전년": -1, "올해": 0, "금년": 0, "당해": 0,
 }
 
+#: ``2025년 7월 1일부터 12월 31일까지`` — an explicit closed range.  The end date
+#: routinely omits the year (and sometimes the month), so it inherits from the
+#: start; without this rule the two dates are matched independently and the
+#: generator emits ``BETWEEN start AND start``, which silently returns almost
+#: nothing.  Registered ahead of the single-date rules so it claims the span.
+_P_YMD_RANGE = re.compile(
+    r"(?<!\d)(?P<y1>\d{4})\s*년\s*(?P<m1>\d{1,2})\s*월\s*(?P<d1>\d{1,2})\s*일?\s*(?:부터|에서|~|-)\s*"
+    r"(?:(?P<y2>\d{4})\s*년\s*)?(?:(?P<m2>\d{1,2})\s*월\s*)?(?P<d2>\d{1,2})\s*일?\s*(?:까지|사이)?"
+)
+#: ``2025년 7월부터 12월까지`` — month granularity, same inheritance rule.
+_P_YM_RANGE = re.compile(
+    r"(?<!\d)(?P<y1>\d{4})\s*년\s*(?P<m1>\d{1,2})\s*월\s*(?:부터|에서|~|-)\s*"
+    r"(?:(?P<y2>\d{4})\s*년\s*)?(?P<m2>\d{1,2})\s*월\s*(?:까지|사이)?"
+)
+#: ``2025-03-01부터 2025-03-31까지`` / ``2025.03.01 ~ 2025.03.31``
+_P_ISO_RANGE = re.compile(
+    r"(?<!\d)(?P<y1>\d{4})[-./](?P<m1>\d{1,2})[-./](?P<d1>\d{1,2})\s*(?:부터|에서|~|-|—)\s*"
+    r"(?P<y2>\d{4})[-./](?P<m2>\d{1,2})[-./](?P<d2>\d{1,2})(?!\d)\s*(?:까지|사이)?"
+)
+#: ``20250101부터 20250630까지`` — the flat form the legacy schema itself stores.
+_P_FLAT_RANGE = re.compile(
+    r"(?<!\d)(?P<a>\d{8})(?!\d)\s*(?:부터|에서|~|-|—)\s*(?P<b>\d{8})(?!\d)\s*(?:까지|사이)?"
+)
 _P_YMD_KOR = re.compile(r"(?<!\d)(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일")
 _P_YMD_SEP = re.compile(r"(?<!\d)(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?!\d)")
 _P_YMD_FLAT = re.compile(r"(?<!\d)(\d{8})(?!\d)")
@@ -406,6 +429,10 @@ class KoreanNormalizer:
     def __init__(self, today: date | str | None = None) -> None:
         self.today: date = _coerce_today(today)
         self._date_rules: tuple[tuple[re.Pattern[str], Callable[[re.Match[str]], _Resolved | None]], ...] = (
+            (_P_YMD_RANGE, self._r_ymd_range),
+            (_P_ISO_RANGE, self._r_iso_range),
+            (_P_FLAT_RANGE, self._r_flat_range),
+            (_P_YM_RANGE, self._r_ym_range),
             (_P_YMD_KOR, self._r_ymd_kor),
             (_P_YMD_SEP, self._r_ymd_sep),
             (_P_YMD_FLAT, self._r_ymd_flat),
@@ -520,6 +547,49 @@ class KoreanNormalizer:
         return ranges, points
 
     # -- handlers (each returns an inclusive YYYYMMDD range, or None) ------- #
+
+    def _r_ymd_range(self, m: re.Match[str]) -> _Resolved | None:
+        y1, m1, d1 = int(m.group("y1")), int(m.group("m1")), int(m.group("d1"))
+        y2 = int(m.group("y2")) if m.group("y2") else y1
+        m2 = int(m.group("m2")) if m.group("m2") else m1
+        d2 = int(m.group("d2"))
+        try:
+            start, end = date(y1, m1, d1), date(y2, m2, d2)
+        except ValueError:
+            return None
+        if end < start:
+            return None
+        return _fmt(start), _fmt(end)
+
+    def _r_iso_range(self, m: re.Match[str]) -> _Resolved | None:
+        try:
+            start = date(int(m.group("y1")), int(m.group("m1")), int(m.group("d1")))
+            end = date(int(m.group("y2")), int(m.group("m2")), int(m.group("d2")))
+        except ValueError:
+            return None
+        return (_fmt(start), _fmt(end)) if end >= start else None
+
+    def _r_flat_range(self, m: re.Match[str]) -> _Resolved | None:
+        a, b = m.group("a"), m.group("b")
+        try:
+            start = date(int(a[:4]), int(a[4:6]), int(a[6:]))
+            end = date(int(b[:4]), int(b[4:6]), int(b[6:]))
+        except ValueError:
+            return None
+        return (_fmt(start), _fmt(end)) if end >= start else None
+
+    def _r_ym_range(self, m: re.Match[str]) -> _Resolved | None:
+        y1, m1 = int(m.group("y1")), int(m.group("m1"))
+        y2 = int(m.group("y2")) if m.group("y2") else y1
+        m2 = int(m.group("m2"))
+        try:
+            start = date(y1, m1, 1)
+            end = date(y2, m2, _last_day(y2, m2))
+        except ValueError:
+            return None
+        if end < start:
+            return None
+        return _fmt(start), _fmt(end)
 
     def _r_ymd_kor(self, m: re.Match[str]) -> _Resolved | None:
         return _point(_safe_date(int(m[1]), int(m[2]), int(m[3])))
