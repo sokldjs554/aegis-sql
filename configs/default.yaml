@@ -42,6 +42,10 @@ router:
   ensemble_threshold: 0.35
   budget_usd: 0.05
   heuristic_threshold: 0.5
+  # sLLM 티어는 벤치마크에서 아래층(template)을 이긴 뒤에만 캐스케이드에 편입한다.
+  # 현재 5.3M 체크포인트는 EX 0.0% vs template 44.4% 이므로 기본 비활성.
+  # 평가용으로는 `aegis eval --tier slm` 으로 언제든 강제할 수 있다.
+  enable_slm: false
 
 verify:
   max_repair_attempts: 3
