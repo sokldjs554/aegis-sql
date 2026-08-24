@@ -33,7 +33,14 @@ from aegis_sql.types import NormalizedQuestion, SchemaGraph, Violation
 
 log = get_logger("verify.intent")
 
-IntentKind = Literal["read", "write", "admin"]
+IntentKind = Literal["read", "write", "admin", "pii"]
+
+#: Surface forms of forbidden data that users actually type.  Derived terms are
+#: added from the policy at construction time; these are the ones no schema
+#: comment would give us.
+_PII_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "주민등록번호": ("주민등록번호", "주민번호", "주민 번호", "실명번호", "고유식별정보", "rrn", "ssn"),
+}
 
 #: Verbs that have no read-only reading in a database request.
 _HARD_WRITE = re.compile(
@@ -98,10 +105,42 @@ class RequestIntentGuard:
     #: A soft verb only counts as a mutation when it governs a schema object.
     SOFT_THRESHOLD = 0.6
 
-    def __init__(self, schema: SchemaGraph, enabled: bool = True) -> None:
+    def __init__(self, schema: SchemaGraph, policy: Any = None, enabled: bool = True) -> None:
         self.schema = schema
+        self.policy = policy
         self.enabled = enabled
         self._object_terms = self._collect_object_terms(schema)
+        self._pii_terms = self._collect_pii_terms(schema, policy)
+
+    def _collect_pii_terms(self, schema: SchemaGraph, policy: Any) -> dict[str, str]:
+        """``{surface: qualified column}`` for every column the policy forbids.
+
+        Silently answering "고객 이름이랑 주민등록번호 뽑아줘" with just the name
+        is the same failure as answering a DELETE with a SELECT: the user asked
+        for something and got a substitution they were never told about.  The
+        AST guard cannot catch it — a generator that declines to emit the column
+        produces a perfectly innocent statement — so the *request* has to be
+        refused here.
+        """
+        terms: dict[str, str] = {}
+        if policy is None:
+            return terms
+        for col in schema.all_columns:
+            try:
+                sensitivity = policy.sensitivity(col.table, col.name)
+            except Exception:  # pragma: no cover - policy shape mismatch
+                continue
+            if getattr(sensitivity, "value", str(sensitivity)) != "forbidden":
+                continue
+            label = (col.comment or col.name).strip()
+            surfaces = {label, label.replace("암호화", "").strip(), col.name.lower()}
+            for canonical, synonyms in _PII_SYNONYMS.items():
+                if canonical in label:
+                    surfaces |= set(synonyms)
+            for surface in surfaces:
+                if len(surface) >= 3:
+                    terms[surface.lower()] = col.qualified
+        return terms
 
     @staticmethod
     def _collect_object_terms(schema: SchemaGraph) -> set[str]:
@@ -132,6 +171,15 @@ class RequestIntentGuard:
             intent.matched = [_flatten(m) for m in admin]
             intent.score = 1.0
             return intent
+
+        lowered = text.lower()
+        for surface, column in self._pii_terms.items():
+            if surface in lowered:
+                intent.kind = "pii"
+                intent.matched = [surface]
+                intent.objects = [column]
+                intent.score = 1.0
+                return intent
 
         hard = _HARD_WRITE.findall(text)
         if hard:
@@ -179,6 +227,17 @@ class RequestIntentGuard:
         intent = self.classify(nq)
         if not intent.refused:
             return None
+        if intent.kind == "pii":
+            column = intent.objects[0] if intent.objects else ""
+            message = (
+                f"요청하신 항목({intent.matched[0]})은 고유식별정보로 분류되어 조회할 수 없습니다"
+                f"{f' [{column}]' if column else ''}. "
+                "다른 항목으로 질문을 다시 작성해 주세요."
+            )
+            log.warning("request refused by intent guard", code="PII_REQUEST", matched=intent.matched)
+            return Violation(
+                code="PII_REQUEST", message=message, severity="block", subject=column or None
+            )
         if intent.kind == "admin":
             message = (
                 "데이터베이스 관리·권한·백업 작업은 조회 엔진의 범위를 벗어납니다. "

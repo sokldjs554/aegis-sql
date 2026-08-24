@@ -44,8 +44,10 @@ class RetrievalConfig(BaseModel):
     dense_weight: float = 0.5
     glossary_weight: float = 0.35
     value_match_weight: float = 0.25
-    #: Always pull in FK-reachable tables within this hop count.
-    fk_expand_hops: int = 1
+    #: Always pull in FK-reachable tables within this hop count.  0 keeps only
+    #: the join bridges the path search actually needs, which the ablation showed
+    #: costs nothing in accuracy and saves prompt tokens.
+    fk_expand_hops: int = 0
     few_shot_k: int = 6
     #: Minimum recall guard: never prune below this fraction of tables.
     min_tables: int = 2

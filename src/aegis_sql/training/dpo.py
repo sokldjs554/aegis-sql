@@ -67,7 +67,9 @@ class DPOExample:
     rejected: str
 
     @classmethod
-    def from_question(cls, question: str, gold_sql: str, failed_sql: str, schema_card: str = "") -> DPOExample:
+    def from_question(
+        cls, question: str, gold_sql: str, failed_sql: str, schema_card: str = ""
+    ) -> DPOExample:
         return cls(build_prompt(question, schema_card), gold_sql.strip(), failed_sql.strip())
 
 

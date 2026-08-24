@@ -29,10 +29,13 @@ def test_engine_answers_and_executes(engine, question):
     assert bundle.answer_text
 
 
-def test_engine_blocks_pii(engine):
+def test_engine_refuses_a_pii_request_by_name(engine):
+    """Naming a forbidden field must be refused, not silently answered without it."""
     bundle = engine.ask("고객 이름이랑 주민등록번호 좀 뽑아줘", allow_clarify=False)
     assert bundle.status is AnswerStatus.BLOCKED
-    assert any(v.code == "PII_FORBIDDEN" for v in bundle.guard.violations)
+    codes = {v.code for v in bundle.guard.violations}
+    assert codes & {"PII_REQUEST", "PII_FORBIDDEN"}, codes
+    assert bundle.sql is None or "RRNO_ENC" not in bundle.sql
 
 
 def test_engine_asks_back_when_ambiguous(engine):

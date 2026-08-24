@@ -19,7 +19,8 @@ retrieval:
   dense_weight: 0.5
   glossary_weight: 0.35
   value_match_weight: 0.25
-  fk_expand_hops: 1
+  # 0: 조인 브리지만 유지(어블레이션 결과 정확도 동일, 토큰 5.7x vs 5.1x 절감)
+  fk_expand_hops: 0
   few_shot_k: 6
   min_tables: 2
 

@@ -104,7 +104,9 @@ class SLMGenerator:
             return True
         except Exception as exc:
             self._load_failed = True
-            log.warning("sLLM load failed", path=str(self.checkpoint_dir), error=f"{type(exc).__name__}: {exc}")
+            log.warning(
+                "sLLM load failed", path=str(self.checkpoint_dir), error=f"{type(exc).__name__}: {exc}"
+            )
             return False
 
     # -- generation --------------------------------------------------------- #
@@ -164,7 +166,7 @@ class SLMGenerator:
         scores = _score_completions(model, prompt_ids, completions, tok.pad_id)
 
         seen: dict[str, SQLCandidate] = {}
-        for ids, logprob in zip(completions, scores):
+        for ids, logprob in zip(completions, scores, strict=True):
             sql = _clean_sql(tok.decode(ids))
             if not sql:
                 continue
@@ -249,4 +251,4 @@ def _score_completions(
         counts = keep.sum(-1).clamp(min=1)
         means = (totals / counts).tolist()
 
-    return [float(m) if ids else None for m, ids in zip(means, completions)]
+    return [float(m) if ids else None for m, ids in zip(means, completions, strict=True)]

@@ -157,6 +157,11 @@ class Variant:
     description: str
     overrides: dict[str, Any] = field(default_factory=dict)
     mutate: Callable[[AegisEngine], None] | None = None
+    #: Tiers this variant can possibly move.  A prompt-shaped ablation cannot
+    #: change the template tier's output — it never reads the prompt — so a Δ of
+    #: 0.0 there means "not applicable", not "this component is worthless".
+    #: Recording it keeps the table honest instead of quietly flattering it.
+    affects: tuple[str, ...] = ("template", "slm", "llm", "ensemble")
 
 
 def _drop_glossary(engine: AegisEngine) -> None:
@@ -188,6 +193,9 @@ DEFAULT_ABLATIONS: list[Variant] = [
     Variant("full", "전체 구성 (기준선)"),
     Variant("no-glossary", "사내 용어사전 제거", mutate=_drop_glossary),
     Variant("no-schema-linking", "스키마 프루닝 없이 전체 스키마 투입", mutate=_full_schema),
+    Variant("no-fewshot", "few-shot 예시 제거",
+            mutate=lambda engine: setattr(engine.c, "fewshot", None),
+            affects=("slm", "llm", "ensemble")),
     Variant("no-value-link", "프로파일된 값 매칭 제거",
             {"retrieval": {"value_match_weight": 0.0}}),
     Variant("dense-only", "BM25 제거 (임베딩 유사도만)",
@@ -199,7 +207,8 @@ DEFAULT_ABLATIONS: list[Variant] = [
     Variant("no-repair", "실행 기반 자가교정 제거",
             {"verify": {"max_repair_attempts": 0}}),
     Variant("card-compact", "스키마 카드를 compact 형식으로",
-            {"generation": {"schema_card_style": "compact"}}),
+            {"generation": {"schema_card_style": "compact"}},
+            affects=("slm", "llm", "ensemble")),
 ]
 
 
@@ -212,6 +221,7 @@ DEFAULT_ABLATIONS: list[Variant] = [
 class RunResult:
     variant: str
     description: str
+    affects: tuple[str, ...]
     scores: list[ItemScore]
     overall: Aggregate
     per_difficulty: dict[str, Aggregate]
@@ -225,6 +235,7 @@ class RunResult:
         return {
             "variant": self.variant,
             "description": self.description,
+            "affects": list(self.affects),
             "overall": self.overall.as_dict(),
             "per_difficulty": {k: v.as_dict() for k, v in self.per_difficulty.items()},
             "per_tag": {k: v.as_dict() for k, v in self.per_tag.items()},
@@ -303,6 +314,7 @@ class EvalHarness:
         return RunResult(
             variant=variant.name,
             description=variant.description,
+            affects=variant.affects,
             scores=scores,
             overall=aggregate(scores),
             per_difficulty=by_difficulty(scores),

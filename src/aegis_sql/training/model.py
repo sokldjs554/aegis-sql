@@ -128,7 +128,7 @@ class AegisLMConfig:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> AegisLMConfig:
-        known = {f for f in cls.__dataclass_fields__}
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in payload.items() if k in known})
 
 
