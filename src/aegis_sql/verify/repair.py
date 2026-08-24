@@ -33,9 +33,14 @@ from aegis_sql.observability.logging import get_logger
 from aegis_sql.schema.graph import JoinEdge, JoinGraph
 from aegis_sql.schema.profile import SchemaProfile
 from aegis_sql.types import LinkedSchema, RepairStep, SchemaGraph, Violation
-from aegis_sql.verify.ast_guard import DIALECT, ColumnResolver, is_scalar_aggregate
+from aegis_sql.verify.ast_guard import (
+    DIALECT,
+    ColumnResolver,
+    function_name,
+    is_scalar_aggregate,
+)
 from aegis_sql.verify.executor import SQLExecutor
-from aegis_sql.verify.static_check import StaticChecker, nearest
+from aegis_sql.verify.static_check import DATE_FUNCTIONS, StaticChecker, nearest
 
 log = get_logger("verify.repair")
 
@@ -77,7 +82,8 @@ class SelfRepairer:
         self.executor = executor
         self.static_checker = static_checker
         self.llm_repair = llm_repair
-        self.max_attempts = max(1, int(max_attempts))
+        #: ``0`` disables repair entirely — the "no-repair" ablation in the eval harness.
+        self.max_attempts = max(0, int(max_attempts))
         self._strategies: tuple[tuple[str, Callable[[exp.Expr, str, list[Violation]], bool]], ...] = (
             ("unknown-table", self._fix_unknown_table),
             ("unknown-column", self._fix_unknown_column),
@@ -99,8 +105,10 @@ class SelfRepairer:
         steps: list[RepairStep] = []
         current, current_error = sql, error
 
-        reserve = 1 if self.llm_repair is not None else 0
-        rule_budget = max(1, self.max_attempts - reserve)
+        # Hold one attempt back for the model, but never at the price of the
+        # only rule attempt available.
+        reserve = 1 if self.llm_repair is not None and self.max_attempts > 1 else 0
+        rule_budget = self.max_attempts - reserve
 
         issues = self._issues(current)
         for name, strategy in self._strategies:
@@ -149,7 +157,8 @@ class SelfRepairer:
                 return candidate, steps
             current, current_error = candidate, result.error or ""
 
-        log.warning("repair exhausted", attempts=len(steps), error=current_error[:160])
+        if self.max_attempts:
+            log.warning("repair exhausted", attempts=len(steps), error=current_error[:160])
         return None, steps
 
     # -- strategy plumbing --------------------------------------------------- #
@@ -508,12 +517,7 @@ def _date_wrapper(column: exp.Column) -> exp.Func | None:
     """The nearest DATE()/YEAR()/strftime() call wrapping this column."""
     node: exp.Expr | None = column.parent
     while node is not None and not isinstance(node, exp.Select):
-        name = str(node.this) if isinstance(node, exp.Anonymous) else (
-            node.sql_name() if isinstance(node, exp.Func) else None
-        )
-        if name and name.lower() in {
-            "date", "datetime", "year", "month", "day", "strftime", "julianday", "date_trunc"
-        }:
+        if isinstance(node, exp.Func) and function_name(node) in DATE_FUNCTIONS:
             return node
         node = node.parent
     return None
@@ -521,7 +525,7 @@ def _date_wrapper(column: exp.Column) -> exp.Func | None:
 
 def _unwrap_date(wrapper: exp.Func, column: exp.Column) -> exp.Expr | None:
     """Replace a date function over a 'YYYYMMDD' string with the equivalent substring."""
-    name = (str(wrapper.this) if isinstance(wrapper, exp.Anonymous) else wrapper.sql_name()).lower()
+    name = function_name(wrapper)
     reference = column.copy()
     if name in {"date", "datetime", "julianday", "date_trunc"}:
         return reference

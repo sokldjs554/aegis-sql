@@ -22,7 +22,7 @@ import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from aegis_sql.config import PROJECT_ROOT, Settings, get_settings
 from aegis_sql.generation.base import GenerationContext, Generator
@@ -38,6 +38,7 @@ from aegis_sql.observability.metrics import (
 )
 from aegis_sql.observability.trace import Tracer, trace_context
 from aegis_sql.schema.card import SchemaCardBuilder
+from aegis_sql.schema.card import Style as CardStyle
 from aegis_sql.schema.graph import JoinGraph
 from aegis_sql.schema.introspect import introspect
 from aegis_sql.schema.profile import Profiler, SchemaProfile
@@ -348,7 +349,9 @@ class AegisEngine:
         st = self.settings
         generator = c.generators.get(decision.tier) or c.generators[Tier.TEMPLATE]
 
-        style = "slm" if decision.tier is Tier.SLM else st.generation.schema_card_style
+        style = cast(
+            "CardStyle", "slm" if decision.tier is Tier.SLM else st.generation.schema_card_style
+        )
         card = c.card_builder.render(linked, style=style)
         gctx = GenerationContext(
             question=nq.raw, normalized=nq, linked=linked, schema_card=card,

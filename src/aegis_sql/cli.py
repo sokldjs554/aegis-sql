@@ -11,6 +11,7 @@ from __future__ import annotations
 import json as jsonlib
 import sys
 from pathlib import Path
+from typing import cast
 
 import typer
 from rich.console import Console
@@ -293,7 +294,7 @@ def schema(
     style: str = typer.Option("mschema", "--style", help="mschema|ddl|compact|slm"),
 ) -> None:
     """스키마 카드를 출력한다 (프롬프트에 실제로 들어가는 형태)."""
-    from aegis_sql.schema.card import SchemaCardBuilder, token_estimate
+    from aegis_sql.schema.card import SchemaCardBuilder, Style as CardStyle, token_estimate
     from aegis_sql.schema.introspect import introspect
     from aegis_sql.schema.profile import Profiler
     from aegis_sql.types import LinkedSchema
@@ -306,7 +307,7 @@ def schema(
     prof = Profiler(db).profile(g, cache_path=PROJECT_ROOT / "data" / "generated" / "profile.json")
     builder = SchemaCardBuilder(g, prof)
     linked = LinkedSchema(tables=[table]) if table else None
-    card = builder.render(linked, style=style)
+    card = builder.render(linked, style=cast("CardStyle", style))
     console.print(card)
     console.print(f"\n[dim]≈ {token_estimate(card)} tokens[/dim]")
 

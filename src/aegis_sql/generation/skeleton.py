@@ -131,7 +131,7 @@ def normalize_sql(sql: str, dialect: str = "sqlite") -> str:
     if tree is None:  # pragma: no cover - empty statement
         return _regex_normalize(text)
 
-    tree = _canonicalise_aliases(tree)
+    tree = _canonicalise_aliases(exp.Expression(this=tree) if False else tree)  # type: ignore[arg-type]
     tree = tree.transform(_drop_output_alias)
     tree = tree.transform(_lower_identifier)
     try:

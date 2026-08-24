@@ -436,7 +436,8 @@ class PolicyGuard:
             violations.append(
                 Violation(
                     "MULTI_STATEMENT",
-                    f"단일 SELECT 문만 허용됩니다 ({len(statements)}개 구문이 감지되었습니다).",
+                    f"단일 SELECT 문만 허용됩니다 "
+                    f"({len(statements)}개 구문이 감지되었습니다).",
                     "block",
                 )
             )
@@ -484,7 +485,8 @@ class PolicyGuard:
                         out.append(
                             Violation(
                                 code,
-                                f"읽기 전용 정책: {type(node).__name__.upper()} 구문은 실행할 수 없습니다.",
+                                f"읽기 전용 정책: {type(node).__name__.upper()} 구문은 "
+                                "실행할 수 없습니다.",
                                 "block",
                                 type(node).__name__.upper(),
                             )
@@ -1002,5 +1004,10 @@ def _eval_when(expression: str, ctx: dict) -> bool | None:
         if negate:
             outcome = not outcome
             negate = False
-        result = outcome if result is None else (result and outcome if operator == "and" else result or outcome)
+        if result is None:
+            result = outcome
+        elif operator == "and":
+            result = result and outcome
+        else:
+            result = result or outcome
     return result
