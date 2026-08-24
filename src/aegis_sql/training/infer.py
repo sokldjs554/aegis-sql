@@ -142,7 +142,8 @@ class SLMGenerator:
                 if n_samples > 1
                 else getattr(gen_cfg, "temperature", 0.0)
             )
-        max_new = min(int(getattr(gen_cfg, "max_tokens", DEFAULT_MAX_NEW_TOKENS)), DEFAULT_MAX_NEW_TOKENS)
+        cap = int(getattr(gen_cfg, "slm_max_new_tokens", DEFAULT_MAX_NEW_TOKENS))
+        max_new = min(int(getattr(gen_cfg, "max_tokens", DEFAULT_MAX_NEW_TOKENS)), cap)
 
         prompt = build_prompt(ctx.question, ctx.schema_card)
         prompt_ids = tok.encode(prompt, add_bos=True)
