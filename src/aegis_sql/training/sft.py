@@ -55,7 +55,7 @@ if TORCH_AVAILABLE:  # pragma: no cover - trivially true wherever training runs
     from torch.utils.data import Dataset as _TorchDataset
 else:  # pragma: no cover - torch-less installs still import this module
     _TorchDataset = object  # type: ignore[assignment,misc]
-    DataLoader = None  # type: ignore[assignment]
+    DataLoader = None  # type: ignore[assignment,misc]
 
 IGNORE_INDEX = -100
 
@@ -380,7 +380,8 @@ class SFTTrainer:
 
     def _build_optimizer(self) -> Any:
         """Decay matrices, never norms/biases — the standard decoupled-decay split."""
-        decay, no_decay = [], []
+        decay: list[Tensor] = []
+        no_decay: list[Tensor] = []
         for param in self.model.parameters():
             if not param.requires_grad:
                 continue

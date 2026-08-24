@@ -73,8 +73,8 @@ except ImportError:  # pragma: no cover - torch-less installs
             )
 
     torch = _MissingTorch()  # type: ignore[assignment]
-    nn = torch  # type: ignore[assignment]
-    F = torch  # type: ignore[assignment]
+    nn = torch  # type: ignore[assignment,misc]
+    F = torch  # type: ignore[assignment,misc]
     Tensor = Any  # type: ignore[misc,assignment]
     Module = object  # type: ignore[misc,assignment]
     TORCH_AVAILABLE = False
@@ -155,6 +155,9 @@ class RMSNorm(Module):
 
 class RotaryEmbedding(Module):
     """Precomputed RoPE cos/sin tables (Su et al. 2021)."""
+
+    cos_cached: Tensor
+    sin_cached: Tensor
 
     def __init__(self, head_dim: int, max_seq_len: int, theta: float = 10000.0) -> None:
         super().__init__()
@@ -306,7 +309,8 @@ class AegisLM(Module):
         # Scale the two residual-writing projections per GPT-2 §2.3, so the
         # variance of the residual stream does not grow with depth.
         residual_std = 0.02 / math.sqrt(2 * cfg.n_layers)
-        for block in self.layers:
+        blocks: list[Block] = list(self.layers)  # type: ignore[arg-type]
+        for block in blocks:
             nn.init.normal_(block.attn.o_proj.weight, mean=0.0, std=residual_std)
             nn.init.normal_(block.mlp.down_proj.weight, mean=0.0, std=residual_std)
 

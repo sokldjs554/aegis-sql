@@ -292,7 +292,9 @@ def synthesise_preferences(examples: list[SFTExample], n: int, seed: int) -> lis
 
 def build_arg_parser() -> argparse.ArgumentParser:
     settings = Settings()
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--data-dir", default=settings.flywheel.output_dir, help="flywheel corpus directory")
     parser.add_argument("--out", default=settings.generation.slm_checkpoint, help="checkpoint directory")
     parser.add_argument("--db", default=settings.database.path, help="database used for the fallback corpus")
