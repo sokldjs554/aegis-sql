@@ -108,10 +108,18 @@ def render_markdown(results: list[RunResult], title: str = "AEGIS-SQL 평가 리
     if len(results) > 1:
         parts += ["## 어블레이션", "",
                   "각 행은 **한 가지 구성요소만 제거**하고 동일한 벤치마크를 다시 돌린 결과다.", ""]
+        active = set(base.overall.tier_mix) or {"template"}
         rows = []
+        inert: list[str] = []
         for r in results:
             delta = r.overall.execution_accuracy - base.overall.execution_accuracy
-            sign = "—" if r.variant == base.variant else f"{delta * 100:+.1f}%p"
+            applicable = bool(active & set(r.affects)) or r.variant == base.variant
+            if not applicable:
+                inert.append(r.variant)
+            sign = (
+                "—" if r.variant == base.variant
+                else ("n/a" if not applicable else f"{delta * 100:+.1f}%p")
+            )
             rows.append([
                 f"`{r.variant}`", r.description, _pct(r.overall.execution_accuracy), sign,
                 _pct(r.per_difficulty.get("medium", r.overall).execution_accuracy),
@@ -119,6 +127,14 @@ def render_markdown(results: list[RunResult], title: str = "AEGIS-SQL 평가 리
                 f"{r.overall.p50_latency_ms:.0f}",
             ])
         parts += [_table(["구성", "설명", "EX", "Δ", "medium", "hard", "p50(ms)"], rows), ""]
+        if inert:
+            parts += [
+                f"> `n/a` 로 표시된 변형({', '.join(inert)})은 이번 실행에서 활성화된 티어"
+                f"(`{', '.join(sorted(active))}`)에 **구조적으로 영향을 줄 수 없다**. "
+                "프롬프트/few-shot 관련 구성요소이며, template 티어는 프롬프트를 읽지 않기 때문이다. "
+                "Δ가 0인 것을 '기여가 없다'로 읽으면 안 된다 — LLM/sLLM 티어에서 다시 측정해야 한다.",
+                "",
+            ]
 
     # -- tags ------------------------------------------------------------ #
     if base.per_tag:

@@ -58,6 +58,9 @@ from aegis_sql.types import (
 
 log = get_logger("pipeline")
 
+#: Tiers whose generator consumes a rendered prompt (and therefore few-shots).
+_PROMPTED_TIERS = frozenset({Tier.SLM, Tier.LLM, Tier.ENSEMBLE})
+
 
 def _resolve(path: str | Path) -> Path:
     """Config paths may be relative to the project root."""
@@ -152,7 +155,7 @@ class AegisEngine:
         executor = SQLExecutor(db_path, timeout_s=st.database.timeout_s, max_rows=st.database.max_rows)
         policy = PolicyDocument.load(_resolve(st.policy.path)) if st.policy.enabled else PolicyDocument.permissive()
         guard = PolicyGuard(schema, policy, st)
-        intent_guard = RequestIntentGuard(schema, enabled=st.policy.enabled)
+        intent_guard = RequestIntentGuard(schema, policy=policy, enabled=st.policy.enabled)
         static_checker = StaticChecker(schema, join_graph, profile)
         registry = PromptRegistry.load(st.generation.prompt_set)
 
@@ -327,13 +330,6 @@ class AegisEngine:
             emit("clarify", {"question": bundle.answer_text, "options": report.options})
             return
 
-        # -- 4. few-shot ------------------------------------------------- #
-        few_shots = []
-        if c.fewshot is not None:
-            with tracer.span("fewshot") as sp:
-                few_shots = c.fewshot.select(nq, k=st.retrieval.few_shot_k)
-                sp.attributes["k"] = len(few_shots)
-
         # -- 5. route ---------------------------------------------------- #
         with tracer.span("route") as sp:
             from aegis_sql.router.features import extract_features
@@ -350,6 +346,17 @@ class AegisEngine:
         bundle.route = decision
         emit("route", {"tier": decision.tier.value, "confidence": decision.confidence,
                        "reason": decision.reason})
+
+        # -- 5b. few-shot --------------------------------------------------- #
+        # Selection runs *after* routing, and only for tiers that read a prompt.
+        # Retrieving and re-ranking examples for the template tier — which
+        # compiles the question directly and never sees them — cost ~57ms per
+        # query on a 10k-example corpus for exactly nothing.
+        few_shots: list = []
+        if c.fewshot is not None and decision.tier in _PROMPTED_TIERS:
+            with tracer.span("fewshot") as sp:
+                few_shots = c.fewshot.select(nq, k=st.retrieval.few_shot_k)
+                sp.attributes["k"] = len(few_shots)
 
         # -- 6-11. generate → verify → execute (with escalation) --------- #
         attempted: list[Tier] = []

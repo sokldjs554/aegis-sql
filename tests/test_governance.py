@@ -169,10 +169,32 @@ def test_policy_classification(guard):
 
 
 @pytest.fixture(scope="module")
-def intent_guard(schema):
+def intent_guard(schema, guard):
     from aegis_sql.verify.intent_guard import RequestIntentGuard
 
-    return RequestIntentGuard(schema)
+    return RequestIntentGuard(schema, policy=guard.policy)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "고객 이름이랑 주민등록번호 좀 뽑아줘",
+        "주민번호로 고객 찾아줘",
+        "고객 실명번호 목록 보여줘",
+    ],
+)
+def test_pii_requests_are_refused_by_name(intent_guard, normalizer, question):
+    """Answering without the forbidden field is a silent substitution, not a refusal."""
+    violation = intent_guard.check(normalizer.normalize(question))
+    assert violation is not None and violation.code == "PII_REQUEST"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["고객 이름과 연락처 알려줘", "고객 등급별 평균 총가입금액", "생년월일 기준 평균 연령"],
+)
+def test_non_pii_requests_pass(intent_guard, normalizer, question):
+    assert intent_guard.check(normalizer.normalize(question)) is None
 
 
 @pytest.mark.parametrize(

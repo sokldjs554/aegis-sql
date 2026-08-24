@@ -273,7 +273,7 @@ def _learn_merges(
     pair_where: dict[_Pair, set[int]] = defaultdict(set)
     for idx, symbols in enumerate(words):
         weight = counts[idx]
-        for pair in zip(symbols, symbols[1:]):
+        for pair in zip(symbols, symbols[1:], strict=False):
             pair_counts[pair] += weight
             pair_where[pair].add(idx)
 
@@ -301,7 +301,7 @@ def _learn_merges(
             merged = _apply_merge(symbols, best, new_id)
             if merged is None:
                 continue
-            for pair in set(zip(symbols, symbols[1:])):
+            for pair in set(zip(symbols, symbols[1:], strict=False)):
                 pair_where.get(pair, _EMPTY).discard(idx)
             for pair, delta in _pair_delta(symbols, weight).items():
                 pair_counts[pair] -= delta
@@ -330,7 +330,7 @@ _EMPTY: set[int] = set()
 
 def _pair_delta(symbols: list[int], weight: int) -> dict[_Pair, int]:
     out: dict[_Pair, int] = defaultdict(int)
-    for pair in zip(symbols, symbols[1:]):
+    for pair in zip(symbols, symbols[1:], strict=False):
         out[pair] += weight
     return out
 
