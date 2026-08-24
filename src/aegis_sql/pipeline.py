@@ -241,13 +241,30 @@ class AegisEngine:
 
     @staticmethod
     def _load_router(st):
+        """Freshly trained weights win; the checked-in ones are the fallback.
+
+        Shipping a 15 KB numpy router in ``models/router/`` means a clone shows
+        real routing confidences on the first ``make demo`` instead of silently
+        falling back to the heuristic — and re-training simply shadows it.
+        """
+        if not st.router.enabled:
+            return None
         try:
             from aegis_sql.router.tf_router import load_router
-
-            return load_router(_resolve(st.router.model_dir)) if st.router.enabled else None
-        except Exception as exc:  # pragma: no cover
-            log.debug("router weights unavailable, using heuristic", error=str(exc))
+        except Exception as exc:  # pragma: no cover - optional dependency
+            log.debug("router module unavailable, using heuristic", error=str(exc))
             return None
+        for directory in (_resolve(st.router.model_dir), PROJECT_ROOT / "models" / "router"):
+            try:
+                router = load_router(directory)
+            except Exception as exc:  # pragma: no cover - corrupt weights
+                log.debug("router weights unreadable", path=str(directory), error=str(exc))
+                continue
+            if router is not None:
+                log.info("cascade router loaded", path=str(directory))
+                return router
+        log.info("no trained router found, falling back to the heuristic difficulty score")
+        return None
 
     # ------------------------------------------------------------------ #
     # the query path
