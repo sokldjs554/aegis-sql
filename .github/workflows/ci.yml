@@ -79,9 +79,11 @@ jobs:
           print("flywheel ok:", m["counts"]["total"], "pairs, 0 skeleton leakage")
           EOF
 
+      # train_router.py refuses to fit on fewer than 50 observed labels — that
+      # minimum is a feature, so satisfy it rather than lowering it.
       - name: Routing labels — observed, not synthetic
         run: |
-          python -m aegis_sql.cli eval --limit 40 \
+          python -m aegis_sql.cli eval --limit 70 \
             --routing-log data/generated/router/routing_train.jsonl \
             --report reports/ci-routing.md
 
