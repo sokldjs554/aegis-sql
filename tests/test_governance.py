@@ -244,6 +244,11 @@ def test_admin_requests_are_refused(intent_guard, normalizer, question):
         "갱신형 상품 개수",
         "지점별 신계약 건수 상위 5개",
         "고객 등급별 평균 총가입금액",
+        "보험료가 인상된 계약 조회",
+        "해지된 계약의 채널별 비중은?",
+        "부활한 계약은 몇 건이야?",
+        "계약 상태별 건수와 전체 대비 비중을 알려줘",
+        "설계사 실적 좀 보여줘",
     ],
 )
 def test_read_requests_are_not_refused(intent_guard, normalizer, question):

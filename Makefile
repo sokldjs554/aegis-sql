@@ -69,7 +69,7 @@ serve: ## FastAPI 서버 기동 (웹 콘솔 포함)
 flywheel: ## 스키마 → SQL 샘플링 → 역번역 → 증강 → 실행검증 → 학습셋
 	@$(PYTHON) -m aegis_sql.cli flywheel --n-programs 4000
 
-train-slm: ## 자체 구현 PyTorch Transformer 학습 (BPE → SFT → LoRA → DPO)
+train-slm: ## 자체 구현 PyTorch Transformer 학습 (BPE → SFT → DPO; --lora 로 어댑터 학습)
 	@$(PYTHON) scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm \
 	  --epochs 3 --limit 9000 --d-model 256 --n-layers 4 --n-heads 8 --d-ff 1024 \
 	  --max-seq-len 288 --vocab-size 8000 --batch-size 32 --dpo

@@ -19,7 +19,7 @@ flowchart LR
     D["④ 품질 필터<br/>실행·비어있음·퇴화·중복"] --> E
     E["⑤ 누수 없는 분할<br/>스켈레톤 클러스터 단위"] --> F
     F["train / dev / test.jsonl<br/>+ manifest.json"] --> G
-    G["⑥ SFT → LoRA → DPO<br/>(PyTorch, CPU)"] --> H["sLLM 체크포인트"]
+    G["⑥ SFT → DPO (LoRA 선택)<br/>(PyTorch, CPU)"] --> H["sLLM 체크포인트"]
     H -.-> I["운영 중 자가교정 로그"]
     I -.-> J["DPO 선호쌍<br/>chosen=gold, rejected=실패 SQL"]
     J --> G
@@ -93,7 +93,7 @@ API 키가 있으면 `backtranslate.user` 프롬프트로 한 번 더 다듬지�
 ## ⑥ 학습으로 이어지는 고리
 
 - **SFT**: 프롬프트 구간은 `-100`으로 마스킹해 **SQL 토큰에만** 손실을 준다.
-- **LoRA**: `q_proj / v_proj / o_proj`에 rank 16 어댑터. 학습 파라미터 3% 미만.
+- **LoRA**(선택): `q_proj / v_proj / o_proj`에 rank 16 어댑터. 학습 파라미터 5% 미만(테스트 강제).
 - **DPO**: 선호쌍을 **엔진이 운영 중에 스스로 만든다**.
   `chosen` = 검증을 통과한 gold SQL, `rejected` = 자가교정 로그에 남은 실패 SQL.
   사람 라벨링 0건으로 "실패했던 패턴을 덜 만들도록" 정렬된다. 이것이 플라이휠이 도는 부분이다.

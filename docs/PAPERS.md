@@ -51,7 +51,7 @@
 | **RoFormer(RoPE)** — Su et al., *arXiv 2021* | 회전 위치 임베딩 | **[적용]** cos/sin 캐시 + KV 캐시 생성 경로 포함 |
 | **GLU Variants(SwiGLU)** — Shazeer, *arXiv 2020* | FFN 게이팅 | **[적용]** |
 | **Byte-level BPE** — Sennrich et al., *ACL 2016* / Radford et al., 2019 | 서브워드 분절 | **[적용]** `training/tokenizer.py`에서 **바이트 단위 BPE를 처음부터 학습**. 한글+SQL 혼합 코퍼스에서 무손실 왕복을 보장해야 하므로 바이트 레벨이 필수. |
-| **LoRA** — Hu et al., *ICLR 2022* | 저랭크 어댑터로 파라미터 효율 미세조정 | **[적용]** `training/lora.py`에 `peft` 없이 직접 구현. `B=0` 초기화로 적용 직후 출력이 **비트 단위로 동일**함을 테스트로 보장. |
+| **LoRA** — Hu et al., *ICLR 2022* | 저랭크 어댑터로 파라미터 효율 미세조정 | **[적용]** `training/lora.py`에 `peft` 없이 직접 구현. `B=0` 초기화로 적용 직후 출력이 동일함(`allclose`, atol 1e-6)을 테스트로 보장. |
 | **DPO** — Rafailov et al., *NeurIPS 2023* | 보상모델 없이 선호쌍으로 직접 정렬 | **[적용]** `training/dpo.py`. **선호쌍을 엔진이 스스로 만든다** — `chosen`=gold SQL, `rejected`=자가교정 로그에 남은 실패 SQL. 사람 라벨링 0건. |
 | **CodeS** — Li et al., *SIGMOD 2024* | 양방향 데이터 증강 + 점진적 사전학습으로 오픈 LLM의 Text-to-SQL 성능 확보 | **[적용]** 플라이휠의 직접적 근거. 다만 사전학습 대신 **스키마 기반 프로그램 샘플링 → 역번역**으로 도메인 데이터를 0에서 생성. |
 
@@ -71,7 +71,7 @@
 | **Spider** — Yu et al., *EMNLP 2018* | 크로스도메인 Text-to-SQL 벤치마크, Exact Set Match | **[적용]** EM을 보조 지표로 사용. 단, **EM은 정답을 오답으로 만드는 경우가 많아** 주지표로 쓰지 않는다. |
 | **Test-Suite Accuracy** — Zhong et al., *EMNLP 2020* | 여러 DB 인스턴스에서 실행해 우연히 맞는 SQL을 걸러냄 | **[변형]** 다중 DB 대신 **결과 집합 해시 비교 + 컬럼 수/행 수 일치**로 근사(`eval/metrics.py`). 한계는 문서에 명시. |
 | **BIRD** — Li et al., *NeurIPS 2023* | 대규모 실DB 기반 벤치마크, **VES(Valid Efficiency Score)** 도입 | **[적용]** 실행 시간까지 점수화하는 VES 개념을 차용해 리포트에 지연/비용 축을 함께 싣는다. |
-| *(도메인 고유)* | — | **[신규]** **KorFin-Bench 104문항**: 90개 정답 SQL + **8개 거버넌스 프로브**(반드시 차단) + **6개 모호성 프로브**(반드시 되물음). 정확도만 높고 주민번호를 뱉는 시스템은 배포 불가라는 관점을 점수에 넣었다. |
+| *(도메인 고유)* | — | **[신규]** **KorFin-Bench 106문항**: 90개 정답 SQL + **10개 거버넌스 프로브**(요청 거부/문장 차단·마스킹) + **6개 모호성 프로브**(반드시 되물음). 정확도만 높고 주민번호를 뱉는 시스템은 배포 불가라는 관점을 점수에 넣었다. |
 
 ## 7. 라우팅 · 비용 · 신뢰도 (Cascade / Calibration)
 
