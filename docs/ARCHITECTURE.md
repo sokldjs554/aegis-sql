@@ -54,7 +54,7 @@ flowchart TB
         F2["SQL → 한국어 역번역"]
         F3["한국어 증강 (조사·존댓말·오타·별칭)"]
         F4["실행 기반 품질 필터 + 누수 없는 분할"]
-        F5["SFT → LoRA → DPO"]
+        F5["SFT → DPO (LoRA 선택)"]
     end
     FW --> G2
 ```

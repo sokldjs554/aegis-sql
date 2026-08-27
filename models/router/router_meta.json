@@ -36,5 +36,49 @@
     "val_loss": 0.21758320927619934
   },
   "norm_epsilon": 1e-07,
-  "threshold": 0.5
+  "threshold": 0.5,
+  "holdout": {
+    "n": 260,
+    "auc": 0.93649,
+    "ece_before": 0.099193,
+    "ece_after": 0.043869,
+    "temperature": 1.244603,
+    "sweep": [
+      {
+        "threshold": 0.3,
+        "escalated": 0.8038461538461539,
+        "cost_saving": 0.19615384615384615,
+        "accuracy": 0.95,
+        "escalation_recall": 0.9319371727748691
+      },
+      {
+        "threshold": 0.4,
+        "escalated": 0.7423076923076923,
+        "cost_saving": 0.25769230769230766,
+        "accuracy": 0.9384615384615385,
+        "escalation_recall": 0.9162303664921466
+      },
+      {
+        "threshold": 0.5,
+        "escalated": 0.7153846153846154,
+        "cost_saving": 0.2846153846153846,
+        "accuracy": 0.9346153846153846,
+        "escalation_recall": 0.9109947643979057
+      },
+      {
+        "threshold": 0.6,
+        "escalated": 0.6730769230769231,
+        "cost_saving": 0.3269230769230769,
+        "accuracy": 0.9115384615384615,
+        "escalation_recall": 0.8795811518324608
+      },
+      {
+        "threshold": 0.7,
+        "escalated": 0.6423076923076924,
+        "cost_saving": 0.3576923076923077,
+        "accuracy": 0.8923076923076924,
+        "escalation_recall": 0.8534031413612565
+      }
+    ]
+  }
 }

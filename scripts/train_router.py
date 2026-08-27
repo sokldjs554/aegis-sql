@@ -257,6 +257,21 @@ def main() -> int:
     router.save()
     calibrator.save(out_dir / CALIBRATOR_FILE)
 
+    # Persist the holdout evaluation next to the weights.  A number that lives
+    # only in a training run's stdout cannot back a README claim; anything the
+    # report cites has to be re-checkable from the shipped artefacts alone.
+    meta_path = out_dir / "router_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta["holdout"] = {
+        "n": int(y_hold.shape[0]),
+        "auc": round(float(holdout_auc), 6),
+        "ece_before": round(float(calibration["ece_before"]), 6),
+        "ece_after": round(float(calibration["ece_after"]), 6),
+        "temperature": round(float(calibration["temperature"]), 6),
+        "sweep": threshold_sweep(calibrated, y_hold, [0.30, 0.40, 0.50, 0.60, 0.70]),
+    }
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
     served = NumpyRouter.load(out_dir)
     if served is None:
         print("[error] export 후 numpy 가중치를 다시 읽지 못했습니다.", file=sys.stderr)
