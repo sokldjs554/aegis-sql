@@ -192,8 +192,12 @@ MEDIUM_ITEMS = [
 ("kfb-m23","medium","민원 유형별 평균 처리 소요일수",
  "SELECT cd.CD_NM AS ctgy, AVG(julianday(substr(t.CMPL_DT,1,4) || '-' || substr(t.CMPL_DT,5,2) || '-' || substr(t.CMPL_DT,7,2)) - julianday(substr(t.RCPT_DT,1,4) || '-' || substr(t.RCPT_DT,5,2) || '-' || substr(t.RCPT_DT,7,2))) AS avg_days FROM TB_CS_TCKT t JOIN TB_COMM_CD cd ON cd.CD_GRP = 'TCKT_CTGY' AND cd.CD = t.CTGY_CD WHERE t.CMPL_DT IS NOT NULL GROUP BY cd.CD_NM ORDER BY avg_days DESC",
  ["TB_CS_TCKT","TB_COMM_CD"],["date-diff","code-join","glossary"]),
-("kfb-m24","medium","계약이 500건 이상인 지점만 보여줘",
- "SELECT b.BRCH_NM, COUNT(*) AS cnt FROM TB_CTRT t JOIN TB_AGNT a ON a.AGNT_ID = t.AGNT_ID JOIN TB_BRCH b ON b.BRCH_CD = a.BRCH_CD GROUP BY b.BRCH_NM HAVING COUNT(*) >= 500 ORDER BY cnt DESC",
+# NOTE: the threshold is 100, not something dramatic, on purpose — the demo DB is
+# built at configurable --scale (CI 0.25, Docker 0.5, local 1.0) and an absolute
+# row-count cut must stay satisfiable at the smallest of them.  CI caught the
+# original 500 returning zero rows at scale 0.25.
+("kfb-m24","medium","계약이 100건 이상인 지점만 보여줘",
+ "SELECT b.BRCH_NM, COUNT(*) AS cnt FROM TB_CTRT t JOIN TB_AGNT a ON a.AGNT_ID = t.AGNT_ID JOIN TB_BRCH b ON b.BRCH_CD = a.BRCH_CD GROUP BY b.BRCH_NM HAVING COUNT(*) >= 100 ORDER BY cnt DESC",
  ["TB_CTRT","TB_AGNT","TB_BRCH"],["having","multi-join"]),
 ("kfb-m25","medium","평균 월납보험료가 30만원 이상인 상품",
  "SELECT p.PROD_NM, AVG(t.MON_PRM) AS avg_prm FROM TB_CTRT t JOIN TB_PROD p ON p.PROD_CD = t.PROD_CD GROUP BY p.PROD_CD, p.PROD_NM HAVING AVG(t.MON_PRM) >= 300000 ORDER BY avg_prm DESC",
@@ -369,7 +373,13 @@ def build(db_path: Path, out_path: Path) -> int:
 
     empty = [r["id"] for r in records if r.get("expect") == "ok" and r["gold_row_count"] == 0]
     if empty:
-        print(f"[warn] gold queries with an empty result set: {empty}", file=sys.stderr)
+        print(
+            f"[FAIL] gold queries with an empty result set: {empty}\n"
+            "       an empty gold makes the item trivially satisfiable — fix the query "
+            "or its threshold (the demo DB scale in use may be smaller than yours).",
+            file=sys.stderr,
+        )
+        return 1
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as fh:
