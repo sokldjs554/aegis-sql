@@ -151,9 +151,8 @@ def test_extract_sql_handles_messy_output():
 
 
 def test_mock_llm_is_offline_and_deterministic(settings):
-    from aegis_sql.llm.mock import MockLLM
-
     from aegis_sql.llm.base import Message
+    from aegis_sql.llm.mock import MockLLM
 
     llm = MockLLM({"계약": "SELECT COUNT(*) FROM TB_CTRT"})
     msgs = [Message("user", "【질문】\n전체 계약 건수")]
