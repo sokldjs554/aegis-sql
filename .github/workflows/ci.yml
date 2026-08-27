@@ -55,15 +55,24 @@ jobs:
   ml:
     name: ml stack (torch + tensorflow)
     runs-on: ubuntu-latest
+    env:
+      # The default (CUDA-build) wheel's torch._dynamo C extensions segfault on
+      # the hosted runner the first time an optimizer is constructed.  This job
+      # is CPU-only anyway, so eager mode is all it needs.
+      TORCHDYNAMO_DISABLE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install full stack
+      - name: Install full stack (CPU wheels)
         run: |
           python -m pip install --upgrade pip
+          # CPU torch first: pins the resolver to the CPU build — the CUDA wheel
+          # both segfaults in dynamo here and costs a ~2.5 GB download for a job
+          # with no GPU.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[all]"
       - run: python scripts/build_demo_db.py --scale 0.25 --force
       - run: python scripts/build_benchmark.py
