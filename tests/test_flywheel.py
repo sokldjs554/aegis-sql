@@ -78,7 +78,8 @@ def test_build_dataset_produces_leakage_free_splits(settings, tmp_path):
             update={"output_dir": str(tmp_path)})}),
         n_programs=200, augment_per_example=2, progress=False,
     )
-    assert stats["splits"]["train"] > 0 and stats["splits"]["test"] > 0
+    assert stats["counts"]["splits"]["train"] > 0 and stats["counts"]["splits"]["test"] > 0
+    assert stats["leakage"]["train_test_overlap"] == 0
 
     train = load_split(tmp_path / "train.jsonl")
     test = load_split(tmp_path / "test.jsonl")
