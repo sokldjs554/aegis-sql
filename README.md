@@ -93,7 +93,23 @@ make serve                                     # http://localhost:8000 웹 콘�
 make eval                                      # 재현 가능한 평가 리포트
 ```
 
-### 실제 출력
+### 실제 화면 — 웹 콘솔 (`make serve`)
+
+<p align="center">
+  <img src="docs/images/console-query.png" width="820"
+       alt="자연어 질문 → SQL 실행 결과. 라우팅 난이도/신뢰도, 링크된 테이블, 용어사전 히트가 함께 표시된다."/>
+</p>
+<p align="center">
+  <img src="docs/images/console-governance.png" width="820"
+       alt="주민등록번호 요청이 SQL 생성 전에 거부되는 화면. PII_REQUEST 코드와 트레이스가 남는다."/>
+</p>
+
+결과 · SQL · **링킹 근거(점수/출처)** · **스팬 트레이스** 탭과 되묻기 선택지까지 웹에서 그대로 확인됩니다.
+(추가 캡처: [거버넌스 차단](docs/images/console-governance.png) ·
+[되묻기](docs/images/console-clarify.png) · [트레이스](docs/images/console-trace.png) ·
+[다크 모드](docs/images/console-query-dark.png))
+
+### 실제 출력 — CLI
 
 아래는 `make demo` / `aegis ask` 의 **실제 캡처**입니다 (API 키 없음, template 티어).
 
