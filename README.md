@@ -13,6 +13,8 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 
 `Python` · `PyTorch` · `TensorFlow` · `LangChain` · `FastAPI` · `VectorDB` · `RAG` · `sLLM` · `Prompt Engineering`
 
+[![CI](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml)
+
 </div>
 
 ---
