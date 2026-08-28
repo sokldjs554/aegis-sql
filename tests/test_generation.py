@@ -171,3 +171,59 @@ def test_get_llm_client_falls_back_without_keys(settings, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     assert isinstance(get_llm_client(settings), MockLLM)
+
+
+def test_rejected_sampling_params_parses_the_real_error():
+    """claude-sonnet-5 가 실제로 돌려준 400 문구에서 temperature 를 짚어내야 한다."""
+    from aegis_sql.llm.providers import _rejected_sampling_params
+
+    exc = Exception(
+        "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+        "'message': '`temperature` is deprecated for this model.'}, 'request_id': 'req_x'}"
+    )
+    assert _rejected_sampling_params(exc) == {"temperature"}
+    # 무관한 오류는 건드리지 않는다 — 401 을 sampling 문제로 오인하면 안 된다.
+    auth = Exception(
+        "Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', "
+        "'message': 'API key is invalid.'}}"
+    )
+    assert _rejected_sampling_params(auth) == set()
+
+
+def test_client_drops_rejected_sampling_param_and_retries(monkeypatch):
+    """temperature 거부(400) 시 파라미터를 빼고 즉시 1회 재시도하며, 이후 호출은
+    처음부터 빼고 나가야 한다 — 유효한 키가 전 문항 실패로 이어졌던 사고의 회귀 테스트."""
+    from aegis_sql.config import get_settings
+    from aegis_sql.llm.base import Message
+    from aegis_sql.llm.providers import AnthropicClient
+
+    class _FakeMessage:
+        content = "SELECT 1"
+        response_metadata: dict = {}
+        usage_metadata: dict = {}
+
+    calls: list[dict] = []
+
+    class _FakeChat:
+        def invoke(self, payload, **kwargs):
+            calls.append(dict(kwargs))
+            if "temperature" in kwargs:
+                raise Exception(
+                    "Error code: 400 - {'type': 'error', 'error': "
+                    "{'type': 'invalid_request_error', "
+                    "'message': '`temperature` is deprecated for this model.'}}"
+                )
+            return _FakeMessage()
+
+    client = AnthropicClient(get_settings())
+    monkeypatch.setattr(client, "available", lambda: True)
+    monkeypatch.setattr(client, "_build", lambda: _FakeChat())
+
+    first = client.complete([Message(role="user", content="ping")])
+    assert first.text == "SELECT 1"
+    assert client._rejected_params == {"temperature"}
+    assert len(calls) == 2 and "temperature" not in calls[-1]
+
+    second = client.complete([Message(role="user", content="ping")], temperature=0.7)
+    assert second.text == "SELECT 1"
+    assert len(calls) == 3 and "temperature" not in calls[-1]

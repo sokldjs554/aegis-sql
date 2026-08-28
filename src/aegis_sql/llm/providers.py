@@ -131,6 +131,25 @@ def _to_langchain(messages: Sequence[Message]) -> list[Any]:
     return [kinds.get(m.role, HumanMessage)(content=m.content) for m in messages]
 
 
+_SAMPLING_PARAMS = ("temperature", "top_p", "top_k")
+
+
+def _rejected_sampling_params(exc: Exception) -> set[str]:
+    """오류 문구에서 모델이 거부한 sampling 파라미터를 찾아낸다.
+
+    최신 Claude 모델(4.6+)은 ``temperature``/``top_p``/``top_k`` 를 아예 받지
+    않고 400 invalid_request_error 로 거절한다 (예: "`temperature` is deprecated
+    for this model.").  이를 키 오류와 같은 치명 오류로 취급해 버리면 유효한
+    키로도 전 문항이 조용히 실패한다 — 파라미터를 빼고 재시도해야 한다.
+    """
+    text = str(exc)
+    if "invalid_request_error" not in text:
+        return set()
+    if not any(m in text for m in ("deprecated", "not supported", "unsupported", "unexpected")):
+        return set()
+    return {name for name in _SAMPLING_PARAMS if name in text}
+
+
 class _LangChainClient:
     """Shared plumbing for the LangChain-backed hosted providers.
 
@@ -157,6 +176,8 @@ class _LangChainClient:
         self.max_tokens = int(st.generation.max_tokens)
         self.timeout_s = float(st.generation.request_timeout_s)
         self._chat: Any | None = None
+        # 모델이 거부해서 요청에서 빼기로 한 파라미터 (프로세스 수명 동안 기억)
+        self._rejected_params: set[str] = set()
 
     # -- capability -------------------------------------------------------- #
 
@@ -200,9 +221,28 @@ class _LangChainClient:
         if stop:
             overrides["stop"] = list(stop)
         overrides.update(kwargs)
+        for name in self._rejected_params:
+            overrides.pop(name, None)
 
         started = now_ms()
-        message = self._retrying()(chat.invoke, payload, **overrides)
+        try:
+            message = self._retrying()(chat.invoke, payload, **overrides)
+        except Exception as exc:
+            newly_rejected = _rejected_sampling_params(exc) - self._rejected_params
+            if not newly_rejected:
+                raise
+            # 생성자 kwargs 에도 같은 파라미터가 들어가므로 chat 모델을 다시 만든다.
+            self._rejected_params |= newly_rejected
+            self._chat = None
+            log.warning(
+                "model rejects sampling params, retrying without them",
+                provider=self.provider, model=self.model,
+                params=sorted(self._rejected_params), error=str(exc),
+            )
+            for name in self._rejected_params:
+                overrides.pop(name, None)
+            chat = self._chat_model()
+            message = self._retrying()(chat.invoke, payload, **overrides)
         latency_ms = now_ms() - started
         response = self._to_response(message, messages, latency_ms)
         log.debug(
@@ -232,7 +272,9 @@ class _LangChainClient:
         count = max(1, int(n))
         if temperature is None and count > 1:
             # Sampling at temperature 0 returns the same string ``n`` times, which
-            # makes self-consistency measure nothing.
+            # makes self-consistency measure nothing.  (temperature 를 받지 않는
+            # 최신 모델에서는 complete() 가 이 값을 빼고 보내고, 모델 기본 온도의
+            # 확률적 샘플링이 다양성을 공급한다.)
             temperature = float(self.settings.generation.ensemble_temperature)
         out: list[LLMResponse] = []
         for index in range(count):
@@ -281,7 +323,7 @@ class _LangChainClient:
         ``max_completion_tokens``, ``default_request_timeout`` versus
         ``request_timeout``) and LangChain normalises both.
         """
-        return {
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "api_key": self.api_key,
             "temperature": self.temperature,
@@ -289,6 +331,9 @@ class _LangChainClient:
             "timeout": self.timeout_s,
             "max_retries": 0,  # tenacity owns the retry policy
         }
+        for name in self._rejected_params:
+            kwargs.pop(name, None)
+        return kwargs
 
     def _to_response(
         self, message: Any, request: Sequence[Message], latency_ms: float
