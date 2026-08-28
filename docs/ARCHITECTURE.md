@@ -151,7 +151,7 @@ POST /v1/query {"question": "..."}
   ├─ span: link             (~15ms)  하이브리드 스키마 링킹 (전체 스키마 2,554토큰 → 400~850토큰)
   ├─ span: fewshot          (~5ms)   마스킹 유사도 + MMR
   ├─ span: route            (~0.3ms) numpy 라우터 → tier + confidence
-  ├─ span: generate         (티어에 따라 3ms ~ 3s)
+  ├─ span: generate         (티어에 따라 3ms ~ 수 초)
   ├─ span: static_check     (~2ms)   실행 전에 잡히는 오류
   ├─ span: guard            (~3ms)   PII 차단 / 마스킹 / LIMIT / 행정책
   ├─ span: execute          (~5~50ms)
