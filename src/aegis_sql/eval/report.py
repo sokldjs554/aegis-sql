@@ -246,7 +246,7 @@ def failure_details(scores: list[ItemScore], limit: int = 10) -> str:
     fails = [s for s in scores if s.expect == "ok" and not s.correct][:limit]
     out = []
     for s in fails:
-        out.append(f"  ✗ {s.id} [{s.difficulty}] {s.error[:100]}")
+        out.append(f"  ✗ {s.id} [{s.difficulty}] {s.error[:400]}")
         if s.pred_sql:
             out.append(f"      pred: {s.pred_sql[:140]}")
         if s.gold_sql:

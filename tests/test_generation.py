@@ -182,6 +182,13 @@ def test_rejected_sampling_params_parses_the_real_error():
         "'message': '`temperature` is deprecated for this model.'}, 'request_id': 'req_x'}"
     )
     assert _rejected_sampling_params(exc) == {"temperature"}
+    # 문구가 달라도(value-constraint 형태) invalid_request_error + 파라미터명이면 잡아야 한다 —
+    # 특정 문구에만 반응하던 휴리스틱이 ensemble 경로의 400 을 놓친 실측 사고의 회귀.
+    variant = Exception(
+        "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+        "'message': '`temperature` may only be set to 1 for this model.'}}"
+    )
+    assert _rejected_sampling_params(variant) == {"temperature"}
     # 무관한 오류는 건드리지 않는다 — 401 을 sampling 문제로 오인하면 안 된다.
     auth = Exception(
         "Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', "
@@ -190,17 +197,46 @@ def test_rejected_sampling_params_parses_the_real_error():
     assert _rejected_sampling_params(auth) == set()
 
 
-def test_client_drops_rejected_sampling_param_and_retries(monkeypatch):
-    """temperature 거부(400) 시 파라미터를 빼고 즉시 1회 재시도하며, 이후 호출은
-    처음부터 빼고 나가야 한다 — 유효한 키가 전 문항 실패로 이어졌던 사고의 회귀 테스트."""
+class _FakeMessage:
+    content = "SELECT 1"
+    response_metadata: dict = {}
+    usage_metadata: dict = {}
+
+
+def test_known_model_never_sends_sampling_params(monkeypatch):
+    """claude-sonnet-5 는 temperature 를 받지 않는 모델로 알려져 있으므로,
+    첫 400 왕복조차 없이 처음부터 보내지 않아야 한다."""
     from aegis_sql.config import get_settings
     from aegis_sql.llm.base import Message
     from aegis_sql.llm.providers import AnthropicClient
 
-    class _FakeMessage:
-        content = "SELECT 1"
-        response_metadata: dict = {}
-        usage_metadata: dict = {}
+    calls: list[dict] = []
+
+    class _FakeChat:
+        def invoke(self, payload, **kwargs):
+            calls.append(dict(kwargs))
+            return _FakeMessage()
+
+    client = AnthropicClient(get_settings(), model="claude-sonnet-5")
+    monkeypatch.setattr(client, "available", lambda: True)
+    monkeypatch.setattr(client, "_build", lambda: _FakeChat())
+
+    # ensemble 경로가 넘기는 명시적 temperature 까지 포함해서 제거되어야 한다.
+    result = client.complete([Message(role="user", content="ping")], temperature=0.7)
+    assert result.text == "SELECT 1"
+    assert len(calls) == 1 and "temperature" not in calls[0]
+    assert "temperature" not in client._chat_kwargs()
+
+
+def test_client_learns_rejection_and_shares_it_across_instances(monkeypatch):
+    """시드 목록에 없는 모델이 temperature 를 거부하면: 빼고 즉시 1회 재시도하고,
+    같은 모델의 다른 인스턴스(예: 사전 점검 → 엔진)도 그 학습을 물려받아야 한다."""
+    from aegis_sql.config import get_settings
+    from aegis_sql.llm.base import Message
+    from aegis_sql.llm.providers import _MODEL_REJECTED_PARAMS, AnthropicClient
+
+    model = "claude-test-learns-rejection"
+    _MODEL_REJECTED_PARAMS.pop(("anthropic", model), None)  # 전역 레지스트리 격리
 
     calls: list[dict] = []
 
@@ -211,19 +247,20 @@ def test_client_drops_rejected_sampling_param_and_retries(monkeypatch):
                 raise Exception(
                     "Error code: 400 - {'type': 'error', 'error': "
                     "{'type': 'invalid_request_error', "
-                    "'message': '`temperature` is deprecated for this model.'}}"
+                    "'message': '`temperature` may only be set to 1 for this model.'}}"
                 )
             return _FakeMessage()
 
-    client = AnthropicClient(get_settings())
-    monkeypatch.setattr(client, "available", lambda: True)
-    monkeypatch.setattr(client, "_build", lambda: _FakeChat())
+    first = AnthropicClient(get_settings(), model=model)
+    monkeypatch.setattr(first, "available", lambda: True)
+    monkeypatch.setattr(first, "_build", lambda: _FakeChat())
+    assert first.complete([Message(role="user", content="ping")]).text == "SELECT 1"
+    assert len(calls) == 2 and "temperature" in calls[0] and "temperature" not in calls[1]
 
-    first = client.complete([Message(role="user", content="ping")])
-    assert first.text == "SELECT 1"
-    assert client._rejected_params == {"temperature"}
-    assert len(calls) == 2 and "temperature" not in calls[-1]
-
-    second = client.complete([Message(role="user", content="ping")], temperature=0.7)
-    assert second.text == "SELECT 1"
+    second = AnthropicClient(get_settings(), model=model)
+    monkeypatch.setattr(second, "available", lambda: True)
+    monkeypatch.setattr(second, "_build", lambda: _FakeChat())
+    assert second.complete([Message(role="user", content="ping")], temperature=0.7).text == "SELECT 1"
     assert len(calls) == 3 and "temperature" not in calls[-1]
+
+    _MODEL_REJECTED_PARAMS.pop(("anthropic", model), None)

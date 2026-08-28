@@ -249,7 +249,7 @@ class RunResult:
                     "correct": s.correct, "exact_match": s.exact_match, "tier": s.tier,
                     "latency_ms": round(s.latency_ms, 1), "cost_usd": round(s.cost_usd, 6),
                     "repaired": s.repaired, "repair_strategies": s.repair_strategies,
-                    "error": s.error[:200], "pred_sql": s.pred_sql,
+                    "error": s.error, "pred_sql": s.pred_sql,
                 }
                 for s in self.scores
             ],

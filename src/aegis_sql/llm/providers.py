@@ -133,19 +133,43 @@ def _to_langchain(messages: Sequence[Message]) -> list[Any]:
 
 _SAMPLING_PARAMS = ("temperature", "top_p", "top_k")
 
+#: sampling 파라미터를 아예 받지 않는 것으로 알려진 모델 (Claude 4.7+/5 계열).
+#: 여기에 맞으면 첫 400 왕복조차 없이 처음부터 보내지 않는다.
+_NO_SAMPLING_MODEL_PREFIXES = (
+    "claude-sonnet-5", "claude-opus-5", "claude-opus-4-7", "claude-opus-4-8",
+    "claude-fable", "claude-mythos",
+)
+
+#: (provider, model) → 거부된 파라미터 집합. 인스턴스가 아니라 모델 단위로
+#: 공유해서, 사전 점검용 클라이언트가 배운 것을 엔진 클라이언트도 물려받는다.
+_MODEL_REJECTED_PARAMS: dict[tuple[str, str], set[str]] = {}
+
+
+def _shared_rejected_params(provider: str, model: str) -> set[str]:
+    key = (provider, model)
+    if key not in _MODEL_REJECTED_PARAMS:
+        seeded = (
+            set(_SAMPLING_PARAMS)
+            if provider == "anthropic" and model.startswith(_NO_SAMPLING_MODEL_PREFIXES)
+            else set()
+        )
+        _MODEL_REJECTED_PARAMS[key] = seeded
+    return _MODEL_REJECTED_PARAMS[key]
+
 
 def _rejected_sampling_params(exc: Exception) -> set[str]:
     """오류 문구에서 모델이 거부한 sampling 파라미터를 찾아낸다.
 
-    최신 Claude 모델(4.6+)은 ``temperature``/``top_p``/``top_k`` 를 아예 받지
-    않고 400 invalid_request_error 로 거절한다 (예: "`temperature` is deprecated
-    for this model.").  이를 키 오류와 같은 치명 오류로 취급해 버리면 유효한
-    키로도 전 문항이 조용히 실패한다 — 파라미터를 빼고 재시도해야 한다.
+    최신 Claude 모델은 ``temperature``/``top_p``/``top_k`` 를 받지 않고 400
+    invalid_request_error 로 거절하는데, 문구가 값에 따라 달라진다 —
+    "`temperature` is deprecated for this model." 도 있고 value-constraint
+    형태도 있다.  특정 문구에만 반응하면 나머지 문구의 400 이 치명 오류로
+    분류되어 유효한 키로도 전 문항이 조용히 실패한다 (실측 사고).  그래서
+    invalid_request_error 가 sampling 파라미터 이름을 지목하기만 하면 제거
+    대상으로 본다 — 제거 후 1회 재시도이므로 오인해도 안전하다.
     """
     text = str(exc)
     if "invalid_request_error" not in text:
-        return set()
-    if not any(m in text for m in ("deprecated", "not supported", "unsupported", "unexpected")):
         return set()
     return {name for name in _SAMPLING_PARAMS if name in text}
 
@@ -176,8 +200,9 @@ class _LangChainClient:
         self.max_tokens = int(st.generation.max_tokens)
         self.timeout_s = float(st.generation.request_timeout_s)
         self._chat: Any | None = None
-        # 모델이 거부해서 요청에서 빼기로 한 파라미터 (프로세스 수명 동안 기억)
-        self._rejected_params: set[str] = set()
+        # 모델이 거부해서 요청에서 빼기로 한 파라미터 — 같은 (provider, model) 의
+        # 모든 인스턴스가 한 집합을 공유하고, 알려진 모델은 시드된 상태로 시작한다.
+        self._rejected_params: set[str] = _shared_rejected_params(self.provider, self.model)
 
     # -- capability -------------------------------------------------------- #
 
