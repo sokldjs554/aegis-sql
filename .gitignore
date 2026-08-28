@@ -21,4 +21,9 @@ data/generated/
 reports/*.json
 reports/*.md
 !reports/.gitkeep
+# claude-sonnet-5 실측 증거 리포트는 저장소에 보존한다 (README 가 인용)
+!reports/eval_llm.md
+!reports/eval_llm.json
+!reports/eval_llm_only.md
+!reports/eval_llm_only.json
 *.log
