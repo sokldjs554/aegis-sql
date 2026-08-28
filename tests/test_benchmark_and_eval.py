@@ -130,3 +130,30 @@ def test_aggregate_excludes_probes():
     assert agg.execution_accuracy == pytest.approx(0.5)
     assert governance_score(scores)["block_rate"] == pytest.approx(1.0)
     assert clarification_score(scores)["n"] == 0
+
+
+def test_billing_exhaustion_aborts_the_run(settings, monkeypatch):
+    """크레딧 소진 400 이 나오면 남은 문항을 돌지 않고 즉시 중단해야 한다 —
+    소진 상태로 90문항을 완주하며 낮은 EX 를 모델 성능처럼 기록했던 실측 사고의 회귀."""
+    import pytest as _pytest
+
+    from aegis_sql.eval.harness import BillingExhausted, EvalHarness, ItemScore, Variant
+
+    harness = EvalHarness(settings)
+    items = harness.select(limit=3)
+    calls: list[str] = []
+
+    def fake_score(engine, gold_executor, item, tier):
+        calls.append(item.id)
+        return ItemScore(
+            id=item.id, difficulty=item.difficulty, correct=False, status="failed",
+            error=(
+                "SQL을 생성하지 못했습니다. (원인: Error code: 400 - "
+                "Your credit balance is too low to access the Anthropic API.)"
+            ),
+        )
+
+    monkeypatch.setattr(harness, "_score_item", fake_score)
+    with _pytest.raises(BillingExhausted):
+        harness.run_variant(Variant("full", "전체 구성"), items=items, progress=False)
+    assert len(calls) == 1, "첫 감지 이후에도 문항을 계속 돌았다"
