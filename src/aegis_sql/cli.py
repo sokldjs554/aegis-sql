@@ -206,11 +206,14 @@ def serve(
     )
 
 
-def _llm_preflight(st: Settings) -> None:
-    """``--tier llm/ensemble`` 강제 시, 본 평가 전에 키·모델을 실호출 1회로 검증한다.
+def _llm_preflight(st: Settings, required: bool) -> None:
+    """LLM 티어가 쓰일 평가 전에 키·모델을 실호출 1회로 검증한다.
 
-    검증 없이 시작하면 잘못된 키로도 문항 수 × 2회의 실패 호출을 전부 소진한 뒤
-    깨끗해 보이는 EX 0% 리포트가 나온다 — 실제로 관측된 사고 경로다.
+    검증 없이 시작하면 잘못된 키·소진된 크레딧으로도 문항 수만큼의 실패 호출을
+    전부 소진한 뒤 깨끗해 보이는 낮은 EX 리포트가 나온다 — 실제로 관측된 사고
+    경로다.  ``required=True`` 는 ``--tier llm/ensemble`` 강제(프로바이더가 없으면
+    중단), ``required=False`` 는 캐스케이드 평가(키가 없으면 template 전용이므로
+    조용히 통과, 키가 있는데 깨져 있으면 중단)다.
     """
     from aegis_sql.llm.base import Message
     from aegis_sql.llm.mock import MockLLM
@@ -218,19 +221,23 @@ def _llm_preflight(st: Settings) -> None:
 
     provider = str(st.generation.provider or "").strip().lower()
     if provider == "template":
-        console.print(
-            "[red]AEGIS_GENERATION__PROVIDER=template 로 고정되어 있어"
-            " LLM 티어를 사용할 수 없습니다.[/red] provider 설정을 auto 로 되돌리세요."
-        )
-        raise typer.Exit(1)
+        if required:
+            console.print(
+                "[red]AEGIS_GENERATION__PROVIDER=template 로 고정되어 있어"
+                " LLM 티어를 사용할 수 없습니다.[/red] provider 설정을 auto 로 되돌리세요."
+            )
+            raise typer.Exit(1)
+        return
     client = get_llm_client(st, provider)
     if isinstance(client, MockLLM):
-        console.print(
-            "[red]LLM 티어를 강제했지만 사용할 수 있는 LLM 프로바이더가 없습니다.[/red]\n"
-            "ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 를 export 했는지,"
-            " AEGIS_GENERATION__PROVIDER 가 template 로 고정돼 있지 않은지 확인하세요."
-        )
-        raise typer.Exit(1)
+        if required:
+            console.print(
+                "[red]LLM 티어를 강제했지만 사용할 수 있는 LLM 프로바이더가 없습니다.[/red]\n"
+                "ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 를 export 했는지,"
+                " AEGIS_GENERATION__PROVIDER 가 template 로 고정돼 있지 않은지 확인하세요."
+            )
+            raise typer.Exit(1)
+        return
     model = str(getattr(client, "model", "") or "?")
     try:
         client.complete([Message(role="user", content="ping")], max_tokens=8)
@@ -239,6 +246,10 @@ def _llm_preflight(st: Settings) -> None:
             f"[red]LLM 사전 점검 실패[/red] — 평가를 시작하지 않습니다.\n"
             f"모델: {model} · 원인: {exc}"
         )
+        if not required:
+            console.print(
+                "LLM 없이 template 티어만 측정하려면 API 키를 unset 하고 다시 실행하세요."
+            )
         raise typer.Exit(1) from exc
     console.print(f"LLM 사전 점검 통과 — model={model}")
 
@@ -269,7 +280,11 @@ def eval_cmd(
     st = _settings(log_level)
     forced_tier = Tier(tier) if tier else None
     if forced_tier in (Tier.LLM, Tier.ENSEMBLE):
-        _llm_preflight(st)
+        _llm_preflight(st, required=True)
+    elif forced_tier is None:
+        # 캐스케이드 평가도 키가 있으면 LLM 티어가 라우팅에 참여한다 — 깨진 키나
+        # 소진된 크레딧을 들고 90문항을 도는 것보다 지금 확인하는 편이 낫다.
+        _llm_preflight(st, required=False)
     harness = EvalHarness(st, bench_path=bench)
     items = harness.select(
         limit=limit,
@@ -280,11 +295,17 @@ def eval_cmd(
                   f" 거버넌스 {sum(1 for i in items if i.expect == 'blocked')},"
                   f" 모호성 {sum(1 for i in items if i.expect == 'clarify')})")
 
-    if ablation:
-        results = harness.run_ablation(DEFAULT_ABLATIONS, items=items)
-    else:
-        results = [harness.run_variant(Variant("full", "전체 구성"), items=items,
-                                       tier=forced_tier)]
+    from aegis_sql.eval.harness import BillingExhausted
+
+    try:
+        if ablation:
+            results = harness.run_ablation(DEFAULT_ABLATIONS, items=items)
+        else:
+            results = [harness.run_variant(Variant("full", "전체 구성"), items=items,
+                                           tier=forced_tier)]
+    except BillingExhausted as exc:
+        console.print(f"[red]평가 중단[/red] — {exc}")
+        raise typer.Exit(1) from exc
 
     if not results:
         console.print("[red]평가 실패[/red]")

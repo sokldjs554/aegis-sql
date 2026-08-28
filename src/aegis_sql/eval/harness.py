@@ -256,6 +256,15 @@ class RunResult:
         }
 
 
+class BillingExhausted(RuntimeError):
+    """프로바이더 크레딧 소진 — 남은 문항을 돌려도 전부 실패한다."""
+
+
+def _billing_exhausted(error: str) -> bool:
+    text = (error or "").lower()
+    return "credit balance is too low" in text or "insufficient credit" in text
+
+
 class EvalHarness:
     def __init__(self, settings: Settings | None = None, bench_path: str | Path | None = None) -> None:
         self.settings = settings or get_settings()
@@ -304,6 +313,14 @@ class EvalHarness:
         for n, item in enumerate(items, 1):
             score = self._score_item(engine, gold_executor, item, tier)
             scores.append(score)
+            if _billing_exhausted(score.error):
+                # 과금 오류는 결정적이다: 계속 돌리면 남은 문항이 전부 실패하면서
+                # 낮은 EX 가 모델 성능처럼 보이는 리포트만 남는다. 즉시 중단한다.
+                engine.close()
+                raise BillingExhausted(
+                    f"{item.id} 처리 중 크레딧 소진이 감지되었습니다 — 평가를 중단합니다. "
+                    "console.anthropic.com → Plans & Billing 에서 충전 후 다시 실행하세요."
+                )
             if progress and (n % 10 == 0 or n == len(items)):
                 acc = sum(s.correct for s in scores if s.expect == "ok")
                 den = max(1, sum(1 for s in scores if s.expect == "ok"))
