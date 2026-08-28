@@ -266,6 +266,8 @@ class GenerationResult:
     completion_tokens: int = 0
     latency_ms: float = 0.0
     cost_usd: float = 0.0
+    # 생성이 비었을 때 그 이유(프로바이더 예외 등). 파이프라인이 답변·리포트에 그대로 노출한다.
+    error: str = ""
 
     @property
     def best(self) -> SQLCandidate | None:

@@ -115,3 +115,12 @@ def test_eval_quick_produces_a_report(tmp_path):
     text = report.read_text(encoding="utf-8")
     assert "실행 정확도" in text and "거버넌스" in text
     assert (tmp_path / "eval.json").exists()
+
+
+def test_eval_forced_llm_tier_without_provider_aborts_before_running():
+    """LLM 프로바이더 없이 ``--tier llm`` 을 강제하면 문항을 하나도 돌리기 전에
+    명확한 이유와 함께 중단해야 한다 — 조용한 template 폴백 리포트 방지."""
+    result = runner.invoke(app, ["eval", "--tier", "llm", "--limit", "1"])
+    assert result.exit_code == 1
+    assert "LLM" in result.output
+    assert "평가 시작" not in result.output

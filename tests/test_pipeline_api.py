@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from aegis_sql.types import AnswerStatus
+from aegis_sql.types import AnswerStatus, Tier
 
 # --------------------------------------------------------------------------- #
 # pipeline
@@ -230,3 +230,40 @@ def test_pipeline_repairs_and_reexecutes(settings, bad_sql, expect_strategy):
     assert bundle.result.rows[0][0] > 0, "the repaired query returned nothing"
     # The repaired statement is untrusted again and must go back through the guard.
     assert bundle.guard is not None and bundle.guard.allowed
+
+
+class _ExplodingLLMGenerator:
+    """available()은 True지만 매 호출이 프로바이더 오류로 끝나는 스텁 — 잘못된 API 키 상황."""
+
+    tier = Tier.LLM
+
+    def available(self) -> bool:
+        return True
+
+    def generate(self, ctx):
+        from aegis_sql.types import GenerationResult
+
+        return GenerationResult(tier=Tier.LLM, model="stub",
+                                error="Error code: 401 - authentication_error")
+
+
+def test_forced_tier_failure_keeps_tier_and_surfaces_cause(settings):
+    """잘못된 키로 ``--tier llm`` 평가가 전 문항 0%가 되면서 (1) 티어 라벨이
+    ensemble로 둔갑하고 (2) 원인(401)이 리포트 어디에도 남지 않았던 사고의
+    회귀 테스트: 강제 티어는 에스컬레이션하지 않고, 원인은 답변 텍스트에 남는다."""
+    from aegis_sql.pipeline import AegisEngine
+
+    engine = AegisEngine.build(settings)
+    stub = _ExplodingLLMGenerator()
+    engine.c.generators[Tier.LLM] = stub
+    engine.c.generators[Tier.ENSEMBLE] = stub
+    try:
+        bundle = engine.ask("작년 하반기에 체결된 계약 건수", tier=Tier.LLM)
+    finally:
+        engine.c.generators.pop(Tier.LLM, None)
+        engine.c.generators.pop(Tier.ENSEMBLE, None)
+        engine.close()
+
+    assert bundle.status is AnswerStatus.FAILED
+    assert bundle.route is not None and bundle.route.tier is Tier.LLM, bundle.route
+    assert "401" in bundle.answer_text, bundle.answer_text
