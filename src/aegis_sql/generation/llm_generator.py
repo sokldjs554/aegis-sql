@@ -253,6 +253,7 @@ class LLMGenerator:
             # Escalation, not exceptions: an empty result lets the cascade fall
             # back to a tier that can answer.
             log.error("llm generation failed", model=model, samples=n, error=str(exc))
+            result.error = str(exc)
             result.latency_ms = now_ms() - started
             return result
 
@@ -275,6 +276,8 @@ class LLMGenerator:
                     prompt_version=version,
                 )
             )
+        if completions and not result.candidates:
+            result.error = "응답에서 SQL을 추출하지 못했습니다"
         result.latency_ms = now_ms() - started
         log.info(
             "llm generation",

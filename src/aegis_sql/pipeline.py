@@ -368,7 +368,9 @@ class AegisEngine:
             features = extract_features(nq, linked, c.join_graph, report)
             decision: RouteDecision = (
                 RouteDecision(tier=forced_tier, reason="tier forced by caller", confidence=1.0,
-                              features=features)
+                              features=features,
+                              n_samples=(max(2, int(st.generation.ensemble_samples))
+                                         if forced_tier is Tier.ENSEMBLE else 1))
                 if forced_tier
                 else c.router.decide(features)
             )
@@ -395,6 +397,10 @@ class AegisEngine:
             attempted.append(decision.tier)
             ok = self._attempt(nq, linked, few_shots, decision, ctx, tracer, bundle, emit)
             if ok or len(attempted) >= 3:
+                break
+            if forced_tier is not None:
+                # 강제 티어(--tier)는 단독 티어 측정이 목적이다. 실패했다고 위 티어로
+                # 올려버리면 리포트의 티어 라벨이 조용히 오염된다 (llm 측정이 ensemble로 둔갑).
                 break
             nxt = c.router.escalate(decision, reason="이전 티어가 실행 가능한 SQL을 만들지 못함")
             if nxt.tier == decision.tier or nxt.tier not in c.generators:
@@ -451,6 +457,8 @@ class AegisEngine:
             gen: GenerationResult = generator.generate(gctx)
             sp.attributes.update(candidates=len(gen.candidates), model=gen.model,
                                  prompt_tokens=gen.prompt_tokens, completion_tokens=gen.completion_tokens)
+            if gen.error:
+                sp.attributes["error"] = gen.error
             STAGE_LATENCY.labels(stage="generate").observe(sp.duration_ms)
         bundle.cost_usd += gen.cost_usd
         TOKENS.labels(kind="prompt").inc(gen.prompt_tokens)
@@ -458,7 +466,9 @@ class AegisEngine:
         bundle.candidates = gen.candidates
         if not gen.candidates:
             bundle.status = AnswerStatus.FAILED
-            bundle.answer_text = "SQL을 생성하지 못했습니다."
+            bundle.answer_text = "SQL을 생성하지 못했습니다." + (
+                f" (원인: {gen.error})" if gen.error else ""
+            )
             return False
         emit("generate", {"sql": gen.candidates[0].sql, "tier": decision.tier.value})
 

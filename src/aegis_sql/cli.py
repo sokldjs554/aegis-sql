@@ -206,6 +206,43 @@ def serve(
     )
 
 
+def _llm_preflight(st: Settings) -> None:
+    """``--tier llm/ensemble`` 강제 시, 본 평가 전에 키·모델을 실호출 1회로 검증한다.
+
+    검증 없이 시작하면 잘못된 키로도 문항 수 × 2회의 실패 호출을 전부 소진한 뒤
+    깨끗해 보이는 EX 0% 리포트가 나온다 — 실제로 관측된 사고 경로다.
+    """
+    from aegis_sql.llm.base import Message
+    from aegis_sql.llm.mock import MockLLM
+    from aegis_sql.llm.providers import get_llm_client
+
+    provider = str(st.generation.provider or "").strip().lower()
+    if provider == "template":
+        console.print(
+            "[red]AEGIS_GENERATION__PROVIDER=template 로 고정되어 있어"
+            " LLM 티어를 사용할 수 없습니다.[/red] provider 설정을 auto 로 되돌리세요."
+        )
+        raise typer.Exit(1)
+    client = get_llm_client(st, provider)
+    if isinstance(client, MockLLM):
+        console.print(
+            "[red]LLM 티어를 강제했지만 사용할 수 있는 LLM 프로바이더가 없습니다.[/red]\n"
+            "ANTHROPIC_API_KEY 또는 OPENAI_API_KEY 를 export 했는지,"
+            " AEGIS_GENERATION__PROVIDER 가 template 로 고정돼 있지 않은지 확인하세요."
+        )
+        raise typer.Exit(1)
+    model = str(getattr(client, "model", "") or "?")
+    try:
+        client.complete([Message(role="user", content="ping")], max_tokens=8)
+    except Exception as exc:
+        console.print(
+            f"[red]LLM 사전 점검 실패[/red] — 평가를 시작하지 않습니다.\n"
+            f"모델: {model} · 원인: {exc}"
+        )
+        raise typer.Exit(1) from exc
+    console.print(f"LLM 사전 점검 통과 — model={model}")
+
+
 @app.command(name="eval")
 def eval_cmd(
     bench: str | None = typer.Option(None, "--bench", help="벤치마크 jsonl 경로"),
@@ -230,6 +267,9 @@ def eval_cmd(
     from aegis_sql.eval.report import failure_details, render_console, write_report
 
     st = _settings(log_level)
+    forced_tier = Tier(tier) if tier else None
+    if forced_tier in (Tier.LLM, Tier.ENSEMBLE):
+        _llm_preflight(st)
     harness = EvalHarness(st, bench_path=bench)
     items = harness.select(
         limit=limit,
@@ -244,7 +284,7 @@ def eval_cmd(
         results = harness.run_ablation(DEFAULT_ABLATIONS, items=items)
     else:
         results = [harness.run_variant(Variant("full", "전체 구성"), items=items,
-                                       tier=Tier(tier) if tier else None)]
+                                       tier=forced_tier)]
 
     if not results:
         console.print("[red]평가 실패[/red]")
