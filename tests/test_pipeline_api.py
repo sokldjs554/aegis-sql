@@ -267,3 +267,40 @@ def test_forced_tier_failure_keeps_tier_and_surfaces_cause(settings):
     assert bundle.status is AnswerStatus.FAILED
     assert bundle.route is not None and bundle.route.tier is Tier.LLM, bundle.route
     assert "401" in bundle.answer_text, bundle.answer_text
+
+
+class _AuxBillingGenerator:
+    """답변 합성만 수행하고 보조 비용을 청구하는 스텁."""
+
+    tier = Tier.LLM
+
+    def __init__(self) -> None:
+        self.aux_cost_usd = 0.0
+
+    def available(self) -> bool:
+        return True
+
+    def synthesize_answer(self, *args, **kwargs) -> str:
+        self.aux_cost_usd += 0.004  # 실제 청구가 발생한 보조 호출
+        return "요약된 답변입니다."
+
+
+def test_auxiliary_llm_cost_is_billed_to_the_query(settings):
+    """답변 합성 같은 보조 LLM 호출 비용이 질의 비용에 합산되어야 한다.
+
+    이 회계가 빠져 있으면 12초짜리 LLM 답변 합성이 화면과 평가 리포트에
+    '$0.000000' 으로 보고된다 — 실측으로 확인된 누락의 회귀 테스트.
+    """
+    from aegis_sql.pipeline import AegisEngine
+
+    engine = AegisEngine.build(settings)
+    stub = _AuxBillingGenerator()
+    engine.c.llm_generator = stub
+    try:
+        bundle = engine.ask("작년 하반기에 체결된 계약 건수", tier=Tier.TEMPLATE)
+    finally:
+        engine.close()
+
+    assert bundle.status is AnswerStatus.OK, bundle.answer_text
+    assert bundle.answer_text == "요약된 답변입니다."
+    assert bundle.cost_usd >= 0.004, f"보조 호출 비용이 누락됨: {bundle.cost_usd}"
