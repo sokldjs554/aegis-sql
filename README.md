@@ -15,6 +15,15 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 
 [![CI](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml)
 
+<br/>
+
+<img src="docs/images/console-demo.gif" width="820"
+     alt="웹 콘솔 데모: 한국어 질문이 SQL로 실행되고, 주민등록번호 요청은 SQL 생성 전에 차단되며, 모호한 질문은 되묻는다."/>
+
+<sub><b>10초 데모</b> — ① 한국어 질문 → SQL 실행 (template 티어 · 42ms · $0)<br/>
+② 주민등록번호 요청은 <b>SQL이 만들어지기 전에</b> 차단 (PII_REQUEST)
+③ 모호한 질문은 추측하지 않고 되물음</sub>
+
 </div>
 
 ---
@@ -95,6 +104,8 @@ make eval                                      # 재현 가능한 평가 리포�
 ```
 
 ### 실제 화면 — 웹 콘솔 (`make serve`)
+
+맨 위 데모 GIF가 이 콘솔을 실제로 조작한 화면입니다. 아래는 정지 캡처입니다.
 
 <p align="center">
   <img src="docs/images/console-query.png" width="820"
