@@ -10,7 +10,7 @@ auditable rather than merely functional.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,8 @@ class QueryRequest(BaseModel):
     #: Session context consumed by row-level policies (branch scope, purpose).
     context: dict[str, Any] = Field(default_factory=dict)
     #: Force a tier — useful for A/B and for the ablation harness.
-    tier: str | None = None
+    #: Enumerated so a bad value is a 422 from pydantic, not a 500 from Tier().
+    tier: Literal["template", "slm", "llm", "ensemble"] | None = None
     #: Include the span tree and linking evidence in the response.
     explain: bool = False
     #: When false the engine answers its best guess instead of asking back.
@@ -186,12 +187,14 @@ class PolicyCheckResponse(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
-    trace_id: str
-    question: str
-    sql: str | None = None
+    """Bounded on every field — this endpoint appends to disk without auth."""
+
+    trace_id: str = Field(..., max_length=64)
+    question: str = Field(..., max_length=2000)
+    sql: str | None = Field(None, max_length=20000)
     correct: bool
-    corrected_sql: str | None = None
-    comment: str = ""
+    corrected_sql: str | None = Field(None, max_length=20000)
+    comment: str = Field("", max_length=2000)
 
 
 class HealthResponse(BaseModel):

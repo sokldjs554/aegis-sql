@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import time
 from collections.abc import AsyncIterator
@@ -54,6 +55,9 @@ _CTX_KEY = re.compile(r"ctx\.(\w+)")
 #: ``TB_AGNT.BRCH_CD = '{{ctx.branch_cd}}'`` — names the column to enumerate.
 _CTX_FILTER = re.compile(r"(\w+)\.(\w+)\s*=\s*['\"]\{\{ctx\.\w+\}\}['\"]")
 
+#: 인증 없는 append 경로이므로 파일 크기에 상한을 둔다.
+_FEEDBACK_MAX_BYTES = 5_000_000
+
 _ENGINE: Any = None
 
 
@@ -90,15 +94,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "한국어 금융·보험 도메인 거버넌스 내장형 Text-to-SQL 엔진.\n\n"
             "`/v1/query` 에 자연어 질문을 보내면 SQL·결과·근거·비용을 함께 돌려준다."
         ),
+        # enable_docs 는 세 개를 함께 끈다 — /docs 만 끄고 /redoc·/openapi.json 을
+        # 열어두면 스위치가 이름값을 못 한다.
         docs_url="/docs" if st.server.enable_docs else None,
+        redoc_url="/redoc" if st.server.enable_docs else None,
+        openapi_url="/openapi.json" if st.server.enable_docs else None,
         lifespan=_lifespan,
     )
     app.state.settings = st
+    # allow_origins=["*"] 와 allow_credentials=True 를 함께 쓰면 Starlette 가
+    # 요청 Origin 을 그대로 반사하고 Allow-Credentials 를 붙인다. 이 API 는
+    # 쿠키·세션을 쓰지 않으므로 자격증명을 허용할 이유가 없다.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=st.server.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
 
@@ -338,14 +349,31 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
     # ------------------------------------------------------------------ #
     @app.post("/v1/feedback", tags=["flywheel"])
     async def feedback(req: FeedbackRequest) -> JSONResponse:
-        """사용자 피드백을 적재한다 — DPO 선호쌍의 원천이 된다."""
-        path = PROJECT_ROOT / "data" / "generated" / "feedback.jsonl"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        record = req.model_dump() | {"ts": time.time()}
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        """사용자 피드백을 적재한다 — DPO 선호쌍의 원천이 된다.
+
+        인증이 없는 엔드포인트가 무한정 디스크에 append 하면 공개 배포에서
+        그대로 익명 저장소가 된다.  그래서 세 겹으로 막는다: 필드 길이 상한
+        (schemas), 파일 크기 상한, 그리고 공개 데모에서는 아예 저장하지 않는
+        모드.  쓰기가 불가능한 파일시스템에서도 500 이 아니라 사실대로 답한다.
+        """
+        if os.environ.get("AEGIS_DEMO_PUBLIC") == "1":
+            return JSONResponse(
+                {"ok": False, "reason": "공개 데모에서는 피드백을 저장하지 않습니다"}
+            )
+        path = Path(os.environ.get("AEGIS_FEEDBACK_DIR", PROJECT_ROOT / "data" / "generated"))
+        path = path / "feedback.jsonl"
+        record = json.dumps(req.model_dump() | {"ts": time.time()}, ensure_ascii=False)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and path.stat().st_size > _FEEDBACK_MAX_BYTES:
+                return JSONResponse({"ok": False, "reason": "피드백 파일이 용량 상한에 도달했습니다"})
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(record + "\n")
+        except OSError as exc:
+            log.warning("feedback not stored", trace_id=req.trace_id, error=str(exc))
+            return JSONResponse({"ok": False, "reason": "저장할 수 없는 파일시스템입니다"})
         log.info("feedback recorded", trace_id=req.trace_id, correct=req.correct)
-        return JSONResponse({"ok": True, "stored": str(path.relative_to(PROJECT_ROOT))})
+        return JSONResponse({"ok": True})
 
     # ------------------------------------------------------------------ #
     @app.get("/v1/health", response_model=HealthResponse, tags=["ops"])

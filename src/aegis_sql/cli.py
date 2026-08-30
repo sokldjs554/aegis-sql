@@ -199,10 +199,13 @@ def serve(
     import uvicorn
 
     _settings(log_level)
+    # 공개 URL 에서는 동시성 상한이 없으면 큐가 무한정 쌓여 전부 느려진다.
+    # 초과분을 503 으로 즉시 떨구는 편이 데모로서 낫다.
     uvicorn.run(
         "aegis_sql.api.app:create_app",
         factory=True, host=host, port=port, reload=reload,
         log_level=log_level.lower(),
+        limit_concurrency=20, timeout_keep_alive=10,
     )
 
 

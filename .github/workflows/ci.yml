@@ -116,15 +116,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t aegis-sql:ci .
-      - name: Health check
+      # 배포 호스트(HF Spaces 등)는 컨테이너를 uid 1000 으로 돌린다. root 로만
+      # 스모크하면 권한 문제를 원리적으로 못 잡으므로 --user 를 명시한다.
+      - name: Health check (as uid 1000, like a hosted deploy)
         run: |
-          docker run -d --name aegis -p 8000:8000 aegis-sql:ci
+          docker run -d --name aegis --user 1000:1000 -p 8000:8000 aegis-sql:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8000/v1/health; then ok=1; break; fi
             sleep 2
           done
           test "$ok" = "1"
+
+          # 라우터 가중치가 이미지에 실렸는지 — 빠지면 콘솔이 '라우터 미적재'를 노출한다
+          curl -fsS http://localhost:8000/v1/health \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['router_loaded'], 'router weights missing from image'; print('router_loaded ok')"
+
           curl -fsS -X POST http://localhost:8000/v1/query \
             -H 'content-type: application/json' \
             -d '{"question":"실효된 계약은 몇 건이야?"}' | head -c 500
+
+          # 비루트에서 디스크에 쓰는 유일한 경로 — 500 이 나면 안 된다
+          curl -fsS -X POST http://localhost:8000/v1/feedback \
+            -H 'content-type: application/json' \
+            -d '{"trace_id":"ci","question":"q","correct":true}'
+
+          # 잘못된 tier 는 500 이 아니라 422 여야 한다
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/v1/query \
+            -H 'content-type: application/json' -d '{"question":"q","tier":"bogus"}')
+          test "$code" = "422" || { echo "bad tier returned $code, expected 422"; exit 1; }
+
           docker rm -f aegis
