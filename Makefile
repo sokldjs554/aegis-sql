@@ -95,8 +95,14 @@ eval-quick: ## 빠른 평가 (easy+medium 20문항)
 	@$(PYTHON) -m aegis_sql.cli eval --bench $(BENCH) --limit 20
 
 # --------------------------------------------------------------------- 품질
-test: ## 전체 테스트
-	@$(BIN)/pytest -q
+# TensorFlow(라우터 학습)와 PyTorch(sLLM 학습)를 한 프로세스에 함께 적재하면
+# 네이티브 런타임이 종료 단계에서 충돌한다.  두 학습 테스트를 각각 별도
+# 프로세스로 돌려 격리한다 — CI 도 같은 이유로 잡을 나눠 실행한다.
+test: ## 전체 테스트 (학습 테스트는 프로세스 분리)
+	@$(BIN)/pytest -q -m "not slow"
+	@$(BIN)/pytest -q -m slow tests/test_cli.py tests/test_flywheel.py
+	@$(BIN)/pytest -q -m slow tests/test_router.py
+	@$(BIN)/pytest -q -m slow tests/test_training.py
 
 test-fast: ## 무거운 학습 테스트 제외
 	@$(BIN)/pytest -q -m "not slow"

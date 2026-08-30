@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -42,8 +43,16 @@ from aegis_sql.config import PROJECT_ROOT, Settings, get_settings
 from aegis_sql.observability.logging import configure_logging, get_logger
 from aegis_sql.observability.metrics import metrics_payload
 from aegis_sql.types import Tier
+from aegis_sql.verify.ast_guard import Sensitivity
 
 log = get_logger("api")
+
+#: ``ctx.purpose == 'marketing'`` — the condition pins one literal value.
+_CTX_EQ = re.compile(r"ctx\.(\w+)\s*==\s*['\"]([^'\"]+)['\"]")
+#: ``ctx.branch_cd`` — a truthiness test; the selectable values live in the filter.
+_CTX_KEY = re.compile(r"ctx\.(\w+)")
+#: ``TB_AGNT.BRCH_CD = '{{ctx.branch_cd}}'`` — names the column to enumerate.
+_CTX_FILTER = re.compile(r"(\w+)\.(\w+)\s*=\s*['\"]\{\{ctx\.\w+\}\}['\"]")
 
 _ENGINE: Any = None
 
@@ -201,6 +210,80 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
             ],
             rewrites=list(verdict.applied_rewrites),
             rewritten_sql=verdict.rewritten_sql,
+        )
+
+    # ------------------------------------------------------------------ #
+    @app.get("/v1/policy", tags=["governance"])
+    async def policy_document(engine=Depends(get_engine)) -> JSONResponse:
+        """The active governance policy, and the session context that drives it.
+
+        Row policies are conditional on session context (``ctx.branch_cd``,
+        ``ctx.purpose``).  A client that cannot discover which context keys
+        exist — and which values are selectable — cannot exercise them, so the
+        policy declares its own switches here instead of the UI hard-coding
+        them.  Selectable values are only offered for **public** columns: an
+        introspection endpoint must not become a side channel for the very
+        values the policy classifies.
+        """
+        pol = engine.c.guard.policy
+        profile = engine.c.profile
+
+        def options_for(rp: Any) -> list[dict[str, str]]:
+            m = _CTX_EQ.search(rp.when)
+            if m:  # ctx.purpose == 'marketing' — the literal is the only value
+                return [{"value": m.group(2), "label": m.group(2)}]
+            m = _CTX_FILTER.search(rp.filter)
+            if not m:
+                return []
+            table, column = m.group(1).upper(), m.group(2).upper()
+            if pol.sensitivity(table, column) is not Sensitivity.PUBLIC:
+                return []
+            cp = profile.get(table, column)
+            if cp is None or not cp.is_categorical:
+                return []
+            return [
+                {"value": v, "label": f"{v} {cp.code_labels[v]}" if v in cp.code_labels else v}
+                for v in sorted(cp.values)
+            ]
+
+        grades: dict[str, int] = {}
+        for table in engine.c.schema.tables.values():
+            for col in table.columns:
+                key = pol.sensitivity(table.name, col.name).value
+                grades[key] = grades.get(key, 0) + 1
+
+        return JSONResponse(
+            {
+                "name": pol.name,
+                "version": pol.version,
+                "description": pol.description,
+                "engine": {
+                    "read_only": True,
+                    "max_rows": pol.engine.max_rows,
+                    "forbid_functions": list(pol.engine.forbid_functions),
+                },
+                "grades": grades,
+                "mask_strategy": pol.mask_strategy,
+                "k_anonymity": {
+                    "enabled": pol.k_anonymity.enabled,
+                    "k": pol.k_anonymity.k,
+                    "tables": list(pol.k_anonymity.applies_to_tables),
+                },
+                "row_policies": [
+                    {
+                        "id": rp.id,
+                        "table": rp.table,
+                        "when": rp.when,
+                        "filter": rp.filter,
+                        "description": rp.description,
+                        "context_key": (
+                            m.group(1) if (m := _CTX_KEY.search(rp.when)) else ""
+                        ),
+                        "options": options_for(rp),
+                    }
+                    for rp in pol.row_policies
+                ],
+            }
         )
 
     # ------------------------------------------------------------------ #
