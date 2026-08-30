@@ -179,6 +179,45 @@ def test_policy_endpoint_does_not_leak_classified_values(client, monkeypatch):
     assert branch["context_key"] == "branch_cd"  # the switch is still discoverable
 
 
+def test_bad_tier_is_a_422_not_a_500(client):
+    """`Tier(req.tier)` used to raise an unhandled ValueError on a bad value."""
+    r = client.post("/v1/query", json={"question": "전체 계약 건수", "tier": "bogus"})
+    assert r.status_code == 422
+
+
+def test_feedback_is_bounded_and_never_500s(client, tmp_path, monkeypatch):
+    """An unauthenticated append-to-disk route needs limits, not a stack trace.
+
+    Three things are checked: oversized fields are rejected by pydantic, a
+    read-only filesystem is reported honestly instead of crashing, and the
+    public-demo switch stops the write entirely.
+    """
+    # 1. 길이 상한
+    r = client.post(
+        "/v1/feedback",
+        json={"trace_id": "t", "question": "x" * 3000, "correct": True},
+    )
+    assert r.status_code == 422
+
+    # 2. 쓸 수 없는 경로 — 500 이 아니라 사실대로
+    monkeypatch.setenv("AEGIS_FEEDBACK_DIR", "/proc/nonexistent-and-unwritable")
+    r = client.post("/v1/feedback", json={"trace_id": "t", "question": "q", "correct": True})
+    assert r.status_code == 200 and r.json()["ok"] is False
+
+    # 3. 공개 데모 모드 — 아예 저장하지 않는다
+    monkeypatch.setenv("AEGIS_FEEDBACK_DIR", str(tmp_path))
+    monkeypatch.setenv("AEGIS_DEMO_PUBLIC", "1")
+    r = client.post("/v1/feedback", json={"trace_id": "t", "question": "q", "correct": True})
+    assert r.status_code == 200 and r.json()["ok"] is False
+    assert not (tmp_path / "feedback.jsonl").exists()
+
+    # 4. 평상시에는 정상 적재
+    monkeypatch.delenv("AEGIS_DEMO_PUBLIC")
+    r = client.post("/v1/feedback", json={"trace_id": "t", "question": "q", "correct": True})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert (tmp_path / "feedback.jsonl").exists()
+
+
 def test_prompts_endpoint(client):
     body = client.get("/v1/prompts").json()
     assert body["manifest"] and any(p["id"] == "nl2sql.system" for p in body["prompts"])
