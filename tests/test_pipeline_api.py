@@ -138,6 +138,47 @@ def test_schema_endpoint_exposes_sensitivity(client):
     assert rrno["sensitivity"] == "forbidden"
 
 
+def test_policy_endpoint_declares_its_own_context_switches(client):
+    """A client must be able to discover the session context from the policy.
+
+    The console populates its session switches from this response; hard-coding
+    them there would let the UI drift from ``configs/policy/*.yaml``.
+    """
+    body = client.get("/v1/policy").json()
+    by_id = {rp["id"]: rp for rp in body["row_policies"]}
+
+    branch = by_id["BRANCH_SCOPE"]
+    assert branch["context_key"] == "branch_cd"
+    # values come from the profiled column named in the filter, not a literal list
+    assert len(branch["options"]) > 1
+    assert all(o["value"].startswith("BR") for o in branch["options"])
+
+    mkt = by_id["MKT_CONSENT"]
+    assert mkt["context_key"] == "purpose"
+    assert [o["value"] for o in mkt["options"]] == ["marketing"]
+
+    assert body["grades"]["forbidden"] >= 1
+    assert body["engine"]["read_only"] is True
+
+
+def test_policy_endpoint_does_not_leak_classified_values(client, monkeypatch):
+    """Enumerating a row-policy column must respect that column's own grade.
+
+    A governance-introspection endpoint that happily lists the values of a
+    restricted column would be a side channel around the policy it describes.
+    """
+    from aegis_sql.api import app as app_mod
+    from aegis_sql.verify.ast_guard import Sensitivity
+
+    columns = app_mod._ENGINE.c.guard.policy.columns
+    monkeypatch.setitem(columns, "TB_AGNT.BRCH_CD", Sensitivity.INTERNAL)
+
+    body = client.get("/v1/policy").json()
+    branch = next(rp for rp in body["row_policies"] if rp["id"] == "BRANCH_SCOPE")
+    assert branch["options"] == []
+    assert branch["context_key"] == "branch_cd"  # the switch is still discoverable
+
+
 def test_prompts_endpoint(client):
     body = client.get("/v1/prompts").json()
     assert body["manifest"] and any(p["id"] == "nl2sql.system" for p in body["prompts"])
@@ -304,3 +345,26 @@ def test_auxiliary_llm_cost_is_billed_to_the_query(settings):
     assert bundle.status is AnswerStatus.OK, bundle.answer_text
     assert bundle.answer_text == "요약된 답변입니다."
     assert bundle.cost_usd >= 0.004, f"보조 호출 비용이 누락됨: {bundle.cost_usd}"
+
+
+def test_trace_carries_relative_offsets():
+    """스팬 트리는 루트 대비 상대 시작 시각을 내보내야 한다.
+
+    이것이 없으면 콘솔의 폭포수 뷰가 시작점을 추측하게 되고, 화면이 측정하지
+    않은 값을 그린다 — 근거를 보여주는 것이 목적인 제품에서는 치명적이다.
+    """
+    from aegis_sql.types import Span
+
+    root = Span(name="query", start_ms=1000.0, end_ms=1030.0)
+    first = Span(name="a", start_ms=1002.0, end_ms=1012.0)
+    nested = Span(name="a.1", start_ms=1004.0, end_ms=1009.0)
+    first.children.append(nested)
+    root.children.append(first)
+    root.children.append(Span(name="b", start_ms=1015.0, end_ms=1030.0))
+
+    d = root.to_dict()
+    assert d["offset_ms"] == 0.0
+    assert d["duration_ms"] == 30.0
+    assert [c["offset_ms"] for c in d["children"]] == [2.0, 15.0]
+    # 자식의 자식도 루트 기준으로 재야 폭포수가 어긋나지 않는다.
+    assert d["children"][0]["children"][0]["offset_ms"] == 4.0

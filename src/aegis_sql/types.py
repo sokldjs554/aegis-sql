@@ -419,12 +419,21 @@ class Span:
     def duration_ms(self) -> float:
         return max(0.0, self.end_ms - self.start_ms)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, origin_ms: float | None = None) -> dict[str, Any]:
+        """트리를 직렬화한다.
+
+        ``offset_ms`` 는 루트 스팬 시작 대비 상대 시각이다.  이것이 없으면
+        폭포수(waterfall) 뷰가 각 스팬의 시작점을 추측해야 하고, 결국 화면이
+        측정하지 않은 값을 그리게 된다 — 절대 시각은 내보내지 않으면서
+        순서와 겹침만 정확히 전달한다.
+        """
+        base = self.start_ms if origin_ms is None else origin_ms
         return {
             "name": self.name,
+            "offset_ms": round(self.start_ms - base, 2),
             "duration_ms": round(self.duration_ms, 2),
             "attributes": self.attributes,
-            "children": [c.to_dict() for c in self.children],
+            "children": [c.to_dict(base) for c in self.children],
         }
 
 
