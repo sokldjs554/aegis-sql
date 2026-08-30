@@ -132,6 +132,14 @@
   /* ---------- examples & history ---------------------------------------- */
   .exgroups{display:flex; flex-wrap:wrap; gap:8px 20px; margin:0 0 14px}
   .exgroup{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+  /* 좁은 화면에서는 칩이 줄바꿈으로 쌓이는 대신 가로로 흐르게 둔다 —
+     예시·이력이 결과를 화면 밖으로 밀어내지 않도록. */
+  @media (max-width:720px){
+    .exgroup{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none}
+    .exgroup::-webkit-scrollbar{display:none}
+    .exlabel{flex:0 0 auto}
+    .chip{max-width:none; flex:0 0 auto}
+  }
   .exlabel{font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--muted)}
   .chip{padding:5px 12px; border:1px solid var(--line); border-radius:999px; background:var(--surface);
         color:var(--ink-2); cursor:pointer; font-size:12.5px; font-family:inherit;
