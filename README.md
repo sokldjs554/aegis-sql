@@ -108,6 +108,21 @@ make serve                                     # http://localhost:8000 웹 콘�
 make eval                                      # 재현 가능한 평가 리포트
 ```
 
+### 컨테이너로 띄우기
+
+```bash
+docker build -t aegis-sql . && docker run --rm -p 8000:8000 aegis-sql
+```
+
+이미지는 학습 스택(PyTorch·TensorFlow)을 담지 않습니다 — 서빙 경로는 numpy 추론만
+쓰므로 약 4GB를 덜어냅니다. 데모 DB·스키마 프로파일·라우터 가중치는 빌드 시점에
+구워지므로 컨테이너는 첫 요청 전에 아무것도 내려받지 않습니다.
+
+포트는 `PORT` 환경변수로 받고(기본 8000), 컨테이너는 비루트(uid 1000)로 돕니다 —
+호스팅 플랫폼 대부분이 요구하는 조건이라 CI도 `--user 1000:1000`으로 스모크합니다.
+공개 URL에 올릴 때는 `AEGIS_DEMO_PUBLIC=1`을 주면 `/v1/feedback`이 디스크에 쓰지
+않습니다. 배포 절차는 [`deploy/cloudrun.md`](deploy/cloudrun.md)에 있습니다.
+
 ### 실제 화면 — 웹 콘솔 (`make serve`)
 
 맨 위 데모 GIF가 이 콘솔을 실제로 조작한 화면입니다. 아래는 정지 캡처입니다.
@@ -442,7 +457,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | | |
 |---|---|
 | Python | 25,000줄+ (src / scripts / tests) |
-| 테스트 | **258개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 |
+| 테스트 | **263개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
@@ -453,7 +468,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 25,000줄, 전 함수 타입힌트, `ruff` + `mypy` 클린, pytest 258개 |
+| **Python** | 약 25,000줄, 전 함수 타입힌트, `ruff` + `mypy` 클린, pytest 263개 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -497,7 +512,8 @@ aegis-sql/
 │   └── benchmark/          KorFin-Bench 106문항
 ├── docs/                   ARCHITECTURE · PAPERS · GOVERNANCE · FLYWHEEL · SLM · EVALUATION · PROMPT_ENGINEERING
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
-└── tests/                  258개 테스트 (실제 DB 대상, 목킹 없음)
+├── deploy/                 배포 절차 (Cloud Run)
+└── tests/                  263개 테스트 (실제 DB 대상, 목킹 없음)
 ```
 
 ---

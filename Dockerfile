@@ -54,8 +54,11 @@ RUN useradd -m -u 1000 user \
 USER user
 ENV HOME=/home/user
 
+# 포트는 환경변수로 받는다 — Cloud Run 같은 호스트는 PORT 를 주입하고(기본 8080)
+# 컨테이너가 그 포트를 듣지 않으면 기동 실패로 처리한다. 로컬·CI 는 8000 그대로.
+ENV PORT=8000
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD curl -fsS http://localhost:8000/v1/health || exit 1
+  CMD curl -fsS "http://localhost:${PORT}/v1/health" || exit 1
 
-CMD ["python", "-m", "aegis_sql.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec python -m aegis_sql.cli serve --host 0.0.0.0 --port ${PORT}"]
