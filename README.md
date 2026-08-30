@@ -121,7 +121,19 @@ make eval                                      # 재현 가능한 평가 리포�
        alt="주민등록번호 요청이 SQL 생성 전에 거부되는 화면. PII_REQUEST 코드와 트레이스가 남는다."/>
 </p>
 
-결과 · SQL · **링킹 근거(점수/출처)** · **스팬 트레이스** 탭과 되묻기 선택지까지 웹에서 그대로 확인됩니다.
+콘솔은 **답을 보여주는 화면이 아니라 답의 근거를 보여주는 화면**입니다.
+
+- **파이프라인 스테퍼** — 정규화 → 의도 가드 → 링킹 → 라우팅 → 생성 → AST 가드 → 실행이
+  스트리밍으로 진행되며, 차단·되물음이 발생한 단계에서 멈춘 것이 그대로 보입니다.
+- **탭 5종** — 결과 / SQL / **링킹 근거**(점수 막대·출처) / **트레이스**(스팬별 간트) / 자가교정.
+  해당 산출물이 없으면 비활성으로 남아 *왜 없는지*를 툴팁으로 알려줍니다.
+- **핵심 지표** — 지연·비용·라우터 신뢰도·난이도·행수·DB 실행시간을 한 줄로.
+- 결과 표의 숫자 열에는 크기 막대가 붙고, CSV·SQL·trace id를 그 자리에서 복사할 수 있습니다.
+- 라이트/다크/자동 테마, 모바일 폭까지 대응합니다.
+
+차단 화면의 트레이스는 `intent_guard refused=true`에서 끝납니다 —
+**SQL이 생성되지 않았다는 사실 자체가 트레이스로 증명됩니다.**
+
 (추가 캡처: [거버넌스 차단](docs/images/console-governance.png) ·
 [되묻기](docs/images/console-clarify.png) · [트레이스](docs/images/console-trace.png) ·
 [다크 모드](docs/images/console-query-dark.png))
@@ -235,6 +247,13 @@ flowchart LR
 | **거버넌스 (10) / 모호성 (6)** | 100% / 100% | 100% / 100% | 100% / 100% |
 
 LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐스케이드 약 $2.5.
+
+> **비용 수치에 대한 정정** — 위 표의 질의당 비용은 SQL 생성 호출만 계상된 값입니다.
+> 답변 문장을 만드는 보조 LLM 호출은 생성기 내부(`aux_cost_usd`)에만 쌓이고 질의 비용에
+> 합산되지 않아, 12초짜리 답변 합성이 화면에 `$0.000000`으로 표시되는 것을 실사용 중
+> 발견했습니다. 현재 코드는 보조 호출까지 합산하며(회귀 테스트로 고정), 따라서 **실제
+> 지출은 위 표보다 큽니다.** 아카이브된 리포트는 수정 이전 측정치라 그대로 두고 이렇게
+> 밝혀 둡니다.
 
 **hard 티어는 실측이 설계를 증명합니다.** 문법 기반 template은 hard 0% —
 상관 서브쿼리·2단 CTE는 구조적으로 도달할 수 없는 형태 — 지만, LLM 티어를 켜면
@@ -359,7 +378,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | | |
 |---|---|
 | Python | 25,000줄+ (src / scripts / tests) |
-| 테스트 | **257개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 |
+| 테스트 | **258개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
@@ -370,7 +389,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 25,000줄, 전 함수 타입힌트, `ruff` + `mypy` 클린, pytest 257개 |
+| **Python** | 약 25,000줄, 전 함수 타입힌트, `ruff` + `mypy` 클린, pytest 258개 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -414,7 +433,7 @@ aegis-sql/
 │   └── benchmark/          KorFin-Bench 106문항
 ├── docs/                   ARCHITECTURE · PAPERS · GOVERNANCE · FLYWHEEL · SLM · EVALUATION · PROMPT_ENGINEERING
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
-└── tests/                  257개 테스트 (실제 DB 대상, 목킹 없음)
+└── tests/                  258개 테스트 (실제 DB 대상, 목킹 없음)
 ```
 
 ---

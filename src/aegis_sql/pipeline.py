@@ -296,6 +296,11 @@ class AegisEngine:
         tracer = Tracer("query")
         bundle = AnswerBundle(question=question, trace_id=tracer.trace_id)
         emit = on_stage or (lambda *_: None)
+        # 보조 LLM 호출(답변 합성·수리·self-check)은 생성기에 누적된다.  질의
+        # 시작 시점을 찍어 두고 끝에서 차이를 더해야 화면·리포트의 비용이
+        # 실제 청구액과 일치한다 — 이것이 없으면 12초짜리 LLM 답변 합성이
+        # "$0.000000" 으로 보고된다 (실측으로 확인된 회계 누락).
+        aux_before = self.c.llm_generator.aux_cost_usd if self.c.llm_generator else 0.0
 
         with trace_context(tracer.trace_id):
             try:
@@ -305,6 +310,8 @@ class AegisEngine:
                 bundle.status = AnswerStatus.FAILED
                 bundle.answer_text = f"질의 처리 중 오류가 발생했습니다: {exc}"
 
+        if self.c.llm_generator is not None:
+            bundle.cost_usd += max(0.0, self.c.llm_generator.aux_cost_usd - aux_before)
         bundle.trace = tracer.finish()
         bundle.total_latency_ms = bundle.trace.duration_ms
         QUERIES.labels(
