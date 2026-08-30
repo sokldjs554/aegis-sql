@@ -92,6 +92,11 @@ make setup          # 가상환경 + 의존성 + 데모DB(37만행) + 벤치마�
 make demo           # 대표 질의 5개 (거버넌스 차단·되묻기 사례 포함)
 ```
 
+<p align="center">
+  <img src="docs/images/terminal-demo.gif" width="820"
+       alt="터미널 데모: aegis ask 로 한국어 질문이 SQL과 결과로 바뀌고(LIMIT 자동 주입 표시), 주민등록번호 요청은 인텐트 가드 로그와 함께 차단되며, 모호한 질문은 선택지와 함께 되묻는다."/>
+</p>
+
 **API 키가 없어도 전부 동작합니다.** LLM 티어가 없으면 결정론 template 티어로
 자동 폴백합니다(자체 학습 sLLM 티어는 승격 규칙에 따라 옵트인 — `--tier slm`).
 이것이 CI에서도 전체 파이프라인이 도는 이유입니다.
