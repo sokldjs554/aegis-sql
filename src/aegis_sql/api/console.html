@@ -56,33 +56,42 @@
   .sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
       clip:rect(0 0 0 0); white-space:nowrap; border:0}
 
-  /* ---------- app bar --------------------------------------------------- */
+  /* ---------- app bar ----------------------------------------------------
+     헤더는 세 가지만 한다: 여기가 어디인가(브랜드) · 어디로 갈 수 있는가(탭)
+     · 지금 정상인가(점 하나).  엔진이 무엇을 할 수 있는지를 칩으로 나열하면
+     그건 대시보드가 아니라 기동 로그다 — 그 정보는 엔진 정보 서랍에 있다. */
   .appbar{position:sticky; top:0; z-index:30; background:var(--surface); border-bottom:1px solid var(--line)}
-  .appbar-in{max-width:1240px; margin:0 auto; padding:10px 22px; display:flex; align-items:center;
-             gap:12px; flex-wrap:wrap}
-  .brand{display:flex; align-items:baseline; gap:9px; font-size:16px; font-weight:700; letter-spacing:-.3px}
+  .appbar-in{max-width:1240px; margin:0 auto; padding:0 24px; height:56px;
+             display:flex; align-items:center; gap:10px}
+  .brand{display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700;
+         letter-spacing:-.3px; color:var(--ink); flex:none}
   .brand span{color:var(--accent)}
-  .brand small{font-weight:500; font-size:11.5px; color:var(--muted); letter-spacing:0}
+  .brand svg{display:block; flex:none}
   .appbar .spacer{flex:1}
-  .health{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px;
-          color:var(--muted); flex-wrap:wrap}
-  .health .dot{width:7px; height:7px; border-radius:50%; background:var(--good)}
-  .health .dot.bad{background:var(--critical)}
-  .hchip{border:1px solid var(--line); border-radius:5px; padding:1px 6px}
-  .hchip.off{opacity:.45; text-decoration:line-through}
-  .iconbtn{display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px;
-           border:1px solid var(--line); background:var(--surface); color:var(--muted);
-           font-size:12.5px; cursor:pointer; font-family:inherit}
-  .iconbtn:hover{border-color:var(--accent); color:var(--accent)}
-  @media (max-width:980px){ .health{display:none} }
 
-  main{max-width:1240px; margin:0 auto; padding:22px 22px 70px}
+  /* 모드 전환을 헤더 밑줄 탭으로 편입 — 본문에서 한 줄을 회수하고,
+     채도 높은 파랑이 [실행] 버튼 하나로 줄어든다. */
+  .navtabs{display:flex; gap:2px; margin-left:10px; align-self:stretch}
+  .navtab{position:relative; padding:0 12px; border:0; background:none; font-family:inherit;
+          font-size:13px; color:var(--muted); cursor:pointer; display:flex; align-items:center}
+  .navtab::after{content:""; position:absolute; left:12px; right:12px; bottom:-1px; height:2px;
+                 background:transparent}
+  .navtab:hover{color:var(--ink-2)}
+  .navtab[aria-selected="true"]{color:var(--ink); font-weight:600}
+  .navtab[aria-selected="true"]::after{background:var(--accent)}
 
-  /* ---------- mode switch ----------------------------------------------- */
-  .modes{display:flex; gap:6px; margin-bottom:14px}
-  .mode{padding:8px 16px; border-radius:999px; border:1px solid var(--line); background:var(--surface);
-        color:var(--muted); font-size:13px; font-family:inherit; cursor:pointer}
-  .mode[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+  /* 테두리 없는 고스트 버튼 — 헤더 우측이 '버튼 3개'가 아니라 '텍스트 3개'로 읽힌다 */
+  .ghostbtn{display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 11px;
+            border-radius:7px; border:1px solid transparent; background:none; color:var(--muted);
+            font-size:12.5px; font-family:inherit; cursor:pointer; white-space:nowrap}
+  .ghostbtn:hover{background:var(--surface-2); border-color:var(--line); color:var(--ink-2)}
+  .ghostbtn .num{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .ghostbtn .fp{font-family:var(--mono); font-size:11px; color:var(--muted)}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--good); flex:none}
+  .dot.bad{background:var(--critical)}
+  @media (max-width:620px){ .ghostbtn .fp, .ghostbtn .lbl{display:none} }
+
+  main{max-width:1240px; margin:0 auto; padding:26px 22px 60px}
 
   /* ---------- ask ------------------------------------------------------- */
   .askwrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
@@ -145,10 +154,12 @@
         color:var(--ink-2); cursor:pointer; font-size:12.5px; font-family:inherit;
         max-width:330px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
   .chip:hover{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft)}
-  .chip.gov{border-style:dashed; border-color:color-mix(in srgb, var(--critical) 45%, var(--line))}
-  .chip.gov:hover{border-color:var(--critical); color:var(--critical); background:var(--critical-soft)}
-  .chip.amb{border-style:dashed; border-color:color-mix(in srgb, var(--warning) 55%, var(--line))}
-  .chip.amb:hover{border-color:var(--warning); color:var(--ink); background:var(--warning-soft)}
+  /* 종류는 테두리가 아니라 선행 글리프로 — 파선 컬러 테두리는 검증 오류 UI 의
+     문법이라 '경고가 떠 있는 화면'으로 읽힌다. 글리프는 결과 배지와 같은 기호다. */
+  .chip .g{font-size:9px; margin-right:6px; vertical-align:1px}
+  .chip.ok  .g{color:var(--good)}
+  .chip.gov .g{color:var(--critical)}
+  .chip.amb .g{color:var(--warning)}
   .chip.hist{font-family:var(--mono); font-size:11.5px}
 
   /* ---------- panels ---------------------------------------------------- */
@@ -187,16 +198,25 @@
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .b-clarify{color:var(--warning)} }
   .b-tier{background:var(--accent-soft); color:var(--accent-ink); font-family:var(--mono)}
   .b-ctx{background:var(--serious-soft); color:var(--serious); font-family:var(--mono)}
-  .traceid{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--muted);
+  .traceid{margin-left:auto; font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
            cursor:pointer; border:1px solid transparent; padding:2px 7px; border-radius:6px; background:none}
-  .traceid:hover{border-color:var(--line); color:var(--ink-2)}
+  .traceid:hover{border-color:var(--line); background:var(--surface-2)}
+  .traceid .tl{font-family:inherit; color:var(--muted)}
+  .traceid .cg{opacity:.45}
+  .routewhy{padding:0 18px 13px; font-size:12.3px; color:var(--muted)}
+  .routewhy summary{cursor:pointer; color:var(--muted); list-style:none; display:inline-flex;
+                    align-items:center; gap:5px}
+  .routewhy summary::-webkit-details-marker{display:none}
+  .routewhy summary::before{content:"▸"; font-size:10px; transition:transform .15s}
+  .routewhy[open] summary::before{transform:rotate(90deg)}
+  .routewhy > div{margin-top:7px; line-height:1.6; color:var(--ink-2)}
   .answer{font-size:15.5px; line-height:1.72; padding:12px 18px 4px}
   .reason{padding:0 18px 13px; font-size:12.5px; color:var(--muted)}
   .reason code{font-family:var(--mono); font-size:11.5px; background:var(--surface-2);
                border:1px solid var(--line-2); border-radius:4px; padding:1px 5px; color:var(--ink-2)}
   .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(136px,1fr)); gap:1px;
         background:var(--line); border-top:1px solid var(--line)}
-  .kpi{background:var(--surface-2); padding:10px 14px}
+  .kpi{background:var(--surface-2); padding:11px 16px}
   .kpi .k{font-size:10.5px; font-weight:700; letter-spacing:.4px; color:var(--muted)}
   .kpi .v{font-family:var(--mono); font-size:17px; font-weight:600; margin-top:2px;
           font-variant-numeric:tabular-nums}
@@ -242,7 +262,7 @@
   .tabbody{padding:16px 18px}
   .hidden{display:none !important}
   .whybox{display:flex; gap:11px; padding:14px 16px; border-radius:var(--radius-sm);
-          background:var(--surface-2); border:1px dashed var(--line)}
+          background:var(--surface-2); border:1px solid var(--line)}
   .whybox b{display:block; margin-bottom:3px}
   .whybox .sub{font-size:12.8px; color:var(--muted)}
 
@@ -300,6 +320,31 @@
           overflow:auto; border-left:1px solid var(--line); padding:20px 22px 40px}
   .drawer h2{margin:0 0 4px; font-size:17px}
   .drawer .close{position:absolute; top:16px; right:20px}
+  /* 서랍에 형제 탭을 붙인다 — 새 오버레이를 또 만들면 스크림·Esc·포커스·모바일
+     대응이 두 벌이 되고, 무엇보다 팝오버는 스크린샷에 안 잡힌다. */
+  .dtabs{display:flex; gap:2px; margin:14px 0 16px; border-bottom:1px solid var(--line)}
+  .dtab{padding:9px 14px; border:0; border-bottom:2px solid transparent; background:none;
+        font-family:inherit; font-size:13px; color:var(--muted); cursor:pointer}
+  .dtab[aria-selected="true"]{color:var(--ink); font-weight:600; border-bottom-color:var(--accent)}
+  .srow{display:grid; grid-template-columns:136px 1fr auto; gap:10px; align-items:baseline;
+        padding:9px 0; border-top:1px solid var(--line-2); font-size:12.8px}
+  .srow:first-of-type{border-top:0}
+  .srow dt{color:var(--muted); margin:0}
+  .srow dd{margin:0; color:var(--ink-2); overflow-wrap:anywhere}
+  .srow .mono{font-family:var(--mono); font-size:11.5px}
+  .srow .off{color:var(--muted)}
+  .criterion{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm);
+             padding:13px 15px; font-size:12.8px; line-height:1.65; color:var(--ink-2); margin-bottom:16px}
+  .dlinks{display:flex; gap:14px; flex-wrap:wrap; margin-top:18px; padding-top:14px;
+          border-top:1px solid var(--line); font-size:12px}
+  .dlinks a{color:var(--muted)}
+  /* 응답별 재현 스트립 — 지문·프롬프트는 페이지의 각주가 아니라 그 응답의 속성이다 */
+  .prov{border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface-2);
+        padding:12px 14px; margin-bottom:14px}
+  .prov .ph{font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--muted); margin-bottom:9px}
+  .prov .pr{display:grid; grid-template-columns:104px 1fr; gap:9px; padding:3px 0; font-size:12.3px}
+  .prov .pk{color:var(--muted)}
+  .prov .pv{color:var(--ink-2); font-family:var(--mono); font-size:11.5px; overflow-wrap:anywhere}
   .legend{display:flex; gap:14px; flex-wrap:wrap; margin:12px 0; font-size:11.5px; color:var(--muted)}
   .tbl-card{border:1px solid var(--line); border-radius:var(--radius-sm); margin-bottom:9px; overflow:hidden}
   .tbl-head{display:flex; align-items:center; gap:9px; padding:9px 12px; background:var(--surface-2);
@@ -324,33 +369,77 @@
   .empty{text-align:center; padding:40px 20px; color:var(--muted)}
   .empty h3{margin:0 0 6px; font-size:15px; color:var(--ink-2)}
   .empty p{margin:0; font-size:13px}
+  /* 첫 화면 — 카드도 일러스트도 없이, 이 엔진이 끝나는 세 가지 방식만 선언한다.
+     글리프와 색은 결과 배지와 같은 것을 써서 화면이 자기 어휘를 먼저 가르친다. */
+  .intro{padding:46px 20px 40px}
+  .intro .lead{margin:0 auto; max-width:640px; font-size:16px; line-height:1.65; color:var(--ink-2);
+               text-align:center}
+  .outcomes{display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin:30px auto 0;
+            max-width:840px; border-top:1px solid var(--line-2); padding-top:24px}
+  .outcome{padding:0 20px; text-align:left; border-left:1px solid var(--line-2)}
+  .outcome:first-child{border-left:0}
+  .outcome .hd{display:flex; align-items:center; gap:7px; font-size:13.5px; font-weight:700;
+               color:var(--ink); margin-bottom:5px}
+  .outcome .g{font-size:10px}
+  .outcome .g.ok{color:var(--good)}
+  .outcome .g.gov{color:var(--critical)}
+  .outcome .g.amb{color:var(--warning)}
+  .outcome p{font-size:12.8px; line-height:1.6; color:var(--muted); text-align:left}
+  .honest{max-width:840px; margin:26px auto 0; padding-top:18px; border-top:1px solid var(--line-2);
+          font-size:12.3px; line-height:1.6; color:var(--muted); text-align:center}
+  @media (max-width:720px){
+    .outcomes{grid-template-columns:1fr; gap:20px; max-width:420px}
+    .outcome{border-left:0; padding:0}
+    .outcome + .outcome{border-top:1px solid var(--line-2); padding-top:18px}
+  }
   .errbox{border-left:3px solid var(--critical); background:var(--critical-soft); padding:12px 15px;
           border-radius:0 var(--radius-sm) var(--radius-sm) 0}
   .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(12px); opacity:0;
          background:var(--ink); color:var(--canvas); padding:9px 16px; border-radius:999px;
          font-size:12.5px; pointer-events:none; transition:.18s; z-index:50}
   .toast.show{opacity:1; transform:translateX(-50%)}
-  footer{color:var(--muted); font-size:11.5px; text-align:center; padding:24px 0 0; font-family:var(--mono)}
-  footer a{color:var(--muted)}
+  /* 본문 폭을 가로지르는 mono 텍스트 줄은 그 자체로 '개발자 콘솔' 신호다.
+     한 줄, 본문 글꼴, 양끝 정렬. 링크는 남긴다 — 서비스가 실제로 떠 있다는
+     유일한 클릭 가능한 증거이고, 해시 문자열과 달리 시각적 소음이 아니다. */
+  footer{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:44px; padding-top:16px;
+         border-top:1px solid var(--line-2); color:var(--muted); font-size:11.5px}
+  footer .sp{flex:1}
+  footer a{color:var(--muted); text-decoration:none; border-bottom:1px solid var(--line)}
+  footer a:hover{color:var(--accent); border-bottom-color:var(--accent)}
+  footer .fp{font-family:var(--mono)}
+  footer .linkish{background:none; border:0; padding:0; font:inherit; color:var(--muted);
+                  cursor:pointer; border-bottom:1px solid var(--line)}
+  footer .linkish:hover{color:var(--accent); border-bottom-color:var(--accent)}
 </style>
 </head>
 <body>
 
 <div class="appbar">
   <div class="appbar-in">
-    <div class="brand">AEGIS<span>-SQL</span> <small>거버넌스 내장형 Text-to-SQL</small></div>
+    <div class="brand">
+      <svg width="17" height="17" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="var(--accent)"/>
+        <path d="M16 6l8 3.4v6.2c0 5-3.4 8.6-8 10.4-4.6-1.8-8-5.4-8-10.4V9.4z" fill="none"
+              stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+        <path d="M12.2 16.2l2.8 2.8 5-5.4" fill="none" stroke="#fff" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      AEGIS<span>-SQL</span>
+    </div>
+    <div class="navtabs" role="tablist" aria-label="콘솔 모드">
+      <button class="navtab" id="modeAsk" role="tab" aria-selected="true">질의</button>
+      <button class="navtab" id="modeGuard" role="tab" aria-selected="false">거버넌스 샌드박스</button>
+    </div>
     <div class="spacer"></div>
-    <div class="health" id="health"></div>
-    <button class="iconbtn" id="schemaBtn">▤ 스키마</button>
-    <button class="iconbtn" id="themeBtn">◐ <span id="themeLbl">자동</span></button>
+    <button class="ghostbtn" id="statusBtn" title="엔진 상태와 재현 정보">
+      <span class="dot" id="statusDot"></span><span class="lbl" id="statusLbl">확인 중</span><span class="fp" id="statusFp"></span>
+    </button>
+    <button class="ghostbtn" id="schemaBtn">▤ 스키마 <span class="num" id="tableCount"></span></button>
+    <button class="ghostbtn" id="themeBtn">◐ <span id="themeLbl">자동</span></button>
   </div>
 </div>
 
 <main>
-  <div class="modes" role="tablist" aria-label="콘솔 모드">
-    <button class="mode" id="modeAsk" role="tab" aria-selected="true">질의</button>
-    <button class="mode" id="modeGuard" role="tab" aria-selected="false">거버넌스 샌드박스</button>
-  </div>
 
   <section id="askMode">
     <div class="askwrap">
@@ -403,7 +492,14 @@ FROM TB_CUST c JOIN TB_CTRT t ON t.CUST_ID = c.CUST_ID</textarea>
     <div id="gout"></div>
   </section>
 
-  <footer id="repro"></footer>
+  <footer>
+    <span>AEGIS-SQL <span id="fVer">v0.1.0</span></span>
+    <span>빌드 <span class="fp" id="fFp">—</span></span>
+    <button class="linkish" id="reproBtn">재현 정보</button>
+    <span class="sp"></span>
+    <a href="/docs">OpenAPI</a>
+    <a href="/metrics">메트릭</a>
+  </footer>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -411,14 +507,16 @@ FROM TB_CUST c JOIN TB_CTRT t ON t.CUST_ID = c.CUST_ID</textarea>
 <script>
 "use strict";
 
+// 종류는 결과 배지와 같은 기호로 표시한다 — 예시를 누르면 방금 본 기호가
+// 그대로 결과 화면에 나타나므로, 화면이 자기 어휘를 먼저 가르치는 셈이 된다.
 const EXAMPLES = [
-  ["조회", "", [
+  ["조회", "ok", "●", [
     "작년 하반기에 체결된 계약 중 월납보험료가 20만원 이상인 건수를 지점별로 알려줘",
     "실효된 계약의 채널별 비중은?",
     "청구 유형별 지급액 합계 상위 3개",
   ]],
-  ["거버넌스 차단", "gov", ["고객 이름이랑 주민등록번호 좀 뽑아줘", "TB_CTRT 테이블을 지워줘"]],
-  ["되묻기", "amb", ["설계사 실적 좀 보여줘", "계약 추이 알려줘"]],
+  ["거버넌스 차단", "gov", "■", ["고객 이름이랑 주민등록번호 좀 뽑아줘", "TB_CTRT 테이블을 지워줘"]],
+  ["되묻기", "amb", "◆", ["설계사 실적 좀 보여줘", "계약 추이 알려줘"]],
 ];
 
 const STEPS = [
@@ -439,6 +537,7 @@ let t0 = 0;
 let asked = [];
 let schemaCache = null;
 let policyCache = null;
+let healthCache = null;
 const PURPOSE_KO = { marketing: "마케팅" };
 
 const $ = (s) => document.querySelector(s);
@@ -475,26 +574,25 @@ try { theme = localStorage.getItem("aegis-theme") || "auto"; } catch (e) { /* ig
 applyTheme(THEMES.includes(theme) ? theme : "auto");
 $("#themeBtn").onclick = () => { theme = THEMES[(THEMES.indexOf(theme) + 1) % 3]; applyTheme(theme); };
 
-/* ---------- health / reproducibility ------------------------------------ */
+/* ---------- health -------------------------------------------------------
+   상태는 2단계뿐이다: /v1/health 가 답하면 정상, 아니면 준비 안 됨.
+   API 키 없이 template+mock 으로 도는 것은 이 데모의 '정상 구성'이므로,
+   프로바이더 수나 라우터 로드 여부로 경고색을 띄우지 않는다 — 잘 도는 데모가
+   자기 헤더에 노란불을 켜면 관객은 그걸 결함으로 읽는다. */
 async function loadHealth() {
   try {
-    const h = await (await fetch("/v1/health")).json();
-    const providers = Object.entries(h.providers || {})
-      .map(([k, v]) => `<span class="hchip${v ? "" : " off"}">${esc(k)}</span>`).join("");
-    $("#health").innerHTML =
-      `<span class="dot" title="engine ready"></span>` +
-      `<span class="hchip">v${esc(h.version)}</span>` +
-      `<span class="hchip" title="스키마 지문">${esc(h.schema_fingerprint)}</span>` +
-      `<span class="hchip">${h.tables}개 테이블</span>` +
-      (h.tiers || []).map((t) => `<span class="hchip">${esc(t)}</span>`).join("") + providers +
-      `<span class="hchip${h.router_loaded ? "" : " off"}">router</span>`;
-    const prompts = Object.values(h.prompts || {}).slice(0, 2).join(" · ");
-    $("#repro").innerHTML =
-      `재현 정보 — 스키마 지문 ${esc(h.schema_fingerprint)}` +
-      (prompts ? ` · 프롬프트 ${esc(prompts)}` : "") +
-      ` · <a href="/docs">OpenAPI</a> · <a href="/metrics">메트릭</a> · <a href="/v1/prompts">프롬프트 레지스트리</a>`;
+    const h = healthCache = await (await fetch("/v1/health")).json();
+    $("#statusLbl").textContent = "정상";
+    // 앞 8자는 git short SHA 관습 — 정지 스크린샷 한 장에도 재현성 증거가 남는다.
+    $("#statusFp").textContent = String(h.schema_fingerprint || "").slice(0, 8);
+    $("#fFp").textContent = String(h.schema_fingerprint || "").slice(0, 8);
+    $("#fVer").textContent = "v" + h.version;
+    if (h.tables) $("#tableCount").textContent = h.tables;
   } catch (e) {
-    $("#health").innerHTML = `<span class="dot bad"></span><span class="hchip">engine not ready</span>`;
+    healthCache = null;
+    $("#statusDot").classList.add("bad");
+    $("#statusLbl").textContent = "엔진 준비 안 됨";
+    $("#statusFp").textContent = "";
   }
 }
 
@@ -522,29 +620,22 @@ async function loadPolicy() {
 }
 
 /* ---------- schema drawer ----------------------------------------------- */
-async function openSchema() {
-  if (!schemaCache) {
-    try { schemaCache = await (await fetch("/v1/schema")).json(); }
-    catch (e) { toast("스키마를 불러오지 못했습니다"); return; }
-  }
-  const g = schemaCache;
+/* 서랍 하나에 두 탭 — 스키마 사전과 런타임·재현.
+   새 팝오버를 만들지 않는다: 스크림·Esc·포커스 복귀·모바일 대응이 이미 여기
+   구현돼 있고, 무엇보다 포트폴리오는 정지 이미지로 먼저 소비되는데 팝오버는
+   스크린샷에 잡히지 않는다. */
+function schemaPane(g) {
   const counts = {};
   g.tables.forEach((t) => t.columns.forEach((c) => { counts[c.sensitivity] = (counts[c.sensitivity] || 0) + 1; }));
 
-  const scrim = el("div", "scrim");
-  const d = el("div", "drawer");
-  d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "스키마 사전");
-  d.innerHTML =
-    `<button class="iconbtn close" id="schemaClose">닫기 ✕</button>` +
-    `<h2>스키마 사전</h2>` +
-    `<div class="hint">${esc(g.name)} · ${esc(g.dialect)} · 지문 <code>${esc(g.fingerprint)}</code> · ` +
-    `${g.tables.length}개 테이블 · 프롬프트에 실리는 스키마 카드 ${fmt(g.card_tokens)} 토큰</div>` +
-    `<div class="legend">` +
+  const pane = el("div");
+  pane.appendChild(el("div", "hint",
+    `${esc(g.name)} · ${esc(g.dialect)} · ${g.tables.length}개 테이블 · ` +
+    `프롬프트에 실리는 스키마 카드 ${fmt(g.card_tokens)} 토큰`));
+  pane.appendChild(el("div", "legend",
     Object.keys(SENS_KO).map((k) =>
-      `<span><span class="sens ${k}">${SENS_KO[k]}</span> ${counts[k] || 0}개 컬럼</span>`).join("") +
-    `</div>`;
+      `<span><span class="sens ${k}">${SENS_KO[k]}</span> ${counts[k] || 0}개 컬럼</span>`).join("")));
 
-  const list = el("div");
   g.tables.forEach((t) => {
     const card = el("div", "tbl-card");
     const head = el("button", "tbl-head",
@@ -553,44 +644,157 @@ async function openSchema() {
     head.setAttribute("aria-expanded", "false");
     const body = el("div", "hidden");
     t.columns.forEach((c) => {
-      const s = c.sensitivity || "public";
+      const sv = c.sensitivity || "public";
       body.appendChild(el("div", "col",
         `<span class="cn">${esc(c.name)}${c.pk ? " 🔑" : ""}</span>` +
         `<span class="ct">${esc(c.type)}</span>` +
         `<span class="cc">${esc(c.comment || "")}${c.fk ? ` · FK→${esc(c.fk)}` : ""}` +
         `${c.code_group ? ` · 코드 ${esc(c.code_group)}` : ""}</span>` +
-        `<span class="sens ${esc(s)}">${esc(SENS_KO[s] || s)}</span>`));
+        `<span class="sens ${esc(sv)}">${esc(SENS_KO[sv] || sv)}</span>`));
     });
     head.onclick = () => head.setAttribute("aria-expanded", String(body.classList.toggle("hidden") === false));
-    card.appendChild(head); card.appendChild(body); list.appendChild(card);
+    card.appendChild(head); card.appendChild(body); pane.appendChild(card);
   });
-  d.appendChild(list);
+  return pane;
+}
+
+function runtimePane(g) {
+  const pane = el("div");
+  const h = healthCache;
+  // 값만 나열하면 아무리 정확해도 디버그 출력으로 읽힌다 — 그 값이 무엇을
+  // 증명하는지 먼저 말한다.
+  pane.appendChild(el("div", "criterion",
+    "같은 질문에 같은 답이 나오는지는 아래 세 값 — <b>스키마 지문 · 프롬프트 버전 · 생성 티어</b> — " +
+    "가 같은지로 판정합니다. 생성 티어는 응답마다 다르므로 각 답변의 트레이스 탭에 함께 기록됩니다."));
+
+  if (!h) {
+    pane.appendChild(el("div", "whybox",
+      `<span aria-hidden="true">ⓘ</span><div><b>엔진 정보를 불러오지 못했습니다</b>` +
+      `<span class="sub">/v1/health 가 응답하지 않습니다.</span></div>`));
+    return pane;
+  }
+
+  const dl = el("dl");
+  // 값이 없는 행은 '—' 로 채우지 않고 아예 렌더하지 않는다.
+  const row = (k, v, mono) => {
+    if (v === null || v === undefined || v === "") return;
+    const r = el("div", "srow", `<dt>${esc(k)}</dt><dd class="${mono ? "mono" : ""}">${v}</dd>`);
+    if (mono) {
+      const b = el("button", "iconbtn", "복사");
+      b.style.cssText = "padding:2px 8px;font-size:11px";
+      b.onclick = () => copy(String(r.querySelector("dd").textContent).trim(), esc(k));
+      r.appendChild(b);
+    }
+    dl.appendChild(r);
+  };
+
+  row("엔진", `v${esc(h.version)} · 정상`);
+  row("스키마", `${esc(g.name)} · ${g.tables.length}개 테이블`);
+  row("스키마 지문", esc(h.schema_fingerprint), true);
+  if ((h.tiers || []).length) row("라우팅 티어", h.tiers.map((t) => esc(t)).join(" · "));
+
+  const prov = Object.entries(h.providers || {});
+  if (prov.length) {
+    const on = prov.filter(([, v]) => v).map(([k]) => esc(k));
+    const off = prov.filter(([, v]) => !v).map(([k]) => esc(k));
+    // 취소선은 UI 어휘에서 '삭제됨·실패함'이다. 실제 의미는 'API 키 미설정'이므로
+    // 한국어 단어로 서술한다.
+    row("프로바이더",
+      (on.length ? `${on.join(" · ")} 사용 가능` : "") +
+      (on.length && off.length ? "<br/>" : "") +
+      (off.length ? `<span class="off">${off.join(" · ")} 미설정</span>` : ""));
+  }
+  row("라우터", h.router_loaded ? "학습된 라우터 적재됨" : '<span class="off">미적재 — 규칙 기반으로 동작</span>');
+  const pr = Object.entries(h.prompts || {});
+  if (pr.length) {
+    // 9개를 한 줄씩 늘어놓으면 다시 로그가 된다 — 생성 경로 둘만 펼쳐 두고 나머지는 접는다.
+    const main = pr.filter(([k]) => k.startsWith("nl2sql."));
+    const rest = pr.filter(([k]) => !k.startsWith("nl2sql."));
+    main.forEach(([, v]) => row("프롬프트", esc(v), true));
+    if (rest.length) {
+      const det = el("details", "routewhy");
+      det.style.padding = "10px 0 0";
+      det.innerHTML = `<summary>보조 프롬프트 ${rest.length}종</summary>` +
+        `<div class="mono" style="font-size:11.5px;line-height:1.9">` +
+        rest.map(([k, v]) => `${esc(k)} → ${esc(v)}`).join("<br/>") + `</div>`;
+      dl.appendChild(det);
+    }
+  }
+
+  pane.appendChild(dl);
+  pane.appendChild(el("div", "dlinks",
+    `<a href="/docs">OpenAPI 문서</a><a href="/metrics">Prometheus 메트릭</a>` +
+    `<a href="/v1/prompts">프롬프트 레지스트리</a><a href="/v1/policy">거버넌스 정책</a>`));
+  return pane;
+}
+
+async function openInfo(tab) {
+  if (!schemaCache) {
+    try { schemaCache = await (await fetch("/v1/schema")).json(); }
+    catch (e) { toast("엔진 정보를 불러오지 못했습니다"); return; }
+  }
+  const g = schemaCache;
+  const opener = document.activeElement;
+
+  const scrim = el("div", "scrim");
+  const d = el("div", "drawer");
+  d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "엔진 정보");
+  d.innerHTML = `<button class="ghostbtn close" id="schemaClose">닫기 ✕</button><h2>엔진 정보</h2>`;
+
+  const bar = el("div", "dtabs");
+  bar.setAttribute("role", "tablist");
+  const body = el("div");
+  const PANES = [
+    { name: "스키마 사전", make: () => schemaPane(g) },
+    { name: "런타임 · 재현", make: () => runtimePane(g) },
+  ];
+  const show = (i) => {
+    [...bar.children].forEach((x, j) => x.setAttribute("aria-selected", String(i === j)));
+    body.innerHTML = "";
+    body.appendChild(PANES[i].make());
+  };
+  PANES.forEach((pane, i) => {
+    const t = el("button", "dtab", esc(pane.name));
+    t.setAttribute("role", "tab");
+    t.onclick = () => show(i);
+    bar.appendChild(t);
+  });
+  d.appendChild(bar); d.appendChild(body);
   scrim.appendChild(d);
 
-  const close = () => { scrim.remove(); document.removeEventListener("keydown", onKey); $("#schemaBtn").focus(); };
+  const close = () => {
+    scrim.remove();
+    document.removeEventListener("keydown", onKey);
+    if (opener && opener.focus) opener.focus();
+  };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   scrim.onclick = (e) => { if (e.target === scrim) close(); };
   document.addEventListener("keydown", onKey);
   document.body.appendChild(scrim);
   d.querySelector("#schemaClose").onclick = close;
+  show(tab === "runtime" ? 1 : 0);
   d.querySelector("#schemaClose").focus();
 }
-$("#schemaBtn").onclick = openSchema;
+$("#schemaBtn").onclick = () => openInfo("schema");
+$("#statusBtn").onclick = () => openInfo("runtime");
+$("#reproBtn").onclick = () => openInfo("runtime");
 
 /* ---------- examples & history ------------------------------------------ */
 function renderExamples() {
   const box = $("#examples");
-  EXAMPLES.forEach(([label, kind, items]) => {
-    const g = el("div", "exgroup");
-    g.appendChild(el("span", "exlabel", esc(label)));
+  const g = el("div", "exgroup");
+  g.appendChild(el("span", "exlabel", "예시"));
+  EXAMPLES.forEach(([label, kind, glyph, items]) => {
     items.forEach((q) => {
-      const c = el("button", "chip" + (kind ? " " + kind : ""), esc(q.length > 40 ? q.slice(0, 38) + "…" : q));
-      c.title = q;
+      const c = el("button", "chip " + kind,
+        `<span class="g" aria-hidden="true">${glyph}</span>` +
+        esc(q.length > 34 ? q.slice(0, 32) + "…" : q));
+      c.title = `${label} — ${q}`;
       c.onclick = () => { $("#q").value = q; run(); };
       g.appendChild(c);
     });
-    box.appendChild(g);
   });
+  box.appendChild(g);
 }
 function renderHistory() {
   const box = $("#history");
@@ -676,10 +880,13 @@ async function run() {
   t0 = performance.now(); resetSteps();
   try { window.history.replaceState(null, "", `?q=${encodeURIComponent(question)}`); } catch (e) { /* ignore */ }
 
+  // 요청 시점의 컨텍스트를 고정한다 — 나중에 드롭다운을 바꿔도 이 응답의 기록은
+  // 변하면 안 된다. 그래야 '이 응답의 재현 정보'라는 제목이 참이 된다.
+  const sentCtx = sessionContext();
   try {
     const res = await fetch("/v1/query/stream", {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question, explain, max_rows: 100, context: sessionContext() }),
+      body: JSON.stringify({ question, explain, max_rows: 100, context: sentCtx }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}${res.status === 503 ? " — 엔진이 아직 준비되지 않았습니다" : ""}`);
     const reader = res.body.getReader();
@@ -696,7 +903,7 @@ async function run() {
         const dataLine = (chunk.match(/^data: (.*)$/m) || [])[1];
         if (!ev || !dataLine) continue;
         const data = JSON.parse(dataLine);
-        if (ev === "done") { setTimeout(() => $("#live").classList.add("hidden"), 300); render(data); }
+        if (ev === "done") { data.context = sentCtx; setTimeout(() => $("#live").classList.add("hidden"), 300); render(data); }
         else if (ev === "error") {
           $("#live").classList.add("hidden");
           $("#out").appendChild(el("div", "panel panel-pad",
@@ -729,11 +936,14 @@ function render(d) {
     hrow.appendChild(el("span", "badge b-tier",
       esc(d.route.tier) + (d.route.escalated_from ? ` ← ${esc(d.route.escalated_from)}` : "")));
   }
-  const ctx = sessionContext();
+  const ctx = d.context || {};
   if (Object.keys(ctx).length) {
     hrow.appendChild(el("span", "badge b-ctx", Object.entries(ctx).map(([k, v]) => `${k}=${v}`).join(" ")));
   }
-  const tid = el("button", "traceid", esc(d.trace_id));
+  // 라벨 없는 맨 해시는 디버그 출력으로 읽힌다. 글리프는 hover 전용으로 두지
+  // 않는다 — 터치 기기에 어포던스가 없고 정지 스크린샷에도 안 남는다.
+  const tid = el("button", "traceid",
+    `<span class="tl">트레이스</span> ${esc(d.trace_id)} <span class="cg" aria-hidden="true">⧉</span>`);
   tid.title = "trace id 복사";
   tid.onclick = () => copy(d.trace_id, "trace id");
   hrow.appendChild(tid);
@@ -742,11 +952,17 @@ function render(d) {
   // 되묻기 문구는 아래 패널에서 크게 보여주므로 여기서 중복 출력하지 않는다.
   if (d.answer && !d.clarification) head.appendChild(el("div", "answer", esc(d.answer)));
 
+  // 1행에는 사람이 읽는 것만 두고, 라우터 산문은 접는다. 근거를 없애는 게
+  // 아니라 기본 접힘 — 펼치면 전문이 그대로 나온다.
   const bits = [];
-  if (d.route?.reason) bits.push("라우팅 " + esc(d.route.reason));
   if (d.linked_tables?.length) bits.push("테이블 " + d.linked_tables.map((t) => `<code>${esc(t)}</code>`).join(" "));
   if (d.glossary_terms?.length) bits.push("용어사전 " + d.glossary_terms.map((t) => `<code>${esc(t)}</code>`).join(" "));
   if (bits.length) head.appendChild(el("div", "reason", bits.join(" &nbsp;·&nbsp; ")));
+  if (d.route?.reason) {
+    const det = el("details", "routewhy");
+    det.innerHTML = `<summary>라우팅 근거</summary><div>${esc(d.route.reason)}</div>`;
+    head.appendChild(det);
+  }
 
   const k = el("div", "kpis");
   const kpi = (label, value, cls, title) => {
@@ -871,7 +1087,7 @@ function tabsPanel(d) {
     { name: "결과", count: d.result ? d.result.row_count : 0, on: !!d.result, make: () => resultTable(d.result) },
     { name: "SQL", on: !!d.sql, make: () => sqlPane(d) },
     { name: "링킹 근거", count: d.evidence?.length || 0, on: !!d.evidence?.length, make: () => evidencePane(d.evidence) },
-    { name: "트레이스", on: !!d.trace, make: () => tracePane(d.trace) },
+    { name: "트레이스", on: !!d.trace, make: () => tracePane(d.trace, d) },
     { name: "자가교정", count: d.repairs?.length || 0, on: !!d.repairs?.length, make: () => repairPane(d.repairs) },
   ];
   const p = el("div", "panel");
@@ -1025,8 +1241,40 @@ function flatten(span, depth, list) {
   (span.children || []).forEach((c) => flatten(c, depth + 1, list));
   return list;
 }
-function tracePane(root) {
+/** 이 응답의 재현 정보 — 지문·프롬프트는 페이지의 각주가 아니라 이 응답의 속성이다.
+ *  면접에서 "이 답이 어떤 스키마·어떤 프롬프트 버전에서 나왔습니까"를 받았을 때,
+ *  화면 맨 아래 회색 줄을 스크롤해 가리키는 것과 격이 다르다. */
+function provenance(d) {
+  const rows = [];
+  const h = healthCache;
+  // 값이 없으면 '—' 로 채우지 않고 그 행을 렌더하지 않는다.
+  if (h?.schema_fingerprint) rows.push(["스키마 지문", h.schema_fingerprint]);
+  const gen = Object.entries(h?.prompts || {}).filter(([k]) => k.startsWith("nl2sql."));
+  if (gen.length) rows.push(["프롬프트", gen.map(([, v]) => v).join("  ")]);
+  if (d.route?.tier) {
+    const from = d.route.escalated_from;
+    rows.push(["생성 티어", d.route.tier + (from ? ` (${from} 에서 승격)` : "")]);
+  }
+  const ctx = d.context || {};
+  rows.push(["세션 컨텍스트",
+    Object.keys(ctx).length ? Object.entries(ctx).map(([k, v]) => `${k}=${v}`).join(" · ") : "없음 (본사 · 목적 일반)"]);
+  if (d.trace_id) rows.push(["trace id", d.trace_id]);
+  if (!rows.length) return null;
+
+  const box = el("div", "prov");
+  box.appendChild(el("div", "ph", "이 응답의 재현 정보"));
+  rows.forEach(([k, v]) =>
+    box.appendChild(el("div", "pr", `<span class="pk">${esc(k)}</span><span class="pv">${esc(v)}</span>`)));
+  const b = el("button", "iconbtn", "JSON 복사");
+  b.style.cssText = "margin-top:10px; padding:3px 10px; font-size:11.5px";
+  b.onclick = () => copy(JSON.stringify(Object.fromEntries(rows), null, 2), "재현 정보");
+  box.appendChild(b);
+  return box;
+}
+
+function tracePane(root, d) {
   const box = el("div");
+  if (d) { const pv = provenance(d); if (pv) box.appendChild(pv); }
   const total = root.duration_ms || 1;
   flatten(root, 0, []).forEach(({ span, depth }) => {
     const attrs = Object.entries(span.attributes || {})
@@ -1131,18 +1379,31 @@ function setMode(ask) {
 $("#modeAsk").onclick = () => setMode(true);
 $("#modeGuard").onclick = () => setMode(false);
 
-/* 지점 목록은 스키마 응답이 아니라 실제 코드 테이블에서 채운다. */
 renderExamples();
 loadHealth();
 loadPolicy();
 
+/* 첫 화면 — 30초 관객에게 '이 엔진은 세 가지로 끝난다'를 한 번에 전달한다.
+   카드도 일러스트도 쓰지 않고, 결과 배지와 같은 기호·같은 색만 쓴다. */
+const OUTCOMES = [
+  ["ok", "●", "조회", "스키마 링킹부터 실행까지, 어느 테이블을 왜 골랐는지와 함께 답합니다."],
+  ["gov", "■", "차단", "개인정보·DDL 요청은 SQL이 만들어지기 전에 거부합니다. 차단은 정상 동작입니다."],
+  ["amb", "◆", "되묻기", "기준이 모호하면 그럴듯한 숫자를 지어내지 않고 먼저 되묻습니다."],
+];
+
 const initial = new URLSearchParams(location.search).get("q");
 if (initial) { $("#q").value = initial; run(); }
 else {
-  $("#out").appendChild(el("div", "panel empty",
-    "<h3>질문을 입력하거나 위 예시를 눌러보세요</h3>" +
-    "<p>조회는 SQL로, 개인정보 요청은 <b>SQL이 만들어지기 전에</b> 차단으로, 모호한 질문은 되묻기로 이어집니다.<br/>" +
-    "상단 <b>스키마</b>에서 컬럼별 민감도 등급을, <b>거버넌스 샌드박스</b>에서 임의 SQL의 정책 판정을 볼 수 있습니다.</p>"));
+  const intro = el("div", "intro");
+  intro.appendChild(el("p", "lead",
+    "한국어로 물어보면 SQL로 답합니다. 거버넌스는 SQL이 만들어지기 <b>전에</b> 개입합니다."));
+  intro.appendChild(el("div", "outcomes",
+    OUTCOMES.map(([k, g, name, desc]) =>
+      `<div class="outcome"><div class="hd"><span class="g ${k}" aria-hidden="true">${g}</span>` +
+      `${esc(name)}</div><p>${esc(desc)}</p></div>`).join("")));
+  intro.appendChild(el("p", "honest",
+    "보험 도메인 샘플 스키마(11개 테이블, SQLite)에서 실제로 SQL을 실행합니다 — 미리 만들어둔 답이 아닙니다."));
+  $("#out").appendChild(intro);
 }
 </script>
 </body>
