@@ -211,6 +211,8 @@
   .tab:hover:not(:disabled){color:var(--ink-2)}
   .tab.active{color:var(--accent-ink); border-bottom-color:var(--accent); font-weight:600}
   .tab:disabled{opacity:.38; cursor:not-allowed}
+  .tab.relight{opacity:.72; color:var(--accent-ink)}
+  .tab.relight:hover{opacity:1; background:var(--accent-soft)}
   .tab .cnt{font-family:var(--mono); font-size:10.5px; padding:1px 5px; border-radius:5px;
             background:var(--line-2); color:var(--muted)}
   .tab.active .cnt{background:var(--accent-soft); color:var(--accent-ink)}
@@ -310,7 +312,7 @@
     </div>
     <div class="askmeta">
       <button class="switch" id="explainBtn" aria-pressed="true">
-        <span class="track"><span class="knob"></span></span> 근거·트레이스 표시
+        <span class="track"><span class="knob"></span></span> 근거·트레이스 표시 <b id="explainState">켬</b>
       </button>
       <span class="hint"><span class="kbd">Enter</span> 실행 · <span class="kbd">/</span> 입력창 포커스</span>
     </div>
@@ -608,9 +610,9 @@ function render(d) {
       why: "실행된 결과가 없습니다" },
     { name: "SQL", count: null, make: () => sqlPane(d), on: !!d.sql, why: "SQL이 생성되기 전에 종료되었습니다" },
     { name: "링킹 근거", count: d.evidence?.length || 0, make: () => evidencePane(d.evidence), on: !!d.evidence?.length,
-      why: "근거 표시가 꺼져 있습니다 — 위 스위치를 켜고 다시 실행하세요" },
+      relight: !explain, why: "근거 표시가 꺼져 있습니다 — 클릭하면 켜고 다시 실행합니다" },
     { name: "트레이스", count: null, make: () => tracePane(d.trace), on: !!d.trace,
-      why: "근거 표시가 꺼져 있습니다 — 위 스위치를 켜고 다시 실행하세요" },
+      relight: !explain, why: "근거 표시가 꺼져 있습니다 — 클릭하면 켜고 다시 실행합니다" },
     { name: "자가교정", count: d.repairs?.length || 0, make: () => repairPane(d.repairs), on: !!d.repairs?.length,
       why: "이 질의에서는 교정이 필요하지 않았습니다" },
   ];
@@ -620,11 +622,19 @@ function render(d) {
   const body = el("div", "tabbody");
   let firstOn = specs.findIndex((s) => s.on);
   specs.forEach((s, i) => {
-    const t = el("button", "tab" + (i === firstOn ? " active" : ""),
-      esc(s.name) + (s.count ? ` <span class="cnt">${fmt(s.count)}</span>` : ""));
-    t.disabled = !s.on;
+    const relight = !s.on && s.relight;
+    const t = el("button", "tab" + (i === firstOn ? " active" : "") + (relight ? " relight" : ""),
+      esc(s.name) + (s.count ? ` <span class="cnt">${fmt(s.count)}</span>` : "") +
+      (relight ? ' <span class="cnt">켜기</span>' : ""));
+    t.disabled = !s.on && !relight;
     if (!s.on) t.title = s.why;
     t.onclick = () => {
+      if (relight) {  // 막다른 길을 만들지 않는다 — 켜고 같은 질문을 다시 실행
+        setExplain(true);
+        $("#q").value = d.question;
+        run();
+        return;
+      }
       bar.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
       t.classList.add("active");
       body.innerHTML = ""; body.appendChild(s.make());
@@ -764,10 +774,12 @@ $("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
 document.addEventListener("keydown", (e) => {
   if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); }
 });
-$("#explainBtn").onclick = () => {
-  explain = !explain;
-  $("#explainBtn").setAttribute("aria-pressed", String(explain));
-};
+function setExplain(on) {
+  explain = on;
+  $("#explainBtn").setAttribute("aria-pressed", String(on));
+  $("#explainState").textContent = on ? "켬" : "끔";
+}
+$("#explainBtn").onclick = () => setExplain(!explain);
 renderExamples();
 $("#out").appendChild(el("div", "panel empty",
   "<h3>질문을 입력하거나 위 예시를 눌러보세요</h3>" +
