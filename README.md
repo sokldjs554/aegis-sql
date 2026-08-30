@@ -126,17 +126,63 @@ make eval                                      # 재현 가능한 평가 리포�
 - **파이프라인 스테퍼** — 정규화 → 의도 가드 → 링킹 → 라우팅 → 생성 → AST 가드 → 실행이
   스트리밍으로 진행되며, 차단·되물음이 발생한 단계에서 멈춘 것이 그대로 보입니다.
 - **탭 5종** — 결과 / SQL / **링킹 근거**(점수 막대·출처) / **트레이스**(스팬별 간트) / 자가교정.
-  해당 산출물이 없으면 비활성으로 남아 *왜 없는지*를 툴팁으로 알려줍니다.
-- **핵심 지표** — 지연·비용·라우터 신뢰도·난이도·행수·DB 실행시간을 한 줄로.
+- **비어 있는 탭이 이유를 말합니다.** 차단이면 "거버넌스가 요청을 차단해 SQL을 만들지도,
+  실행하지도 않았습니다", 되묻기면 "추측해서 그럴듯한 숫자를 만드는 대신 기준을 먼저
+  확인합니다" — 같은 빈 탭이라도 **상태마다 다른 문장**이 본문에 뜹니다.
+  탭을 죽은 컨트롤로 두지 않으려고 `disabled` 대신 흐리게만 표시하고, 눌러서 읽을 수
+  있게 했습니다(보조기술에서도 조작 가능).
+- **핵심 지표** — 지연·비용·**저티어 성공 예측**·난이도·행수·DB 실행시간을 한 줄로.
+  라우터 신뢰도는 "답이 맞을 확률"이 아니라 "값싼 티어가 이 질문을 맞힐 확률"이므로
+  라벨도 그렇게 씁니다.
 - 결과 표의 숫자 열에는 크기 막대가 붙고, CSV·SQL·trace id를 그 자리에서 복사할 수 있습니다.
-- 라이트/다크/자동 테마, 모바일 폭까지 대응합니다.
+- 라이트/다크/자동 테마, 모바일 폭까지 대응하고, 하단에 **재현 정보**(스키마 지문·
+  프롬프트 버전 해시)가 항상 노출됩니다.
 
 차단 화면의 트레이스는 `intent_guard refused=true`에서 끝납니다 —
 **SQL이 생성되지 않았다는 사실 자체가 트레이스로 증명됩니다.**
 
+#### 세션 컨텍스트 — 행 수준 정책을 직접 켜 봅니다
+
+상단의 `세션`·`목적` 선택이 그대로 `ctx`로 실려 나가고, 정책이 조건에 맞는 필터를
+SQL에 주입합니다. 같은 질문이라도 **누가 어떤 목적으로 묻느냐에 따라 실행되는 SQL이
+달라지는 것**을 한 화면에서 보여줍니다.
+
+| 세션 컨텍스트 | 적용 정책 | SQL 에 주입되는 것 |
+|---|---|---|
+| `branch_cd=BR003` | `BRANCH_SCOPE` | `WHERE TB_AGNT.BRCH_CD = 'BR003'` |
+| `purpose=marketing` | `MKT_CONSENT` | `WHERE TB_CUST.MKT_AGR_YN = 'Y'` (개인정보보호법 제22조) |
+
+<p align="center">
+  <img src="docs/images/console-row-policy.png" width="820"
+       alt="지점 세션으로 전환하면 설계사 조회 SQL 에 BRCH_CD 조건이 자동으로 주입된다."/>
+</p>
+
+선택지는 화면이 하드코딩하지 않습니다. [`/v1/policy`](src/aegis_sql/api/app.py)가
+정책 문서를 읽어 **어떤 컨텍스트 키가 있고 어떤 값을 고를 수 있는지 스스로 선언**하고,
+콘솔은 그것을 채웁니다 — `configs/policy/*.yaml`을 고치면 UI가 따라옵니다.
+값을 열거해 주는 대상은 **공개 등급 컬럼뿐**입니다. 정책을 설명하는 API가 정작 그
+정책이 가린 값의 우회 통로가 되면 안 되기 때문입니다(회귀 테스트로 고정).
+
+#### 거버넌스 샌드박스 — 임의 SQL을 실행하지 않고 판정
+
+우리가 만든 SQL만 검사받는다면 가드는 신뢰의 근거가 못 됩니다. 샌드박스 탭에 아무
+SQL이나 붙여 넣으면 **실행 없이 정책 판정만** 돌려줍니다 — 위반 코드·사유·자동 재작성
+(마스킹·LIMIT·행 정책)까지 그대로.
+
+<p align="center">
+  <img src="docs/images/console-sandbox.png" width="820"
+       alt="임의 SQL 을 붙여 넣으면 실행하지 않고 PII_FORBIDDEN 위반과 마스킹 재작성 결과를 돌려준다."/>
+</p>
+
+#### 스키마 사전 — 무엇이 어떤 등급인지
+
+`▤ 스키마` 버튼으로 11개 테이블·101개 컬럼을 등급(공개 87 / 내부 5 / 마스킹 8 /
+반출 금지 1)과 함께 펼쳐 봅니다. 프롬프트에 실제로 실리는 스키마 카드의 토큰 수도
+같이 표시됩니다.
+
 (추가 캡처: [거버넌스 차단](docs/images/console-governance.png) ·
 [되묻기](docs/images/console-clarify.png) · [트레이스](docs/images/console-trace.png) ·
-[다크 모드](docs/images/console-query-dark.png))
+[스키마 사전](docs/images/console-schema.png) · [다크 모드](docs/images/console-query-dark.png))
 
 ### 실제 출력 — CLI
 
@@ -393,7 +439,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
-| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy/check`, `/metrics`, 단일 파일 웹 콘솔 |
+| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy`, `/v1/policy/check`, `/v1/schema`, `/v1/feedback`, `/metrics`, 단일 파일 웹 콘솔 |
 | **VectorDB** | [`retrieval/vectorstore.py`](src/aegis_sql/retrieval/vectorstore.py) — Chroma / FAISS / 무의존 numpy 스토어를 **동일 인터페이스**로 |
 | **RAG 파이프라인** | [`retrieval/schema_linker.py`](src/aegis_sql/retrieval/schema_linker.py) — 하이브리드 검색 + FK 그래프 확장 + 근거(evidence) 기록 |
 | **Prompt Engineering** | [`prompts/`](src/aegis_sql/prompts/) — 버전·해시 레지스트리 + **실행 정확도로 채점하는 자동 최적화**. 방법론: [`docs/PROMPT_ENGINEERING.md`](docs/PROMPT_ENGINEERING.md) |
