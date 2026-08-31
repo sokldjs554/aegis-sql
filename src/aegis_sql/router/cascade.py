@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from aegis_sql.config import PROJECT_ROOT
 from aegis_sql.llm.base import estimate_cost
 from aegis_sql.observability.logging import get_logger
 from aegis_sql.router.calibrator import CALIBRATOR_FILE, TemperatureCalibrator
@@ -142,12 +143,25 @@ class CascadeRouter:
 
     @staticmethod
     def _autoload_calibrator(settings: Settings) -> TemperatureCalibrator | None:
-        """Pick up ``router_dir/calibrator.json`` when the trainer left one there."""
-        try:
-            return TemperatureCalibrator.load(Path(settings.router.model_dir) / CALIBRATOR_FILE)
-        except Exception as exc:  # pragma: no cover - never block engine start-up
-            log.debug("calibrator unavailable", error=str(exc))
-            return None
+        """Pick up ``calibrator.json`` next to whichever weights actually loaded.
+
+        This must follow the same fallback order as ``Engine._load_router``:
+        freshly trained weights first, the checked-in ``models/router`` second.
+        Looking only at the configured dir meant a fresh clone ran the learned
+        router *uncalibrated* — the weights were found in ``models/router`` but
+        the calibrator beside them was never read, so published confidences did
+        not reproduce for anyone who cloned the repo.
+        """
+        for directory in (Path(settings.router.model_dir), PROJECT_ROOT / "models" / "router"):
+            try:
+                calibrator = TemperatureCalibrator.load(directory / CALIBRATOR_FILE)
+            except Exception as exc:  # pragma: no cover - never block engine start-up
+                log.debug("calibrator unavailable", path=str(directory), error=str(exc))
+                continue
+            if calibrator is not None:
+                log.debug("calibrator loaded", path=str(directory))
+                return calibrator
+        return None
 
     # -- introspection ----------------------------------------------------- #
 

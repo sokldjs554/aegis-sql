@@ -92,6 +92,41 @@ def test_escalation_moves_up_one_step(settings):
     assert second.escalated_from is first.tier
 
 
+def test_calibrator_falls_back_to_the_shipped_weights(monkeypatch, tmp_path):
+    """The calibrator must be found beside whichever weights actually loaded.
+
+    ``Engine._load_router`` falls back to ``models/router`` when the configured
+    training-output dir is absent — which is every fresh clone.  The calibrator
+    used to look only at the configured dir, so a clone ran the learned router
+    *uncalibrated* and the published confidences did not reproduce for anyone
+    but the author.
+    """
+    from aegis_sql.config import get_settings
+    from aegis_sql.router.cascade import CascadeRouter
+
+    st = get_settings()
+    monkeypatch.setattr(st.router, "model_dir", str(tmp_path / "absent"))
+
+    calibrator = CascadeRouter._autoload_calibrator(st)
+    assert calibrator is not None, "shipped models/router/calibrator.json was not picked up"
+    # The values the README's published P(hard) figures were produced with.
+    assert calibrator.temperature == pytest.approx(1.2446, abs=1e-3)
+
+
+def test_sqlglot_floor_is_not_a_false_declaration():
+    """``exp.Attach`` is referenced at import time — the pin must guarantee it.
+
+    ``sqlglot>=23.0`` was satisfied by versions that lack ``exp.Attach``, so a
+    environment with an older sqlglot preinstalled (Colab ships 25.20) imported the
+    package and died with AttributeError instead of resolving to a usable
+    version.
+    """
+    from sqlglot import expressions as exp
+
+    assert hasattr(exp, "Attach"), "sqlglot too old — the ATTACH guard cannot be built"
+    assert hasattr(exp, "Detach")
+
+
 def test_calibration_reduces_ece():
     from aegis_sql.router.calibrator import TemperatureCalibrator, expected_calibration_error
 
