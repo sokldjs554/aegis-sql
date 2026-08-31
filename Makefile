@@ -27,7 +27,7 @@ Q          ?= 작년 하반기에 체결된 계약 중 월납보험료가 20만�
 
 .DEFAULT_GOAL := help
 .PHONY: help setup venv install install-all demo-db benchmark profile demo ask serve \
-        flywheel train-slm train-slm-quick routing-data train-router eval eval-quick \
+        preflight flywheel train-slm train-slm-quick routing-data train-router eval eval-quick \
         test test-fast lint fmt typecheck \
         check docker-build docker-up docker-down clean distclean tree
 
@@ -70,6 +70,9 @@ profile: ## 컬럼 프로파일 캐시 생성 (값 링킹용)
 	@$(PYTHON) -m aegis_sql.cli profile
 
 # --------------------------------------------------------------------- 실행
+preflight: ## 이 기계에서 데모가 도는지 사전 점검 (면접 직전에 한 번)
+	@$(PYTHON) scripts/preflight.py
+
 demo: ## 대표 질의 5개를 엔진에 태워 SQL + 결과 + 트레이스 출력
 	@$(PYTHON) -m aegis_sql.cli demo
 
