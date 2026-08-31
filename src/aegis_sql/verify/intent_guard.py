@@ -229,9 +229,10 @@ class RequestIntentGuard:
             return None
         if intent.kind == "pii":
             column = intent.objects[0] if intent.objects else ""
+            # 컬럼 참조는 ``Violation.subject`` 로 나가고 렌더러가 대괄호로 붙인다.
+            # 메시지 본문에도 넣으면 CLI·콘솔 양쪽에서 같은 컬럼이 두 번 찍힌다.
             message = (
-                f"요청하신 항목({intent.matched[0]})은 고유식별정보로 분류되어 조회할 수 없습니다"
-                f"{f' [{column}]' if column else ''}. "
+                f"요청하신 항목({intent.matched[0]})은 고유식별정보로 분류되어 조회할 수 없습니다. "
                 "다른 항목으로 질문을 다시 작성해 주세요."
             )
             log.warning("request refused by intent guard", code="PII_REQUEST", matched=intent.matched)
