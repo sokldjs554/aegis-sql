@@ -110,6 +110,32 @@ jobs:
       - name: ML-marked tests
         run: pytest -q -m "slow"
 
+  stale-deps:
+    name: stale deps (Colab-like)
+    runs-on: ubuntu-latest
+    # CI always resolves onto a clean runner, so a dependency floor that is
+    # declared too low never shows up here.  Colab does the opposite: it ships
+    # an old sqlglot that *satisfies* the floor, so pip leaves it alone and the
+    # package dies on import.  This job reproduces that shape.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Preinstall an old sqlglot, like a hosted notebook would
+        run: pip install "sqlglot==25.20.2"
+      - name: Install the project on top of it
+        run: pip install -e .
+      - name: The floor must have forced an upgrade
+        run: |
+          python -c "from sqlglot import expressions as exp; assert hasattr(exp, 'Attach'), 'sqlglot floor is a false declaration'"
+          python -c "import sqlglot; print('sqlglot', sqlglot.__version__)"
+      - name: And the engine must actually run
+        run: |
+          python scripts/build_demo_db.py --scale 0.25 --force
+          python scripts/build_benchmark.py
+          python -m aegis_sql.cli ask "실효된 계약은 몇 건이야?" --log-level ERROR
+
   docker:
     name: docker image
     runs-on: ubuntu-latest
