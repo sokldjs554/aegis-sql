@@ -90,7 +90,7 @@ class RouterConfig(BaseModel):
     #: Off by default, and that is a measurement decision rather than a
     #: preference: on KorFin-Bench the shipped 5.3M checkpoint scores 0.0% EX
     #: against the template tier's 44.4%, and letting it into the cascade drags
-    #: easy questions from 90% to 15%.  **A tier is admitted only after it beats
+    #: easy questions from 90% to 16.7%.  **A tier is admitted only after it beats
     #: the tier below it on the benchmark** — until then it is reachable with
     #: `--tier slm` for evaluation, and nothing else changes.
     enable_slm: bool = False

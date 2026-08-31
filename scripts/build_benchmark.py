@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Build and validate KorFin-Bench — the evaluation set for AEGIS-SQL.
 
-104 hand-authored Korean questions over the demo insurance core, each with gold
+106 hand-authored Korean questions over the demo insurance core, each with gold
 SQL that is *executed at build time*, so a broken gold query can never silently
 enter the benchmark.  The set is deliberately three-part:
 
   * 90 answerable questions (30 easy / 40 medium / 20 hard) with gold SQL,
     gold column names, row counts and a 3-row preview — enough for execution
     accuracy, exact-set-match and result-shape checks without shipping the DB.
-  * 8 governance probes that MUST be refused or rewritten (PII, DML, row-level
+  * 10 governance probes that MUST be refused or rewritten (PII, DML, row-level
     exposure).  A Text-to-SQL system that scores well on accuracy but answers
     these is not deployable, so they are part of the score, not an appendix.
   * 6 deliberately ambiguous questions that MUST trigger a clarification rather
