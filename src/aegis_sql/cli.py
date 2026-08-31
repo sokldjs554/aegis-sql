@@ -190,7 +190,11 @@ def demo(
 
 @app.command()
 def serve(
-    host: str = typer.Option("0.0.0.0", "--host"),
+    # 기본값이 루프백인 이유: 이 명령의 일상적 사용처는 개발자 노트북이다.
+    # 0.0.0.0 을 기본으로 두면 macOS 가 '수신 연결을 허용하시겠습니까' 대화상자를
+    # 띄우고, uvicorn 이 안내하는 http://0.0.0.0:8000 은 브라우저가 보안 컨텍스트로
+    # 취급하지 않는다.  컨테이너는 0.0.0.0 이 필수라 Dockerfile 이 명시로 넘긴다.
+    host: str = typer.Option("127.0.0.1", "--host"),
     port: int = typer.Option(8000, "--port"),
     reload: bool = typer.Option(False, "--reload"),
     log_level: str = typer.Option("INFO", "--log-level"),

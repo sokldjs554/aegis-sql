@@ -1372,7 +1372,15 @@ function setExplain(on) {
 }
 $("#explainBtn").onclick = () => setExplain(!explain);
 $("#run").onclick = run;
-$("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+$("#q").addEventListener("keydown", (e) => {
+  // 한글 입력 중의 Enter 는 '실행'이 아니라 '조합 확정'이다.  IME 가 조합을
+  // 진행 중일 때는 isComposing 이 참이고, 이때 실행하면 마지막 글자가 빠진
+  // 질문이 그대로 나간다 — 한국어 데모에서 가장 먼저 터지는 자리다.
+  // keyCode 229 는 조합 중 keydown 을 그렇게 보고하는 오래된 경로의 대비책이다.
+  if (e.key !== "Enter") return;
+  if (e.isComposing || e.keyCode === 229) return;
+  run();
+});
 $("#gcheck").onclick = checkPolicy;
 document.addEventListener("keydown", (e) => {
   const tag = document.activeElement && document.activeElement.tagName;

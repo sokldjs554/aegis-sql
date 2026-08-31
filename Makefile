@@ -15,7 +15,14 @@ export PYTHONPATH := src
 DB         ?= data/demo/aegis_demo.sqlite
 BENCH      ?= data/benchmark/korfin_bench.jsonl
 SCALE      ?= 1.0
+HOST       ?= 127.0.0.1
 PORT       ?= 8000
+
+# 데모 DB 생성기가 RRNO_ENC 에 내장 hash() 를 쓴다.  str 해시는 프로세스마다
+# 무작위라 고정하지 않으면 그 한 컬럼만 실행마다 달라진다 — 눈에 보이는 수치는
+# 아니지만 '같은 시드면 같은 산출물'이 이 프로젝트의 약속이라 여기서 못박는다.
+# (Dockerfile 은 이미 같은 값을 박고 있다.)
+export PYTHONHASHSEED := 0
 Q          ?= 작년 하반기에 체결된 계약 중 월납보험료가 20만원 이상인 건수를 지점별로 알려줘
 
 .DEFAULT_GOAL := help
@@ -25,11 +32,18 @@ Q          ?= 작년 하반기에 체결된 계약 중 월납보험료가 20만�
         check docker-build docker-up docker-down clean distclean tree
 
 help: ## 사용 가능한 타깃 목록
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-	  | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) \
+	  | awk 'BEGIN {FS = "## "}; {sub(/:.*/, "", $$1); printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --------------------------------------------------------------------- 환경
 venv:
+	@$(PY) -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' || { \
+	  echo "✗ $(PY) 는 $$($(PY) -V 2>&1) 입니다 — 이 프로젝트는 Python 3.10+ 가 필요합니다."; \
+	  echo "  macOS 기본 /usr/bin/python3 는 3.9 입니다.  예:"; \
+	  echo "    brew install python@3.12 && make $(MAKECMDGOALS) PY=python3.12"; \
+	  exit 1; }
+	@if [ -x $(BIN)/python ] && ! $(BIN)/python -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)'; then \
+	  echo "· 기존 $(VENV) 가 Python 3.10 미만이라 다시 만듭니다"; rm -rf $(VENV); fi
 	@test -d $(VENV) || $(PY) -m venv $(VENV)
 	@$(PIP) install -q --upgrade pip setuptools wheel
 
@@ -62,8 +76,8 @@ demo: ## 대표 질의 5개를 엔진에 태워 SQL + 결과 + 트레이스 출�
 ask: ## 임의 질문 실행:  make ask Q="실효된 계약의 채널별 비중은?"
 	@$(PYTHON) -m aegis_sql.cli ask "$(Q)" --explain
 
-serve: ## FastAPI 서버 기동 (웹 콘솔 포함)
-	@$(PYTHON) -m aegis_sql.cli serve --port $(PORT)
+serve: ## FastAPI 서버 기동 (웹 콘솔 포함).  외부 노출은 HOST=0.0.0.0
+	@$(PYTHON) -m aegis_sql.cli serve --host $(HOST) --port $(PORT)
 
 # --------------------------------------------------------------------- 학습 파이프라인
 flywheel: ## 스키마 → SQL 샘플링 → 역번역 → 증강 → 실행검증 → 학습셋
@@ -98,11 +112,16 @@ eval-quick: ## 빠른 평가 (easy+medium 20문항)
 # TensorFlow(라우터 학습)와 PyTorch(sLLM 학습)를 한 프로세스에 함께 적재하면
 # 네이티브 런타임이 종료 단계에서 충돌한다.  두 학습 테스트를 각각 별도
 # 프로세스로 돌려 격리한다 — CI 도 같은 이유로 잡을 나눠 실행한다.
+# torch/TensorFlow 가 없는 환경에서는 해당 학습 테스트가 전부 skip 되고,
+# pytest 는 '수집된 테스트 없음'을 종료코드 5 로 알린다.  실패가 아니므로
+# 5 만 성공으로 접고 나머지 코드는 그대로 전파한다.
+slow = $(BIN)/pytest -q -m slow $(1); c=$$?; test $$c -eq 0 -o $$c -eq 5
+
 test: ## 전체 테스트 (학습 테스트는 프로세스 분리)
 	@$(BIN)/pytest -q -m "not slow"
-	@$(BIN)/pytest -q -m slow tests/test_cli.py tests/test_flywheel.py
-	@$(BIN)/pytest -q -m slow tests/test_router.py
-	@$(BIN)/pytest -q -m slow tests/test_training.py
+	@$(call slow,tests/test_cli.py tests/test_flywheel.py)
+	@$(call slow,tests/test_router.py)
+	@$(call slow,tests/test_training.py)
 
 test-fast: ## 무거운 학습 테스트 제외
 	@$(BIN)/pytest -q -m "not slow"
