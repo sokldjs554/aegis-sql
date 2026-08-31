@@ -14,6 +14,11 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 `Python` · `PyTorch` · `TensorFlow` · `LangChain` · `FastAPI` · `VectorDB` · `RAG` · `sLLM` · `Prompt Engineering`
 
 [![CI](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sokldjs554/aegis-sql/blob/main/notebooks/aegis_sql_colab.ipynb)
+
+<sub><b>설치 없이 브라우저에서 직접 재현해 보세요</b> — 배지를 누르면 클론·설치부터<br/>
+데모 DB 생성(37만 행) · 벤치마크 106문항 · 어블레이션 11변형까지 약 3분에 돕니다.<br/>
+API 키도 GPU도 필요 없습니다.</sub>
 
 <br/>
 
@@ -513,6 +518,7 @@ aegis-sql/
 ├── docs/                   ARCHITECTURE · PAPERS · GOVERNANCE · FLYWHEEL · SLM · EVALUATION · PROMPT_ENGINEERING
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Cloud Run)
+├── notebooks/              Colab 재현 노트북
 └── tests/                  265개 테스트 (실제 DB 대상, 목킹 없음)
 ```
 
