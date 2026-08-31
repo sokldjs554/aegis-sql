@@ -83,6 +83,8 @@ training:
   device: auto
 
 server:
-  host: 0.0.0.0
+  # 참고: 실제 바인드 주소는 `aegis serve --host` 가 정한다 (기본 127.0.0.1).
+  # 이 값은 문서용이며 런타임이 읽지 않는다.
+  host: 127.0.0.1
   port: 8000
   enable_docs: true
