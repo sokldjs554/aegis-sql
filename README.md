@@ -11,8 +11,6 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 
 <br/>
 
-`Python` · `PyTorch` · `TensorFlow` · `LangChain` · `FastAPI` · `VectorDB` · `RAG` · `sLLM` · `Prompt Engineering`
-
 [![CI](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sokldjs554/aegis-sql/blob/main/notebooks/aegis_sql_colab.ipynb)
 
