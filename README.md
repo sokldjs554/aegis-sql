@@ -255,7 +255,9 @@ SQL이나 붙여 넣으면 **실행 없이 정책 판정만** 돌려줍니다 �
 [스키마 사전](docs/images/console-schema.png) · [다크 모드](docs/images/console-query-dark.png))
 
 <sub>이 문서의 화면 캡처와 GIF 는 전부 현재 커밋의 코드를 실제로 띄워 자동으로
-찍은 것입니다 — 손으로 그리거나 합성하지 않았습니다.</sub>
+찍은 것입니다 — 손으로 그리거나 합성하지 않았습니다. 다시 찍는 스크립트도 함께
+둡니다(<a href="scripts/docs/README.md"><code>scripts/docs/</code></a>). 캡처는 코드보다
+먼저 낡기 때문입니다.</sub>
 
 ### 실제 출력 — CLI
 
