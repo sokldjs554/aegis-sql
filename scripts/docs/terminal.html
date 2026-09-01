@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8">
+<title>aegis-sql terminal demo</title>
+<style>
+  html,body{margin:0;height:100%;background:#20222c;display:grid;place-items:center}
+  .win{width:900px;height:580px;border-radius:10px;overflow:hidden;background:#14161f;
+       box-shadow:0 18px 50px rgba(0,0,0,.55);display:flex;flex-direction:column}
+  .bar{height:30px;flex:0 0 30px;background:#272a36;display:flex;align-items:center;
+       padding:0 12px;position:relative}
+  .dot{width:11px;height:11px;border-radius:50%;margin-right:7px}
+  .t{position:absolute;left:0;right:0;text-align:center;font-size:11.5px;color:#8b93a5;
+     font-family:-apple-system,"Noto Sans KR",sans-serif}
+  .body{flex:1;overflow:hidden;padding:10px 14px 12px;position:relative}
+  .scroll{position:absolute;left:14px;right:14px;bottom:12px}
+  pre{margin:0;font-size:12.5px;line-height:17px;color:#c7ccd4;
+      white-space:pre-wrap;overflow-wrap:anywhere;
+      font-family:"DejaVu Sans Mono","WenQuanYi Zen Hei Mono",monospace;
+      font-variant-ligatures:none}
+  /* 브라우저는 한글을 ASCII 의 약 1.661칸으로 그리지만 rich 는 2칸으로 세고 여백을
+     맞춘다.  차이 (2×0.60208 − 1.0)em 만큼 벌려야 상자 테두리가 어긋나지 않는다.
+     실제 폭은 build_terminal.py 가 측정해 --wide-gap 으로 넣어 준다. */
+  .w{letter-spacing:var(--wide-gap, 0.20416em)}
+  .p{color:#8cc265}
+  .cur{display:inline-block;width:7px;height:14px;background:#c7ccd4;vertical-align:-2px;
+       opacity:.85}
+</style>
+<div class="win">
+  <div class="bar">
+    <span class="dot" style="background:#ff5f57"></span>
+    <span class="dot" style="background:#febc2e"></span>
+    <span class="dot" style="background:#28c840"></span>
+    <span class="t">aegis-sql — demo</span>
+  </div>
+  <div class="body"><div class="scroll"><pre id="s"></pre></div></div>
+</div>
+<script>
+  const S = document.getElementById('s');
+  window.render = (h) => { S.innerHTML = h + '<span class="cur"></span>'; };
+  window.render('');
+</script>
