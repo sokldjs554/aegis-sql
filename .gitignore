@@ -31,3 +31,8 @@ reports/*.md
 # 문서 캡처 도구(scripts/docs)가 만드는 것 — 산출물은 docs/images 에만 커밋한다
 node_modules/
 scripts/docs/acts.json
+
+# 로컬 화면 녹화 원본 — 브라우저 크롬·기기 메타데이터가 포함될 수 있다.
+*.mov
+*.mp4
+*.webm
