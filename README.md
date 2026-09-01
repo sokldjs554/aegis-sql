@@ -124,7 +124,9 @@ docker build -t aegis-sql . && docker run --rm -p 8000:8000 aegis-sql
 포트는 `PORT` 환경변수로 받고(기본 8000), 컨테이너는 비루트(uid 1000)로 돕니다 —
 호스팅 플랫폼 대부분이 요구하는 조건이라 CI도 `--user 1000:1000`으로 스모크합니다.
 공개 URL에 올릴 때는 `AEGIS_DEMO_PUBLIC=1`을 주면 `/v1/feedback`이 디스크에 쓰지
-않습니다. 배포 절차는 [`deploy/cloudrun.md`](deploy/cloudrun.md)에 있습니다.
+않습니다. 배포 절차는 두 갈래입니다 — 카드 없이 공개 URL 을 만들려면
+[`deploy/render.md`](deploy/render.md)(느리지만 청구가 구조적으로 불가능),
+빠른 응답이 필요하면 [`deploy/cloudrun.md`](deploy/cloudrun.md)(월 몇 센트).
 
 ### 실제 화면 — 웹 콘솔 (`make serve`)
 
@@ -530,7 +532,7 @@ aegis-sql/
 │   └── benchmark/          KorFin-Bench 106문항
 ├── docs/                   ARCHITECTURE · PAPERS · GOVERNANCE · FLYWHEEL · SLM · EVALUATION · PROMPT_ENGINEERING
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
-├── deploy/                 배포 절차 (Cloud Run)
+├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
 └── tests/                  265개 테스트 (실제 DB 대상, 목킹 없음)
 ```
