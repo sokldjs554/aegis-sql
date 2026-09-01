@@ -27,3 +27,7 @@ reports/*.md
 !reports/eval_llm_only.md
 !reports/eval_llm_only.json
 *.log
+
+# 문서 캡처 도구(scripts/docs)가 만드는 것 — 산출물은 docs/images 에만 커밋한다
+node_modules/
+scripts/docs/acts.json
