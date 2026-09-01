@@ -12,11 +12,16 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 <br/>
 
 [![CI](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml/badge.svg)](https://github.com/sokldjs554/aegis-sql/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/live%20demo-aegis--sql.onrender.com-2563eb)](https://aegis-sql.onrender.com)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sokldjs554/aegis-sql/blob/main/notebooks/aegis_sql_colab.ipynb)
 
-<sub><b>설치 없이 브라우저에서 직접 재현해 보세요</b> — 배지를 누르면 클론·설치부터<br/>
+<sub><b>웹 콘솔을 바로 열어 보세요</b> — <a href="https://aegis-sql.onrender.com">aegis-sql.onrender.com</a><br/>
+무료 인스턴스라 접속이 없으면 잠들어 있습니다. <b>첫 접속은 1~2분 걸릴 수 있습니다.</b><br/>
+API 키 없이 도는 구성이라 화면의 비용은 실제로 $0 입니다.</sub>
+
+<sub><b>숫자까지 직접 재현하려면</b> — Colab 배지를 누르면 클론·설치부터<br/>
 데모 DB 생성(37만 행) · 벤치마크 106문항 · 어블레이션 10구성(기준선 + 9변형)까지 약 3분에 돕니다.<br/>
-API 키도 GPU도 필요 없습니다.</sub>
+GPU도 필요 없습니다.</sub>
 
 <br/>
 
