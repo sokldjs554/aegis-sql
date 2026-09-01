@@ -1,0 +1,40 @@
+# Render Blueprint — 카드 없이 배포하는 경로.
+#
+# 왜 이 파일이 있는가: Cloud Run 은 빠르지만 결제 계정(카드)이 필요하고,
+# 한국행 이그레스에는 무료 구간이 없어 매달 몇 센트가 나간다.  Render 의
+# Free 웹 서비스는 카드를 등록하지 않으면 한도 초과 시 과금 대신 서비스를
+# 중단한다 — 청구가 구조적으로 불가능하다.  대가는 속도다.
+#
+# 대가를 분명히 적어 둔다:
+#   · 15분 무접속이면 인스턴스가 내려간다.
+#   · 다시 깨는 데 Render 문서 기준 "about one minute" 이 걸리고,
+#     그 위에 이 앱의 기동 시간이 얹힌다.  Free 인스턴스는 0.1 vCPU 라
+#     실제로는 그보다 더 걸린다.
+#   · 즉 채용 담당자가 링크를 처음 누르면 1~2분 로딩 화면을 볼 수 있다.
+#
+# 그래서 이 경로는 "링크가 살아 있기만 하면 되는" 용도다.  면접 자리에서
+# 직접 보여줄 때는 노트북 로컬(make serve)이 훨씬 낫다.
+#
+# 사용법: Render 대시보드 → New → Blueprint → 이 저장소 연결.
+services:
+  - type: web
+    name: aegis-sql
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore          # Render 리전 중 한국에서 가장 가깝다
+    healthCheckPath: /v1/health
+    envVars:
+      # 공개 URL 이므로 피드백을 디스크에 쓰지 않는다.
+      - key: AEGIS_DEMO_PUBLIC
+        value: "1"
+      # 데모 DB 생성기가 내장 hash() 를 쓰므로 고정한다.
+      - key: PYTHONHASHSEED
+        value: "0"
+      # 공개 URL 의 최악 지연을 제한한다.
+      - key: AEGIS_DATABASE__TIMEOUT_S
+        value: "3.0"
+      # LLM 키는 넣지 않는다.  키가 없으면 LLM 티어가 파이프라인에 등록조차
+      # 되지 않아 과금이 구조적으로 0 이고, 화면의 비용·지연이 README 가
+      # 게시한 $0 · 6ms 와 일치한다.  키를 넣으면 답변 합성 보조 호출이
+      # 켜져 질의당 약 $0.0013 · 2,600ms 가 된다.

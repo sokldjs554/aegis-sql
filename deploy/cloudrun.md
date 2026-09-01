@@ -23,15 +23,24 @@
 > Spend Cap이 있으나 공개 프리뷰이고 범위가 "프로젝트 1개 + 서비스 1개"라
 > **Artifact Registry 저장과 네트워크 이그레스는 막지 못합니다.**
 
-## 리전에 대해
+## 리전 — 서울이 아니라 도쿄입니다
 
-Cloud Run 무료 한도에 **리전 화이트리스트 제한은 없습니다** — 서울에서도
-적용됩니다. 다만 서울(`asia-northeast3`)은 Tier 2 리전이고, 무료 한도는
-*"a spending based discount using Tier 1 pricing"* 으로 적용되므로 실질
-무료량이 명목치의 약 71%로 줄어듭니다.
+이전 판에서는 서울을 권했는데, 요금 페이지를 다시 읽고 바꿨습니다.
 
-**이 데모에는 무의미한 차이입니다** — 월 수백 요청이면 무료 한도의 1%도
-쓰지 않습니다. 한국 접속 지연을 생각하면 서울이 낫습니다.
+Cloud Run 요금 페이지의 `Regional price tiers` 절은 `asia-northeast1
+(Seoul, South Korea)` 를 **Tier 2** 로 분류합니다. 그리고 무료 한도는
+*"The free tier is applied as a spending based discount using Tier 1
+pricing"* 입니다. 즉 **사용은 Tier 2 단가로 계산되고 할인은 Tier 1 단가로
+적립**되므로, 서울에 배포하면 컴퓨트가 첫 요청부터 $0 이 아닙니다
+(CPU 기준 $0.0000336 vs 할인 $0.000024 — 약 71%만 덮입니다).
+
+`asia-northeast1 (Tokyo)` 은 같은 페이지에서 **Tier 1** 로 분류됩니다.
+도쿄에 배포하면 이 워크로드의 컴퓨트는 **실제로 $0** 이고, 한국 접속자가
+치르는 대가는 왕복 30ms 남짓입니다.
+
+이그레스는 어느 쪽이든 같습니다 — Premium Tier 이그레스는 **출발지가 아니라
+목적지 기준**이라 서울에 두어도 한국행 $0.19/GiB 를 피하지 못합니다
+(요금표의 한국 행은 45개 출발 리전 변형에서 전부 동일).
 
 ## 사전 준비 (최초 1회)
 
@@ -51,7 +60,7 @@ cd ~/Downloads/aegis-sql
 
 gcloud run deploy aegis-sql \
   --source . \
-  --region asia-northeast3 \
+  --region asia-northeast1 \
   --allow-unauthenticated \
   --memory 1Gi \
   --cpu 1 \
@@ -64,13 +73,20 @@ gcloud run deploy aegis-sql \
 
 | 플래그 | 이유 |
 |---|---|
-| `--region asia-northeast3` | 서울. 국내 접속 지연이 가장 낮습니다 |
+| `--region asia-northeast1` | 도쿄. **Tier 1 이라 무료 한도가 컴퓨트를 전액 덮습니다.** 서울(Tier 2)은 첫 요청부터 컴퓨트가 과금됩니다 |
 | `--memory 1Gi` | Cloud Run 파일시스템은 **인메모리**라 쓰기가 RAM을 먹습니다 |
 | `--concurrency 20` | 앱의 `limit_concurrency=20`과 맞춥니다 |
 | `--max-instances 1` | **지출 상한이 아니라 발생 속도 상한**입니다. 봇이 붙었을 때 최악 금액을 낮추는, 실제로 쥘 수 있는 몇 안 되는 레버입니다 |
 | `--min-instances 0` | 유휴 과금 0. 구글 원문: *"Idle instances that are not minimum instances are not charged"* |
 | `--timeout 60` | 질의는 수백 ms에 끝납니다 |
 | `AEGIS_DEMO_PUBLIC=1` | 인증 없는 공개 URL이므로 `/v1/feedback`이 디스크에 쓰지 않습니다 |
+
+> **LLM API 키를 절대 넣지 마세요.** `--set-env-vars` 에 `ANTHROPIC_API_KEY`
+> 를 넣으면 답변 문장을 LLM 이 써 주는 보조 호출이 켜지고, 화면의 비용·지연이
+> `$0 · 6ms` 에서 `$0.0013 · 2,600ms` 로 바뀝니다. README 가 게시한
+> `template 44.4% ($0·6ms)` 와 화면이 어긋나고, 공개 URL 이므로 아무나
+> 그 비용을 발생시킬 수 있습니다. 키가 없으면 LLM 티어는 파이프라인에
+> 등록조차 되지 않아 과금이 **구조적으로 0** 입니다.
 
 `--no-cpu-throttling`과 `--cpu-boost`는 **절대 켜지 마세요.** 인스턴스 기반
 과금으로 바뀌어 요청이 없어도 24시간 과금됩니다.
@@ -79,7 +95,7 @@ gcloud run deploy aegis-sql \
 
 ```bash
 gcloud artifacts docker images list \
-  asia-northeast3-docker.pkg.dev/aegis-sql-demo/cloud-run-source-deploy
+  asia-northeast1-docker.pkg.dev/aegis-sql-demo/cloud-run-source-deploy
 ```
 
 옛 이미지가 쌓여 있으면 지우거나 정리 정책을 거세요:
@@ -89,7 +105,7 @@ cat > /tmp/policy.json <<'JSON'
 [{"name":"keep-latest","action":{"type":"Keep"},"mostRecentVersions":{"keepCount":1}}]
 JSON
 gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
-  --location=asia-northeast3 --policy=/tmp/policy.json
+  --location=asia-northeast1 --policy=/tmp/policy.json
 ```
 
 `--source .` 가 만드는 저장소에 자동 정리 정책이 붙는지는 **확인하지 못했습니다.**
@@ -108,7 +124,7 @@ gcloud artifacts repositories set-cleanup-policies cloud-run-source-deploy \
 ## 배포 후 확인
 
 ```bash
-URL=$(gcloud run services describe aegis-sql --region asia-northeast3 --format='value(status.url)')
+URL=$(gcloud run services describe aegis-sql --region asia-northeast1 --format='value(status.url)')
 
 curl -fsS "$URL/v1/health" | python3 -m json.tool
 # router_loaded 가 true 인지 반드시 확인 — false 면 콘솔이 '라우터 미적재'를 노출합니다
@@ -135,7 +151,7 @@ Cloud Console → 결제 → 예산 및 알림 → 예산 만들기
 ## 갱신
 
 ```bash
-git pull && gcloud run deploy aegis-sql --source . --region asia-northeast3
+git pull && gcloud run deploy aegis-sql --source . --region asia-northeast1
 ```
 
 갱신할 때마다 이미지가 쌓이므로 위의 정리 정책을 꼭 걸어두세요.
@@ -143,8 +159,8 @@ git pull && gcloud run deploy aegis-sql --source . --region asia-northeast3
 ## 내리기 — 채용 끝나면 즉시
 
 ```bash
-gcloud run services delete aegis-sql --region asia-northeast3
-gcloud artifacts repositories delete cloud-run-source-deploy --location asia-northeast3
+gcloud run services delete aegis-sql --region asia-northeast1
+gcloud artifacts repositories delete cloud-run-source-deploy --location asia-northeast1
 ```
 
 컴퓨트는 요청이 없으면 0이지만 **저장 요금은 트래픽 0에서도 계속 나갑니다.**
