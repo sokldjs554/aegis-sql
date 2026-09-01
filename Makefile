@@ -36,16 +36,51 @@ help: ## 사용 가능한 타깃 목록
 	  | awk 'BEGIN {FS = "## "}; {sub(/:.*/, "", $$1); printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 # --------------------------------------------------------------------- 환경
+# 쓸 수 있는 인터프리터를 스스로 찾는다.  PY= 로 직접 주면 그것만 쓴다.
+#
+# macOS 의 /usr/bin/python3 는 3.9 라 그대로는 못 쓴다.  그런데 사용자가
+# Homebrew 로 새 파이썬을 깔아도 `brew link` 는 기존 파일과 충돌하면 실패한다 —
+# 그때도 바이너리 자체는 Cellar 에 멀쩡히 있고 PATH 에만 없다.  PATH 를 보고
+# 없다고 포기하면, 이미 해결된 문제를 안 풀린 것처럼 보이게 만든다.
+# 그래서 PATH 다음으로 Homebrew·python.org 의 실제 설치 경로까지 뒤진다.
+#
+# 우선순위는 CI 가 도는 버전(3.13~3.10)이 먼저다.  3.14 는 아직 아무도
+# 이 프로젝트를 돌려 본 적이 없어 마지막에 둔다.
 venv:
-	@$(PY) -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' || { \
-	  echo "✗ $(PY) 는 $$($(PY) -V 2>&1) 입니다 — 이 프로젝트는 Python 3.10+ 가 필요합니다."; \
-	  echo "  macOS 기본 /usr/bin/python3 는 3.9 입니다.  예:"; \
-	  echo "    brew install python@3.12 && make $(MAKECMDGOALS) PY=python3.12"; \
-	  exit 1; }
-	@if [ -x $(BIN)/python ] && ! $(BIN)/python -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)'; then \
-	  echo "· 기존 $(VENV) 가 Python 3.10 미만이라 다시 만듭니다"; rm -rf $(VENV); fi
-	@test -d $(VENV) || $(PY) -m venv $(VENV)
-	@$(PIP) install -q --upgrade pip setuptools wheel
+	@set -e; \
+	ok() { "$$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' >/dev/null 2>&1; }; \
+	PYBIN="$(PY)"; \
+	if ! ok "$$PYBIN"; then \
+	  found=""; \
+	  for p in python3.13 python3.12 python3.11 python3.10 python3.14; do \
+	    c=$$(command -v "$$p" 2>/dev/null) || continue; \
+	    if ok "$$c"; then found="$$c"; break; fi; \
+	  done; \
+	  if [ -z "$$found" ]; then \
+	    for g in /opt/homebrew/opt/python@3.1[0-9]/bin/python3.1[0-9] \
+	             /usr/local/opt/python@3.1[0-9]/bin/python3.1[0-9] \
+	             /Library/Frameworks/Python.framework/Versions/3.1[0-9]/bin/python3.1[0-9]; do \
+	      if [ -x "$$g" ] && ok "$$g"; then found="$$g"; break; fi; \
+	    done; \
+	  fi; \
+	  if [ -n "$$found" ]; then \
+	    echo "· $(PY) 는 $$("$(PY)" -V 2>&1) 이라 $$found 를 씁니다"; \
+	    PYBIN="$$found"; \
+	  else \
+	    echo "✗ Python 3.10+ 를 찾지 못했습니다 ($(PY) 는 $$("$(PY)" -V 2>&1))."; \
+	    echo "  macOS 기본 /usr/bin/python3 는 3.9 입니다.  설치:"; \
+	    echo "      brew install python@3.12"; \
+	    echo "  'brew link' 단계가 실패해도 괜찮습니다 — 바이너리는 깔려 있고 PATH 에만 없습니다."; \
+	    echo "  다시 이 명령을 돌리면 알아서 찾고, 안 되면 경로를 직접 주세요:"; \
+	    echo "      make $(or $(MAKECMDGOALS),setup) PY=\"\$$(brew --prefix python@3.12)/bin/python3.12\""; \
+	    exit 1; \
+	  fi; \
+	fi; \
+	if [ -x $(BIN)/python ] && ! ok $(BIN)/python; then \
+	  echo "· 기존 $(VENV) 가 Python 3.10 미만이라 다시 만듭니다"; rm -rf $(VENV); \
+	fi; \
+	test -d $(VENV) || "$$PYBIN" -m venv $(VENV); \
+	$(PIP) install -q --upgrade pip setuptools wheel
 
 install: venv ## 코어 의존성만 설치 (LLM/학습 없이도 전부 동작)
 	@$(PIP) install -q -e ".[llm,dev]"
