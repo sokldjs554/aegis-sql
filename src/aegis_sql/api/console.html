@@ -1272,7 +1272,13 @@ function tabsPanel(d) {
   bar.setAttribute("role", "tablist");
   const body = el("div", "tabbody");
   body.setAttribute("role", "tabpanel");
-  const first = Math.max(0, specs.findIndex((s) => s.on));
+  // 차단·되묻기에서는 '결과' 탭이 비어 있는 것 자체가 답이다.  내용이 있는
+  // 첫 탭을 자동으로 고르면 링킹 근거나 트레이스가 열리고, 정작 왜 비었는지를
+  // 설명하는 문구(whyEmpty)에는 아무도 닿지 못한다 — 사용자가 실제로
+  // "결과는 없고 링킹 근거만 있다"고 보고한 자리다.  ok 가 아니면 결과부터 연다.
+  const first = d.status === "ok"
+    ? Math.max(0, specs.findIndex((x) => x.on))
+    : 0;
 
   const show = (i) => {
     const tabs = [...bar.querySelectorAll(".tab")];
