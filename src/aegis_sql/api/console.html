@@ -80,12 +80,50 @@
   .navtab[aria-selected="true"]{color:var(--ink); font-weight:600}
   .navtab[aria-selected="true"]::after{background:var(--accent)}
 
-  /* 테두리 없는 고스트 버튼 — 헤더 우측이 '버튼 3개'가 아니라 '텍스트 3개'로 읽힌다 */
+  /* 헤더 우측은 '버튼 3개'가 아니라 '텍스트 3개'로 읽혀야 한다.  다만 완전히
+     투명하면 누를 수 있다는 것 자체가 안 읽힌다 — 실제로 데모 중에 '이거 클릭이
+     안 되는데요' 라는 보고를 받았다.  누를 수 있다는 최소 신호만 남긴다:
+     아주 옅은 상시 테두리 + 무언가를 여는 버튼에는 ▾ 캐럿. */
   .ghostbtn{display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 11px;
-            border-radius:7px; border:1px solid transparent; background:none; color:var(--muted);
+            border-radius:7px; border:1px solid var(--line-2); background:none; color:var(--muted);
             font-size:12.5px; font-family:inherit; cursor:pointer; white-space:nowrap}
   .ghostbtn:hover{background:var(--surface-2); border-color:var(--line); color:var(--ink-2)}
+  .ghostbtn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .ghostbtn .car{font-size:9px; color:var(--muted); opacity:.75; margin-left:-2px}
   .ghostbtn .num{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  /* 결과 뷰 — 표/차트 2단 토글, 큰 숫자 타일, 막대·추이 차트 */
+  .viewtog{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+  .viewtog button{border:0; background:var(--surface); color:var(--muted); font-family:inherit;
+                  font-size:11.5px; padding:3px 11px; cursor:pointer}
+  .viewtog button[aria-pressed="true"]{background:var(--surface-2); color:var(--ink); font-weight:600}
+  .bignum{padding:26px 4px 22px; text-align:center}
+  .bignum .v{font-family:var(--mono); font-size:40px; font-weight:600; color:var(--ink);
+             line-height:1.1; font-variant-numeric:tabular-nums}
+  .bignum .k{margin-top:8px; font-size:12.5px; color:var(--muted)}
+  .chartbox{padding:14px 4px 6px}
+  .cbar{display:grid; grid-template-columns:minmax(72px,26%) 1fr auto; gap:8px; align-items:center;
+        padding:3px 0; font-size:12.5px}
+  .cbar .cl{color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .cbar .cv{font-family:var(--mono); font-size:12px; color:var(--ink); text-align:right;
+            font-variant-numeric:tabular-nums; white-space:nowrap}
+  .chartnote{margin-top:10px; font-size:11.5px; color:var(--muted)}
+  .lock{margin-left:5px; font-size:9.5px; color:var(--muted); font-weight:400}
+  /* 행 정책 대조 */
+  .cmp{margin-top:10px; border-top:1px dashed var(--line); padding-top:10px}
+  .cmpgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:9px}
+  @media (max-width:700px){ .cmpgrid{grid-template-columns:1fr} }
+  .cmpcell{border:1px solid var(--line); border-radius:var(--radius-sm); padding:9px 11px; background:var(--surface-2)}
+  .cmpcell .ch{font-size:11.5px; color:var(--muted); margin-bottom:5px}
+  .cmpcell .cn{font-family:var(--mono); font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums}
+  .cmpcell .cr{margin-top:6px; font-size:11.5px; color:var(--ink-2); line-height:1.7}
+  .cmpcell .cr span{font-family:var(--mono)}
+  /* 예시 그룹 선택 pill */
+  .expills{display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px}
+  .expill{border:1px solid var(--line); background:var(--surface); color:var(--muted);
+          border-radius:999px; padding:3px 11px; font-size:11.5px; font-family:inherit; cursor:pointer}
+  .expill[aria-pressed="true"]{background:var(--surface-2); color:var(--ink); border-color:var(--ink-2); font-weight:600}
+  .expill .n{color:var(--muted); font-size:10.5px; margin-left:4px; font-variant-numeric:tabular-nums}
+  .expill[aria-pressed="true"] .n{color:var(--ink-2)}
   .copybtn{padding:3px 10px; border-radius:6px; border:1px solid var(--line); background:var(--surface);
            color:var(--muted); font-size:11.5px; font-family:inherit; cursor:pointer; white-space:nowrap}
   .copybtn:hover{border-color:var(--accent); color:var(--accent)}
@@ -434,10 +472,10 @@
       <button class="navtab" id="modeGuard" role="tab" aria-selected="false">거버넌스 샌드박스</button>
     </div>
     <div class="spacer"></div>
-    <button class="ghostbtn" id="statusBtn" title="엔진 상태와 재현 정보">
-      <span class="dot" id="statusDot"></span><span class="lbl" id="statusLbl">확인 중</span><span class="fp" id="statusFp"></span>
+    <button class="ghostbtn" id="statusBtn" title="누르면 엔진 상태·스키마 지문·프롬프트 버전을 엽니다">
+      <span class="dot" id="statusDot"></span><span class="lbl" id="statusLbl">확인 중</span><span class="fp" id="statusFp"></span><span class="car">▾</span>
     </button>
-    <button class="ghostbtn" id="schemaBtn">▤ 스키마 <span class="num" id="tableCount"></span></button>
+    <button class="ghostbtn" id="schemaBtn" title="누르면 11개 테이블의 컬럼·민감도 사전을 엽니다">▤ 스키마 <span class="num" id="tableCount"></span><span class="car">▾</span></button>
     <button class="ghostbtn" id="themeBtn">◐ <span id="themeLbl">자동</span></button>
   </div>
 </div>
@@ -512,15 +550,63 @@ FROM TB_CUST c JOIN TB_CTRT t ON t.CUST_ID = c.CUST_ID</textarea>
 
 // 종류는 결과 배지와 같은 기호로 표시한다 — 예시를 누르면 방금 본 기호가
 // 그대로 결과 화면에 나타나므로, 화면이 자기 어휘를 먼저 가르치는 셈이 된다.
+// 이 목록은 장식이 아니라 목차다 — 그룹 이름이 곧 '이 엔진이 무엇을 할 줄 아는가'다.
+// 모든 문항은 실제로 실행해 status 와 행수를 확인한 것만 남겼다.
 const EXAMPLES = [
-  ["조회", "ok", "●", [
+  ["기본 집계", "ok", "●", [
+    "전체 계약은 몇 건인가요?",
+    "전체 고객 수는?",
+    "월납보험료 평균은?",
+    "지급완료된 보험금 총액은?",
+  ]],
+  ["한국어 표현", "ok", "●", [
     "작년 하반기에 체결된 계약 중 월납보험료가 20만원 이상인 건수를 지점별로 알려줘",
-    "실효된 계약의 채널별 비중은?",
+    "2025년에 체결된 계약 건수를 알려줘",
+    "월납보험료가 50만원 이상인 계약 수",
+    "올해 만기가 도래하는 계약 수",
+    "연체일수가 30일을 초과한 수납 건은 몇 건인가요?",
+  ]],
+  ["사내 용어사전", "ok", "●", [
+    "실효된 계약이 몇 건이야?",
+    "부활한 계약은 몇 건이야?",
+    "현재 활동 중인 설계사는 몇 명이야?",
+    "다이렉트 채널 계약이 전체에서 차지하는 비중은?",
+    "상품 유형별 실효율을 높은 순으로",
+    "지점별 신계약 건수 상위 5개를 알려줘",
+  ]],
+  ["코드값 → 한글", "ok", "●", [
+    "채널별 계약 건수를 많은 순으로 보여줘",
+    "납입주기별 계약 건수",
+    "인수심사 결과별 건수",
+    "접수채널별 민원 건수",
+    "고객 등급별 평균 총가입금액을 보여줘",
     "청구 유형별 지급액 합계 상위 3개",
   ]],
-  ["거버넌스 차단", "gov", "■", ["고객 이름이랑 주민등록번호 좀 뽑아줘", "TB_CTRT 테이블을 지워줘"]],
-  ["되묻기", "amb", "◆", ["설계사 실적 좀 보여줘", "계약 추이 알려줘"]],
+  ["추이·분포", "ok", "●", [
+    "2025년 월별 신계약 건수 추이",
+    "연도별 신계약 건수 추이",
+    "지역별 고객 수를 많은 순으로",
+    "지점별 민원 건수를 많은 순으로",
+    "상품 유형별 담보 가입금액 합계 상위 5개",
+    "청구 유형별 평균 청구금액",
+  ]],
+  ["거버넌스", "gov", "■", [
+    "고객 이름이랑 주민등록번호 좀 뽑아줘",
+    "TB_CTRT 테이블을 지워줘",
+    "계약 상태를 전부 정상으로 업데이트해줘",
+    "데이터베이스 백업 좀 떠줘",
+    "고객 테이블 전체를 조회해줘",
+    "고객 이메일 주소 목록 뽑아줘",
+  ]],
+  ["되묻기", "amb", "◆", [
+    "채널별 실적 알려줘",
+    "가장 많은 상품은?",
+    "상위 지점 알려줘",
+    "계약 추이 알려줘",
+    "그 고객의 계약 내역 보여줘",
+  ]],
 ];
+let exGroup = 0;
 
 const STEPS = [
   { id: "normalize", label: "정규화" }, { id: "intent", label: "의도 가드" },
@@ -784,17 +870,28 @@ $("#reproBtn").onclick = () => openInfo("runtime");
 /* ---------- examples & history ------------------------------------------ */
 function renderExamples() {
   const box = $("#examples");
+  box.innerHTML = "";
+
+  // 그룹을 pill 로 고르고 그 그룹만 칩으로 편다.  40문항을 한 번에 펼치면
+  // 첫 화면이 질문 목록에 잡아먹힌다 — 고른 그룹만 보이면 세로가 지금과 같다.
+  const pills = el("div", "expills");
+  EXAMPLES.forEach(([label, , , items], i) => {
+    const b = el("button", "expill", `${esc(label)}<span class="n">${items.length}</span>`);
+    b.setAttribute("aria-pressed", String(i === exGroup));
+    b.onclick = () => { exGroup = i; renderExamples(); };
+    pills.appendChild(b);
+  });
+  box.appendChild(pills);
+
+  const [label, kind, glyph, items] = EXAMPLES[exGroup];
   const g = el("div", "exgroup");
-  g.appendChild(el("span", "exlabel", "예시"));
-  EXAMPLES.forEach(([label, kind, glyph, items]) => {
-    items.forEach((q) => {
-      const c = el("button", "chip " + kind,
-        `<span class="g" aria-hidden="true">${glyph}</span>` +
-        esc(q.length > 34 ? q.slice(0, 32) + "…" : q));
-      c.title = `${label} — ${q}`;
-      c.onclick = () => { $("#q").value = q; run(); };
-      g.appendChild(c);
-    });
+  items.forEach((q) => {
+    const c = el("button", "chip " + kind,
+      `<span class="g" aria-hidden="true">${glyph}</span>` +
+      esc(q.length > 34 ? q.slice(0, 32) + "…" : q));
+    c.title = `${label} — ${q}`;
+    c.onclick = () => { $("#q").value = q; run(); };
+    g.appendChild(c);
   });
   box.appendChild(g);
 }
@@ -992,8 +1089,84 @@ function render(d) {
   out.appendChild(head);
 
   if (d.violations?.length || d.rewrites?.length) out.appendChild(governancePanel(d));
+  const rowPol = (d.rewrites || []).filter((x) => String(x).startsWith("row-policy:"));
+  if (d.status === "ok" && rowPol.length && d.result) out.appendChild(policyCompare(d, rowPol));
   if (d.clarification) out.appendChild(clarifyPanel(d));
   out.appendChild(tabsPanel(d));
+}
+
+/* 이 데모에서 가장 희소한 그림: 같은 질문이 묻는 사람에 따라 다른 SQL 로 실행된다.
+   생성된 SQL 은 바이트 단위로 같고 executed_sql 만 다르다.  그래서 이 버튼은
+   rewrites 에 row-policy 가 실제로 걸린 응답에서만 나타난다 — 차이가 보장된
+   자리에서만 등장하므로 평소 화면에 없고, 눌렀을 때 헛발질하지 않는다. */
+function policyCompare(d, rowPol) {
+  const box = el("div", "panel cmp");
+  box.appendChild(el("div", "panel-title",
+    `이 결과에는 행 수준 정책이 걸려 있습니다 — ${rowPol.map((x) => x.slice(11)).join(", ")}`));
+  const bar = el("div", "fb");
+  bar.appendChild(el("span", null,
+    "생성된 SQL 은 그대로입니다. 달라지는 것은 정책이 주입한 WHERE 절뿐입니다."));
+  const btn = el("button", "copybtn", "정책 없이 실행해 비교");
+  bar.appendChild(btn);
+  box.appendChild(bar);
+
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = "실행 중…";
+    try {
+      const res = await fetch("/v1/query", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: d.question, max_rows: 100, context: {} }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const b = await res.json();
+      // 행수만 비교하면 안 된다.  '지역별 고객 수' 는 정책이 걸려도 11행 그대로이고
+      // 값만 절반으로 준다 — 행수만 보여주면 두 칸이 똑같아 보이고, 그게 바로
+      // '필터가 조용히 들어간다' 는 이 데모의 요점을 정면으로 놓치는 것이다.
+      const topRows = (resp) => {
+        const r = resp.result || {};
+        if (!r.rows || !r.rows.length) return "결과 없음";
+        const meta = colMeta(r);
+        return r.rows.slice(0, 3).map((row) =>
+          row.map((v, i) => (v === null ? "∅" : esc(fmtCell(v, meta[i].kind)))).join(" · ")
+        ).join("<br/>");
+      };
+      const cell = (title, resp, ctxLabel) => {
+        const c = el("div", "cmpcell");
+        c.appendChild(el("div", "ch", esc(title)));
+        c.appendChild(el("div", "cn", `${fmt((resp.result || {}).row_count ?? 0)}행`));
+        const where = whereOf(resp.executed_sql);
+        c.appendChild(el("div", "cr",
+          `세션 <span>${esc(ctxLabel)}</span><br/>` +
+          `주입된 조건 <span>${where ? esc(where) : "없음"}</span><br/>` +
+          `상위 3행<br/><span>${topRows(resp)}</span>`));
+        return c;
+      };
+      const ctxNow = Object.entries(d.context || {}).map(([k, v]) => `${k}=${v}`).join(" ") || "기본";
+      const grid = el("div", "cmpgrid");
+      grid.appendChild(cell("현재 세션", d, ctxNow));
+      grid.appendChild(cell("정책 없이", b, "컨텍스트 없음"));
+      box.appendChild(grid);
+      const n1 = (d.result || {}).row_count ?? 0, n2 = (b.result || {}).row_count ?? 0;
+      const same = JSON.stringify((d.result || {}).rows) === JSON.stringify((b.result || {}).rows);
+      box.appendChild(el("div", "chartnote", esc(
+        same ? "두 결과가 동일합니다 — 이 질문에는 정책이 실질적으로 작용하지 않았습니다."
+             : n1 === n2
+               ? `행수는 ${fmt(n1)}행으로 같지만 값이 다릅니다 — 필터가 조용히 들어간 경우입니다.`
+               : `${fmt(n2)}행 → ${fmt(n1)}행으로 줄었습니다.`)));
+      bar.remove();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "정책 없이 실행해 비교";
+      box.appendChild(el("div", "errbox", esc(`비교 실행에 실패했습니다 — ${e.message}`)));
+    }
+  };
+  return box;
+}
+/* 실행 SQL 에서 정책이 넣은 조건만 뽑아 한 줄로 보여준다 (없으면 빈 문자열). */
+function whereOf(sql) {
+  const m = /\bWHERE\b([\s\S]*?)(\bGROUP\b|\bORDER\b|\bLIMIT\b|$)/i.exec(String(sql || ""));
+  if (!m) return "";
+  const w = m[1].replace(/\s+/g, " ").trim();
+  return w.length > 120 ? w.slice(0, 118) + "…" : w;
 }
 
 function feedbackBar(d) {
@@ -1092,7 +1265,7 @@ function whyEmpty(name, d) {
 
 function tabsPanel(d) {
   const specs = [
-    { name: "결과", count: d.result ? d.result.row_count : 0, on: !!d.result, make: () => resultTable(d.result) },
+    { name: "결과", count: d.result ? d.result.row_count : 0, on: !!d.result, make: () => resultTable(d.result, d) },
     { name: "SQL", on: !!d.sql, make: () => sqlPane(d) },
     { name: "링킹 근거", count: d.evidence?.length || 0, on: !!d.evidence?.length, make: () => evidencePane(d.evidence) },
     { name: "트레이스", on: !!d.trace, make: () => tracePane(d.trace, d) },
@@ -1154,28 +1327,173 @@ function tabsPanel(d) {
 }
 
 /* ---------- panes -------------------------------------------------------- */
-function resultTable(r) {
+/* 열 단위로 서식을 한 번 정하고 그 열 전체에 같은 단위를 적용한다.
+   이걸 하기 전에는 답변 문장이 "비율: 16.72%" 라고 말하는 바로 밑에서 표가
+   0.16715384615384615 를 찍고 있었다 — 같은 화면의 두 숫자가 서로 달라 보였다.
+   표시만 바꾸고 CSV·복사는 원값을 내보낸다. */
+function colMeta(r) {
+  return r.columns.map((name, i) => {
+    const vals = r.rows.map((row) => row[i]).filter((v) => v !== null && v !== undefined);
+    const numeric = vals.length > 0 && vals.every((v) => typeof v === "number");
+    if (!numeric) return { numeric: false, kind: "text" };
+    const abs = vals.map(Math.abs);
+    const max = abs.length ? Math.max(...abs) : 0;
+    const allInt = vals.every((v) => Number.isInteger(v));
+    const named = /비율|비중|율$|률$|rate|ratio/i.test(name);
+    const ranged = max <= 1 && !allInt;
+    if (named || ranged) return { numeric: true, kind: "pct" };
+    if (allInt && max >= 1e8) return { numeric: true, kind: "eok" };
+    return { numeric: true, kind: allInt ? "int" : "dec" };
+  });
+}
+function fmtCell(v, kind) {
+  if (typeof v !== "number") return String(v);
+  if (kind === "pct") return (v * 100).toFixed(2) + "%";
+  if (kind === "eok") return (v / 1e8).toLocaleString(undefined, { maximumFractionDigits: 1 }) + "억";
+  if (kind === "int") return v.toLocaleString();
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+/* RFC 4180 — 쉼표·따옴표·줄바꿈이 든 값을 감싸지 않으면 열이 어긋난다.
+   이전 코드는 row.join(",") 이라 이스케이프가 아예 없었다. */
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const t = String(v);
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function toCsv(r) {
+  return [r.columns.map(csvCell).join(","), ...r.rows.map((row) => row.map(csvCell).join(","))].join("\n");
+}
+
+/* 마스킹된 컬럼을 결과 표의 머리에서 바로 알린다.  지금까지는 원인(판정 헤더의
+   mask:TB_CUST.TELNO 태그)과 결과(010-****-1821)가 화면에서 멀리 떨어져 있었다.
+   매핑은 rewrites 의 물리 컬럼명 → /v1/schema 의 컬럼 주석 → 결과 컬럼명 순이고,
+   못 찾으면 조용히 아무것도 붙이지 않는다. */
+function maskedLabels(d) {
+  const out = new Set();
+  if (!schemaCache || !d.rewrites) return out;
+  const wanted = d.rewrites
+    .filter((x) => String(x).startsWith("mask:"))
+    .map((x) => String(x).slice(5));
+  if (!wanted.length) return out;
+  (schemaCache.tables || []).forEach((t) => {
+    (t.columns || []).forEach((c) => {
+      const phys = `${t.name}.${c.name}`;
+      if (wanted.includes(phys) || wanted.includes(c.name)) {
+        if (c.comment) out.add(c.comment);
+        out.add(c.name);
+      }
+    });
+  });
+  return out;
+}
+
+/* 차트는 모양이 맞을 때만 나타난다.  1행 스칼라를 막대로 그리면 없느니만 못하다. */
+function chartSpec(r, meta) {
+  if (!r || !r.rows || !r.rows.length) return null;
+  const num = meta.map((m, i) => (m.numeric ? i : -1)).filter((i) => i >= 0);
+  const lab = meta.map((m, i) => (m.numeric ? -1 : i)).filter((i) => i >= 0);
+  if (r.rows.length === 1 && r.columns.length === 1 && num.length === 1) {
+    return { kind: "big", vi: num[0] };
+  }
+  if (lab.length >= 1 && num.length >= 1 && r.rows.length >= 2 && r.rows.length <= 40) {
+    const li = lab[0], vi = num[0];
+    const labels = r.rows.map((row) => row[li]);
+    const series = labels.every((v) => v !== null && /^(19|20)\d{2}((0[1-9])|(1[0-2]))?$/.test(String(v)));
+    return { kind: series ? "line" : "bar", li, vi };
+  }
+  return null;
+}
+function chartNote(r) {
+  const shown = r.rows.length;
+  if (r.row_count > shown) return `전체 ${fmt(r.row_count)}행 중 ${fmt(shown)}행 기준 — 나머지는 표시 상한으로 잘렸습니다`;
+  return "";
+}
+function renderChart(r, meta, spec) {
+  const box = el("div", "chartbox");
+  if (spec.kind === "big") {
+    const v = r.rows[0][spec.vi];
+    const tile = el("div", "bignum");
+    tile.appendChild(el("div", "v", esc(fmtCell(v, meta[spec.vi].kind))));
+    tile.appendChild(el("div", "k", esc(r.columns[spec.vi])));
+    box.appendChild(tile);
+    return box;
+  }
+  const rows = r.rows.filter((row) => row[spec.li] !== null && typeof row[spec.vi] === "number");
+  const dropped = r.rows.length - rows.length;
+  const vals = rows.map((row) => Number(row[spec.vi]));
+  const max = Math.max(...vals.map(Math.abs), 0);
+  const kind = meta[spec.vi].kind;
+
+  if (spec.kind === "line") {
+    // y축을 0에 고정하면 83~114 같은 구간이 화면 위쪽에 눌려 평평해 보인다.
+    // 데이터 범위를 쓰되 최소·최대를 축에 그대로 찍어 스케일을 감추지 않는다.
+    const W = 640, H = 190, PAD = 26;
+    const vmin = Math.min(...vals), vmax = Math.max(...vals);
+    const span = (vmax - vmin) || Math.abs(vmax) || 1;
+    const lo = vmin - span * 0.12, hi = vmax + span * 0.12;
+    const x = (i) => PAD + (i * (W - PAD * 2)) / Math.max(1, rows.length - 1);
+    const y = (v) => H - PAD - ((v - lo) / (hi - lo || 1)) * (H - PAD * 2);
+    const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const first = String(rows[0][spec.li]), last = String(rows[rows.length - 1][spec.li]);
+    const svg =
+      `<svg viewBox="0 0 ${W} ${H}" width="100%" height="190" role="img" ` +
+      `aria-label="${esc(r.columns[spec.li])}별 ${esc(r.columns[spec.vi])} 추이 — 최소 ${esc(fmtCell(Math.min(...vals), kind))}, 최대 ${esc(fmtCell(Math.max(...vals), kind))}">` +
+      `<line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="var(--line)" stroke-width="1"/>` +
+      `<polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" points="${pts}"/>` +
+      vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="var(--accent)"/>`).join("") +
+      `<text x="${PAD}" y="${H - 8}" font-size="10" fill="var(--muted)">${esc(first)}</text>` +
+      `<text x="${W - PAD}" y="${H - 8}" font-size="10" fill="var(--muted)" text-anchor="end">${esc(last)}</text>` +
+      `<text x="${PAD}" y="${(y(vmax) - 8).toFixed(1)}" font-size="10" fill="var(--muted)">${esc(fmtCell(vmax, kind))}</text>` +
+      `<text x="${PAD}" y="${(y(vmin) + 14).toFixed(1)}" font-size="10" fill="var(--muted)">${esc(fmtCell(vmin, kind))}</text>` +
+      `</svg>`;
+    box.innerHTML = svg;
+  } else {
+    rows.forEach((row) => {
+      const v = Number(row[spec.vi]);
+      const pct = max > 0 ? Math.max(1.5, (Math.abs(v) / max) * 100) : 0;
+      box.appendChild(el("div", "cbar",
+        `<span class="cl" title="${esc(String(row[spec.li]))}">${esc(String(row[spec.li]))}</span>` +
+        `<span class="barbox"><i class="barfill" style="width:${pct.toFixed(1)}%"></i></span>` +
+        `<span class="cv">${esc(fmtCell(v, kind))}</span>`));
+    });
+  }
+  const notes = [chartNote(r), dropped ? `라벨이 비어 있는 ${dropped}행 제외` : ""].filter(Boolean);
+  if (notes.length) box.appendChild(el("div", "chartnote", esc(notes.join(" · "))));
+  return box;
+}
+
+/* ---------- panes -------------------------------------------------------- */
+function resultTable(r, d) {
   const box = el("div");
-  const numeric = r.columns.map((_, i) =>
-    r.rows.some((row) => typeof row[i] === "number") &&
-    r.rows.every((row) => row[i] === null || typeof row[i] === "number"));
+  const meta = colMeta(r);
+  const numeric = meta.map((m) => m.numeric);
+  const masked = maskedLabels(d || {});
   const barCol = numeric.lastIndexOf(true);
   const maxVal = barCol >= 0 ? Math.max(...r.rows.map((row) => Math.abs(Number(row[barCol]) || 0)), 0) : 0;
+
+  if (!r.rows.length) {
+    box.appendChild(el("div", "whybox",
+      "조건에 맞는 행이 0건입니다 — SQL 은 정상적으로 실행되었습니다. " +
+      `(DB ${fmt(r.elapsed_ms, 1)}ms)`));
+    return box;
+  }
 
   const wrap = el("div", "tablewrap");
   const t = el("table");
   const trh = el("tr");
-  r.columns.forEach((c, i) => trh.appendChild(el("th", numeric[i] ? "num" : null, esc(c))));
+  r.columns.forEach((c, i) => trh.appendChild(el("th", numeric[i] ? "num" : null,
+    esc(c) + (masked.has(c) ? '<span class="lock" title="거버넌스 정책에 따라 마스킹된 컬럼입니다">🔒 마스킹</span>' : ""))));
   if (barCol >= 0 && maxVal > 0) trh.appendChild(el("th", null, ""));
   const thead = el("thead"); thead.appendChild(trh); t.appendChild(thead);
   const tb = el("tbody");
   r.rows.forEach((row) => {
     const tr = el("tr");
-    row.forEach((v) => {
+    row.forEach((v, i) => {
       const isNum = typeof v === "number";
-      tr.appendChild(el("td", isNum ? "num" : null,
-        v === null ? '<span class="nul">∅</span>'
-                   : esc(isNum ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : v)));
+      const td = el("td", isNum ? "num" : null,
+        v === null ? '<span class="nul">∅</span>' : esc(fmtCell(v, meta[i].kind)));
+      if (isNum) td.title = String(v);
+      tr.appendChild(td);
     });
     if (barCol >= 0 && maxVal > 0) {
       const pct = Math.max(2, (Math.abs(Number(row[barCol]) || 0) / maxVal) * 100);
@@ -1184,16 +1502,43 @@ function resultTable(r) {
     }
     tb.appendChild(tr);
   });
-  t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
+  t.appendChild(tb); wrap.appendChild(t);
+
+  const spec = chartSpec(r, meta);
+  const view = el("div");
+  // 스칼라는 표가 아니라 숫자 하나가 답이다 — 헤더 한 칸짜리 표는 결과가 아니라 잔해다.
+  let mode = spec && spec.kind === "big" ? "chart" : "table";
+  const paint = () => {
+    view.innerHTML = "";
+    view.appendChild(mode === "chart" ? renderChart(r, meta, spec) : wrap);
+  };
+  box.appendChild(view);
 
   const foot = el("div", "tablefoot");
   foot.appendChild(el("span", null,
     `${fmt(r.row_count)}행 · DB ${fmt(r.elapsed_ms, 1)}ms${r.truncated ? " · 표시 상한" : ""}`));
   foot.appendChild(el("span", "spacer"));
+  if (spec) {
+    const tog = el("div", "viewtog");
+    const mk = (m, lbl) => {
+      const b = el("button", null, lbl);
+      b.setAttribute("aria-pressed", String(mode === m));
+      b.onclick = () => {
+        mode = m;
+        tog.querySelectorAll("button").forEach((x, i) => x.setAttribute("aria-pressed", String((i === 0) === (m === "table"))));
+        paint();
+      };
+      return b;
+    };
+    tog.appendChild(mk("table", "표"));
+    tog.appendChild(mk("chart", spec.kind === "big" ? "숫자" : "차트"));
+    foot.appendChild(tog);
+  }
   const cp = el("button", "copybtn", "CSV 복사");
-  cp.onclick = () => copy([r.columns.join(","), ...r.rows.map((row) => row.join(","))].join("\n"), "CSV");
+  cp.onclick = () => copy(toCsv(r), "CSV");
   foot.appendChild(cp);
   box.appendChild(foot);
+  paint();
   return box;
 }
 
@@ -1222,11 +1567,19 @@ function sqlBlock(box, label, sql, note) {
   box.appendChild(h);
   box.appendChild(el("pre", null, highlight(sql)));
 }
+/* 생성 SQL 은 여러 줄로 예쁘게 찍히고 실행 SQL 은 한 줄이라, 문자열 비교로는
+   재작성이 없어도 항상 '다르다'가 나온다.  그래서 이 화면은 재작성이 0건인
+   질의에서도 '거버넌스 재작성 적용됨' 을 띄우고 있었다 — 거버넌스를 주장하는
+   데모가 거버넌스에 대해 거짓말하는 셈이다.  공백을 정규화해 실제로 다른지
+   보고, 라벨은 rewrites 가 실제로 있을 때만 붙인다. */
+const normSql = (x) => String(x ?? "").replace(/\s+/g, " ").trim();
 function sqlPane(d) {
   const box = el("div");
   sqlBlock(box, "생성된 SQL", d.sql || "");
-  if (d.executed_sql && d.executed_sql !== d.sql) {
-    sqlBlock(box, "실제 실행된 SQL", d.executed_sql, "거버넌스 재작성 적용됨");
+  if (d.executed_sql && normSql(d.executed_sql) !== normSql(d.sql)) {
+    const rw = (d.rewrites || []).length;
+    sqlBlock(box, "실제 실행된 SQL", d.executed_sql,
+             rw ? `거버넌스 재작성 ${rw}건 적용됨` : null);
   }
   return box;
 }
@@ -1398,6 +1751,12 @@ $("#modeGuard").onclick = () => setMode(false);
 renderExamples();
 loadHealth();
 loadPolicy();
+// 마스킹 배지는 schemaCache 의 컬럼 주석으로 결과 컬럼명을 맞춘다.  드로어를
+// 열 때만 채우면 데모에서 배지가 영영 안 뜬다 — 부팅 때 미리 받아 둔다.
+// 실패해도 조용히 넘어간다(배지가 안 붙을 뿐 결과 표는 그대로다).
+if (!schemaCache) {
+  fetch("/v1/schema").then((r) => r.json()).then((j) => { schemaCache = j; }).catch(() => {});
+}
 
 /* 첫 화면 — 30초 관객에게 '이 엔진은 세 가지로 끝난다'를 한 번에 전달한다.
    카드도 일러스트도 쓰지 않고, 결과 배지와 같은 기호·같은 색만 쓴다. */
