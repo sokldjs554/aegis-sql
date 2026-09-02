@@ -287,6 +287,7 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
                         "when": rp.when,
                         "filter": rp.filter,
                         "description": rp.description,
+                        "propagate": rp.propagate,
                         "context_key": (
                             m.group(1) if (m := _CTX_KEY.search(rp.when)) else ""
                         ),

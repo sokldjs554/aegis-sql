@@ -80,12 +80,14 @@ row_policies:
     table: TB_AGNT
     when: "ctx.branch_cd"
     filter: "TB_AGNT.BRCH_CD = '{{ctx.branch_cd}}'"
-    description: 지점 관리자는 자기 지점 설계사만 조회 가능
+    propagate: true
+    description: 지점 관리자는 자기 지점과 연결된 데이터만 조회 가능
   - id: MKT_CONSENT
     table: TB_CUST
     when: "ctx.purpose == 'marketing'"
     filter: "TB_CUST.MKT_AGR_YN = 'Y'"
-    description: 마케팅 목적 조회는 수신동의 고객으로 한정 (개인정보보호법 제22조)
+    propagate: true
+    description: 마케팅 목적 조회는 수신동의 고객과 연결된 데이터로 한정 (개인정보보호법 제22조)
 
 # ---------------------------------------------------------------------
 # k-익명성 — 소집단 재식별 방지. 활성화 시 GROUP BY 질의에

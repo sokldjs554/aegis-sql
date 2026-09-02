@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 20260824
 TODAY = date(2026, 8, 24)
+MARKETING_CONSENT_RATE = 0.40
 
 # --------------------------------------------------------------------------- #
 # Reference data
@@ -232,7 +233,7 @@ def build(conn: sqlite3.Connection, scale: float = 1.0) -> dict[str, int]:
             f"{rng.randint(1,63):02d}{rng.randint(100,999):03d}", addr,
             f"010-{rng.randint(1000,9999)}-{rng.randint(1000,9999)}",
             f"user{i + 1}@{rng.choice(['naver.com','gmail.com','daum.net','kakao.com'])}",
-            ymd(join), grade, "Y" if rng.random() < 0.42 else "N", rgn,
+            ymd(join), grade, "Y" if rng.random() < MARKETING_CONSENT_RATE else "N", rgn,
         ))
     cur.executemany("INSERT INTO TB_CUST VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", customers)
     counts["TB_CUST"] = len(customers)
