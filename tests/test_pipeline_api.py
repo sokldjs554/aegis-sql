@@ -149,12 +149,14 @@ def test_policy_endpoint_declares_its_own_context_switches(client):
 
     branch = by_id["BRANCH_SCOPE"]
     assert branch["context_key"] == "branch_cd"
+    assert branch["propagate"] is True
     # values come from the profiled column named in the filter, not a literal list
     assert len(branch["options"]) > 1
     assert all(o["value"].startswith("BR") for o in branch["options"])
 
     mkt = by_id["MKT_CONSENT"]
     assert mkt["context_key"] == "purpose"
+    assert mkt["propagate"] is True
     assert [o["value"] for o in mkt["options"]] == ["marketing"]
 
     assert body["grades"]["forbidden"] >= 1
