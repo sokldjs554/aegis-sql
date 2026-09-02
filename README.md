@@ -211,8 +211,13 @@ SQL에 주입합니다. 같은 질문이라도 **누가 어떤 목적으로 묻�
 
 | 세션 컨텍스트 | 적용 정책 | SQL 에 주입되는 것 |
 |---|---|---|
-| `branch_cd=BR003` | `BRANCH_SCOPE` | `WHERE TB_AGNT.BRCH_CD = 'BR003'` |
-| `purpose=marketing` | `MKT_CONSENT` | `WHERE TB_CUST.MKT_AGR_YN = 'Y'` (개인정보보호법 제22조) |
+| `branch_cd=BR003` | `BRANCH_SCOPE` | `TB_AGNT.BRCH_CD = 'BR003'` |
+| `purpose=marketing` | `MKT_CONSENT` | `TB_CUST.MKT_AGR_YN = 'Y'` (개인정보보호법 제22조) |
+
+생성 SQL에 정책 대상 테이블이 없더라도 필터를 건너뛰지 않습니다. 예를 들어
+`SELECT COUNT(*) FROM TB_CTRT`에는 스키마의 외래키 경로를 따라 `TB_AGNT`와
+`TB_CUST`를 확인하는 상관 `EXISTS` 조건을 붙입니다. 따라서 지점·목적을 바꿨는데
+전체 계약 수가 그대로 나오는 정책 우회가 생기지 않습니다.
 
 <p align="center">
   <img src="docs/images/console-row-policy.png" width="820"
@@ -257,7 +262,7 @@ SQL이나 붙여 넣으면 **실행 없이 정책 판정만** 돌려줍니다 �
 [되묻기](docs/images/console-clarify.png) · [트레이스](docs/images/console-trace.png) ·
 [스키마 사전](docs/images/console-schema.png) · [다크 모드](docs/images/console-query-dark.png))
 
-<sub>이 문서의 화면 캡처와 GIF 는 전부 현재 커밋의 코드를 실제로 띄워 자동으로
+<sub>이 문서의 화면 캡처와 GIF 는 코드를 실제로 띄워 자동으로
 찍은 것입니다 — 손으로 그리거나 합성하지 않았습니다. 다시 찍는 스크립트도 함께
 둡니다(<a href="scripts/docs/README.md"><code>scripts/docs/</code></a>). 캡처는 코드보다
 먼저 낡기 때문입니다.</sub>

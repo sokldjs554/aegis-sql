@@ -130,6 +130,57 @@ def test_marketing_purpose_restricts_to_consenting_customers(guard):
     assert "MKT_AGR_YN" in (verdict.rewritten_sql or "")
 
 
+def test_session_policies_propagate_to_contract_aggregates(guard, executor):
+    """A fact-only aggregate must not bypass branch and purpose context."""
+    verdict = guard.check(
+        "SELECT COUNT(*) AS cnt FROM TB_CTRT",
+        {"branch_cd": "BR001", "purpose": "marketing"},
+    )
+    assert verdict.allowed
+    rewritten = verdict.rewritten_sql or ""
+    assert rewritten.upper().count("EXISTS") == 2
+    assert "BR001" in rewritten
+    assert "MKT_AGR_YN" in rewritten
+    assert set(verdict.applied_rewrites) >= {
+        "row-policy:BRANCH_SCOPE",
+        "row-policy:MKT_CONSENT",
+    }
+
+    restricted = executor.execute(rewritten)
+    unrestricted = executor.execute("SELECT COUNT(*) AS cnt FROM TB_CTRT")
+    assert restricted.ok and unrestricted.ok
+    assert 0 < restricted.rows[0][0] < unrestricted.rows[0][0]
+
+
+def test_branch_policy_propagates_across_customer_contract_agent_path(guard, executor):
+    """Customer aggregates are scoped through TB_CTRT → TB_AGNT."""
+    counts = []
+    for branch in ("BR001", "BR002"):
+        verdict = guard.check(
+            "SELECT COUNT(*) AS cnt FROM TB_CUST",
+            {"branch_cd": branch, "purpose": "marketing"},
+        )
+        assert verdict.allowed
+        rewritten = verdict.rewritten_sql or ""
+        assert "TB_CTRT" in rewritten and "TB_AGNT" in rewritten
+        result = executor.execute(rewritten)
+        assert result.ok
+        counts.append(result.rows[0][0])
+    assert counts[0] != counts[1]
+
+
+def test_propagated_policy_scopes_every_self_join_alias(guard):
+    """A second alias must not retain an unfiltered copy of protected rows."""
+    verdict = guard.check(
+        "SELECT COUNT(*) FROM TB_CTRT a JOIN TB_CTRT b ON b.CUST_ID = a.CUST_ID",
+        {"branch_cd": "BR001"},
+    )
+    assert verdict.allowed
+    rewritten = verdict.rewritten_sql or ""
+    assert rewritten.upper().count("EXISTS") == 2
+    assert rewritten.count("BR001") == 2
+
+
 def test_row_policy_absent_without_context(guard):
     verdict = guard.check("SELECT AGNT_ID FROM TB_AGNT")
     assert "BRCH_CD =" not in (verdict.rewritten_sql or "")

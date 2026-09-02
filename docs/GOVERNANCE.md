@@ -110,9 +110,12 @@ for column_node in parsed.find_all(exp.Column):
 | LIMIT 상한 | `... LIMIT 100000` | `... LIMIT 500` |
 | 행 정책 | `SELECT ... FROM TB_AGNT` (지점 관리자 세션) | `... WHERE TB_AGNT.BRCH_CD = 'BR003'` |
 | 목적 제한 | 마케팅 목적 조회 | `... AND TB_CUST.MKT_AGR_YN = 'Y'` |
+| FK 전파 | `SELECT COUNT(*) FROM TB_CTRT` (지점·마케팅 세션) | `TB_AGNT`·`TB_CUST`를 확인하는 상관 `EXISTS` 주입 |
 | k-익명성 | `GROUP BY RGN_CD` | `... HAVING COUNT(*) >= 5` |
 
 집계 질의(`SELECT COUNT(*) ...`)에는 LIMIT을 주입하지 않는다 — 스칼라 결과를 자를 이유가 없다.
+행 정책의 `propagate: true`는 대상 테이블이 생성 SQL에 직접 없을 때도 선언된 외래키의
+최단 경로를 따라 필터를 전파한다. 연결 경로가 없는 공통코드 같은 전역 테이블에는 주입하지 않는다.
 
 ## 감사 로그
 

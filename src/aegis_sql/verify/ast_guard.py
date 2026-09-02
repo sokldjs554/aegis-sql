@@ -43,6 +43,7 @@ from sqlglot.optimizer.scope import Scope, traverse_scope
 
 from aegis_sql.config import Settings, get_settings
 from aegis_sql.observability.logging import get_logger
+from aegis_sql.schema.graph import JoinEdge, JoinGraph
 from aegis_sql.types import GuardVerdict, SchemaGraph, Sensitivity, Violation
 
 log = get_logger("verify.ast_guard")
@@ -112,6 +113,10 @@ class RowPolicy:
     when: str = ""
     filter: str = ""
     description: str = ""
+    #: Follow declared foreign keys when the protected table is not written in
+    #: the generated SQL.  Without this, ``SELECT COUNT(*) FROM TB_CTRT`` can
+    #: silently bypass a branch policy declared on ``TB_AGNT``.
+    propagate: bool = False
 
 
 @dataclass(slots=True)
@@ -173,6 +178,7 @@ class PolicyDocument:
                     when=str(p.get("when", "")),
                     filter=str(p.get("filter", "")),
                     description=str(p.get("description", "")),
+                    propagate=bool(p.get("propagate", False)),
                 )
                 for i, p in enumerate(raw.get("row_policies") or [])
             ],
@@ -403,6 +409,7 @@ class PolicyGuard:
         self.default_limit = min(eng.default_limit, ver.default_limit)
         self.max_rows = min(eng.max_rows, self.settings.database.max_rows)
         self.max_join_tables = min(eng.max_join_tables, ver.max_join_tables)
+        self._join_graph = JoinGraph(schema)
         self._stamp_schema()
 
     def _stamp_schema(self) -> None:
@@ -725,7 +732,7 @@ class PolicyGuard:
         self, resolver: ColumnResolver, ctx: dict, violations: list[Violation]
     ) -> list[str]:
         applied: list[str] = []
-        for policy in self.policy.row_policies:
+        for policy_index, policy in enumerate(self.policy.row_policies):
             verdict = _eval_when(policy.when, ctx)
             if verdict is None:
                 violations.append(
@@ -746,20 +753,86 @@ class PolicyGuard:
                 select = scope.expression
                 if not isinstance(select, exp.Select):
                     continue
-                alias = next(
-                    (a for a, t in resolver.physical_tables(scope).items()
-                     if t.upper() == policy.table.upper()),
-                    None,
-                )
-                if alias is None:
-                    continue
-                condition = sqlglot.parse_one(rendered, dialect=DIALECT)
-                for col in condition.find_all(exp.Column):
-                    if col.table and col.table.upper() == policy.table.upper():
-                        col.set("table", exp.to_identifier(alias))
-                select.where(condition, copy=False)
-                applied.append(f"row-policy:{policy.id}")
+                physical = resolver.physical_tables(scope)
+                scope_applied = False
+                ordered_tables = sorted(physical.items(), key=lambda item: (item[1], item[0]))
+                for anchor_index, (alias, table) in enumerate(ordered_tables):
+                    if table.upper() == policy.table.upper():
+                        condition = self._qualified_filter(rendered, policy.table, alias)
+                    elif policy.propagate:
+                        condition = self._propagated_filter(
+                            policy,
+                            rendered,
+                            outer_alias=alias,
+                            anchor_table=table,
+                            alias_prefix=f"__rp_{policy_index}_{anchor_index}",
+                        )
+                    else:
+                        condition = None
+                    if condition is not None:
+                        select.where(condition, copy=False)
+                        scope_applied = True
+                rewrite = f"row-policy:{policy.id}"
+                if scope_applied and rewrite not in applied:
+                    applied.append(rewrite)
         return applied
+
+    @staticmethod
+    def _qualified_filter(rendered: str, table: str, alias: str) -> exp.Expr:
+        """Parse a trusted policy predicate and bind its table to a query alias."""
+        condition = sqlglot.parse_one(rendered, dialect=DIALECT)
+        for col in condition.find_all(exp.Column):
+            if col.table and col.table.upper() == table.upper():
+                col.set("table", exp.to_identifier(alias))
+        return condition
+
+    def _propagated_filter(
+        self,
+        policy: RowPolicy,
+        rendered: str,
+        outer_alias: str,
+        anchor_table: str,
+        alias_prefix: str,
+    ) -> exp.Expr | None:
+        """Correlate a row policy through the shortest declared FK path.
+
+        A generated aggregate often mentions only the fact table.  For example,
+        the branch-scoped form of ``SELECT COUNT(*) FROM TB_CTRT t`` becomes::
+
+            WHERE EXISTS (
+              SELECT 1 FROM TB_AGNT rp
+              WHERE t.AGNT_ID = rp.AGNT_ID AND rp.BRCH_CD = 'BR001'
+            )
+
+        The path is derived from schema foreign keys rather than from table-name
+        conventions.  Every connected physical source in the SELECT is scoped;
+        otherwise a cross join could keep an unfiltered copy of the same data.
+        """
+        path: list[JoinEdge] | None = self._join_graph.shortest_path(
+            anchor_table, policy.table
+        )
+        if not path:
+            return None
+        inner_aliases = [f"{alias_prefix}_{i}" for i in range(len(path))]
+
+        first = path[0]
+        correlation = first.to_sql(outer_alias, inner_aliases[0])
+        from_sql = f"{first.right_table} AS {inner_aliases[0]}"
+        joins: list[str] = []
+        for i, edge in enumerate(path[1:], start=1):
+            joins.append(
+                f"JOIN {edge.right_table} AS {inner_aliases[i]} "
+                f"ON {edge.to_sql(inner_aliases[i - 1], inner_aliases[i])}"
+            )
+
+        target_filter = self._qualified_filter(
+            rendered, policy.table, inner_aliases[-1]
+        ).sql(dialect=DIALECT)
+        exists_sql = (
+            f"EXISTS (SELECT 1 FROM {from_sql} {' '.join(joins)} "
+            f"WHERE {correlation} AND {target_filter})"
+        )
+        return sqlglot.parse_one(exists_sql, dialect=DIALECT)
 
     # -- 7-8. limits and k-anonymity ---------------------------------------- #
 
