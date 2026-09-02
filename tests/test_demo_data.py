@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sqlite3
 from pathlib import Path
-
-from scripts.build_demo_db import build
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_deployed_scale_has_distinct_marketing_counts_for_every_branch():
     """The 0.5x Render dataset must make all 24 session scopes observable."""
+    script = ROOT / "scripts" / "build_demo_db.py"
+    spec = importlib.util.spec_from_file_location("aegis_build_demo_db", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
     conn = sqlite3.connect(":memory:")
     try:
         conn.executescript((ROOT / "data" / "demo" / "schema.sql").read_text(encoding="utf-8"))
-        build(conn, scale=0.5)
+        module.build(conn, scale=0.5)
         rows = conn.execute(
             """
             SELECT a.BRCH_CD, COUNT(*) AS cnt
