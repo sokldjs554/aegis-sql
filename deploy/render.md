@@ -36,10 +36,9 @@ Render 를 고른 결정적 이유는 **구조적으로 청구가 불가능**하
 
 ## 절차
 
-**0. 카드부터 확인한다.** GitHub 로 가입하고, Free 웹 서비스를 만들기 전에
-카드를 요구하는 화면이 나오면 **거기서 멈춘다.** 이 문서를 쓰면서
-`render.com` 이 검증 환경의 이그레스 정책에 막혀 있어, "카드 불필요"만은
-Render 가 쓴 문서로 대조하지 못했다. 30초짜리 확인이니 직접 보고 진행할 것.
+**0. 카드는 필요 없었다.** 이 문서를 처음 쓸 때는 "카드 불필요"를 Render 문서로
+대조하지 못해 확인 단계로 남겨 뒀는데, 실제로 이 경로로 배포해 보니 카드 등록
+없이 끝났다. 지금 <https://aegis-sql.onrender.com> 에 떠 있는 것이 그 결과다.
 
 1. Render 대시보드 → **New** → **Blueprint**
 2. 이 저장소(`sokldjs554/aegis-sql`)를 연결
@@ -59,7 +58,7 @@ render blueprints validate      # CLI v2.7.0+
 ## 배포 후 확인
 
 ```bash
-URL=https://aegis-sql.onrender.com     # 실제 URL 로 바꿀 것
+URL=https://aegis-sql.onrender.com
 curl -s "$URL/v1/health" | head -c 200
 curl -s -X POST "$URL/v1/query" -H 'content-type: application/json' \
   -d '{"question":"전체 계약은 몇 건인가요?","max_rows":5}' | head -c 300
@@ -67,6 +66,10 @@ curl -s -X POST "$URL/v1/query" -H 'content-type: application/json' \
 
 `schema_fingerprint` 가 `26cee9e1989d6426` 로 나오면 README 와 같은 빌드다.
 첫 호출은 스핀업 때문에 1~2분 걸릴 수 있다.
+
+**행 수는 README 와 다르다.** 이미지가 `Dockerfile` 에서 `--scale 0.5` 로
+빌드되므로 배포본의 계약은 6,500건이다(전체 규모는 13,000건). 기동 시간을 줄이려는
+선택이고, 스키마 지문은 데이터가 아니라 구조에서 나오므로 그대로다.
 
 ## LLM API 키를 넣지 말 것
 
@@ -92,6 +95,8 @@ Render 가 직접 쓴 페이지를 한 장도 열지 못했다.
   오류가 나는 것도 확인했다.
 - **750 인스턴스 시간**은 Render 의 공개 저장소(`render-oss/skills`)에서
   원문을 확인했다.
-- **카드 불필요**와 **한도 도달 시 중단**은 검색 요약에서만 확인했다.
-  구조적으로는 맞는 이야기지만(무료는 크레딧이 아니라 인스턴스 타입이다),
-  Render 문서 원문으로 대조하지는 못했다. 위 0번 단계를 반드시 지킬 것.
+- **카드 불필요**는 이제 실측이다 — 이 경로로 실제 배포했고 카드를 요구하지
+  않았다. 문서 원문 대조가 아니라 실행으로 확인한 셈이다.
+- **한도 도달 시 중단**은 아직 검색 요약에서만 확인했다. 구조적으로는 맞는
+  이야기지만(무료는 크레딧이 아니라 인스턴스 타입이다) 750시간을 실제로 넘겨
+  본 적은 없다.
