@@ -31,7 +31,7 @@ LLM에게 SQL을 만들라고 하면 존재하지 않는 컬럼을 쓴다.
 샘플러는 **스키마 그래프와 프로파일에서만** 슬롯을 채우므로 그럴 수 없다.
 
 - 테이블/컬럼: `SchemaGraph`에서만 선택
-- 조인: `JoinGraph.connect()`가 계산한 실제 FK 경로만 사용
+- 조인: `JoinGraph` 의 `neighbours()` + `shortest_path()` 로 한 홉씩 확장한 실제 FK 경로만 사용
 - 코드값: `profile.code_labels`의 실존 코드만
 - 날짜 구간: 해당 컬럼의 관측 `min~max` 안에서만
 - 임계값: 관측 분위수 근처에서만 (그래야 결과가 비지 않는다)
@@ -103,7 +103,7 @@ API 키가 있으면 `backtranslate.user` 프롬프트로 한 번 더 다듬지�
 ```bash
 make flywheel                       # 스키마 → 학습셋 (기본 4,000 프로그램)
 cat data/generated/flywheel/manifest.json
-make train-slm                      # SFT (+LoRA, +DPO)
+make train-slm                      # SFT → DPO (LoRA 없음 — docs/SLM.md 참조)
 ```
 
 실측(4,000 프로그램 × 증강 3, CPU 138초):

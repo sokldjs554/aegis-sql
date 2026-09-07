@@ -25,7 +25,7 @@
 | 논문 | 핵심 아이디어 | 이 저장소에서 |
 |---|---|---|
 | **Chain-of-Thought** — Wei et al., *NeurIPS 2022* | 중간 추론 단계를 유도 | **[변형]** 자유 CoT는 출력 파싱을 불안정하게 만든다. `configs/prompts/default.yaml`의 `nl2sql.user`는 **4단계 고정 스캐폴드**(조인 경로 → 필터 → 집계 → SQL) 후 코드블록 1개만 허용. |
-| **Least-to-Most** — Zhou et al., *ICLR 2023* | 큰 문제를 하위 문제로 분해 | **[적용]** `nlu/decompose.py` |
+| **Least-to-Most** — Zhou et al., *ICLR 2023* | 큰 문제를 하위 문제로 분해 | **[구현 · 미연결]** `nlu/decompose.py` 에 규칙 기반 분해/난이도 분류를 구현했으나 런타임 파이프라인은 호출하지 않는다. 난이도 판정은 학습된 라우터가 맡고 있어 중복이다 |
 | **DIN-SQL** — Pourreza & Rafiei, *NeurIPS 2023* | 난이도 분류 → 분해 → 생성 → 자가교정의 4단계 파이프라인 | **[적용]** 파이프라인 골격 그대로. 단, 난이도 분류를 LLM 호출이 아니라 **규칙 + 학습된 라우터**로 대체(비용·지연 이유). |
 | **MAC-SQL** — Wang et al., *arXiv 2023* | Selector / Decomposer / Refiner 멀티에이전트 | **[변형]** 에이전트 3개를 각각 LLM으로 돌리면 비용이 3배가 된다. Selector=검색기, Decomposer=규칙, Refiner=실행 기반 교정으로 **LLM 호출을 1회로 유지**. |
 | **C3** — Dong et al., *arXiv 2023* | Clear Prompting / Calibration with Hints / Consistent Output | **[적용]** Hint 주입(용어사전 SQL 조각)과 Consistent Output(실행 결과 투표)을 채택. |
@@ -36,7 +36,7 @@
 
 | 논문 | 핵심 아이디어 | 이 저장소에서 |
 |---|---|---|
-| **RESDSQL** — Li et al., *AAAI 2023* | 스키마 랭킹 + **스켈레톤 인지 디코딩**으로 구조와 내용을 분리 | **[적용]** `generation/skeleton.py`의 `sql_skeleton()`이 few-shot 다양성·중복 제거·난이도 판정의 공통 축으로 재사용된다. |
+| **RESDSQL** — Li et al., *AAAI 2023* | 스키마 랭킹 + **스켈레톤 인지 디코딩**으로 구조와 내용을 분리 | **[적용]** `generation/skeleton.py`의 `sql_skeleton()`을 플라이휠 중복 제거의 축으로 쓴다. few-shot 다양성은 `retrieval/fewshot.py` 가 의도적으로 자체 헬퍼를 따로 둔다 |
 | **PICARD** — Scholak et al., *EMNLP 2021* | 증분 파싱으로 문법적으로 불가능한 토큰을 디코딩 중 차단 | **[기각]** 토큰 단위 제약 디코딩은 자체 sLLM에는 적용 가능하지만 **호스팅 LLM API에는 불가능**하고, 우리 실패의 대부분은 문법 오류가 아니라 **의미 오류**(잘못된 코드값, 날짜 형식)였다. 대신 **생성 후 AST 검증 + 실행 기반 교정**에 투자. |
 | **Execution-Guided Decoding** — Wang et al., *arXiv 2018* | 부분 실행 결과로 후보를 걸러냄 | **[적용]** 전체 실행 기반이지만 동일 철학. `verify/executor.py` + `selfconsistency.py`. |
 | **Self-Consistency** — Wang et al., *ICLR 2023* | 여러 샘플의 다수결 | **[변형]** 문자열이 아니라 **실행 결과 해시**(`ExecutionResult.result_signature()`)로 투표. 서로 다른 SQL이 같은 답을 낼 수 있으므로 문자열 투표는 과소 집계된다. |
