@@ -59,10 +59,27 @@ src/aegis_sql/training/
 
 $$W' = W + \frac{\alpha}{r} B A, \quad A \in \mathbb{R}^{r \times d_{in}},\; B \in \mathbb{R}^{d_{out} \times r}$$
 
-`A`는 정규분포, **`B`는 0으로 초기화**한다. 따라서 어댑터를 붙인 직후 $BA = 0$ 이고
+`A`는 Kaiming 균등분포(`kaiming_uniform_`, a=√5), **`B`는 0으로 초기화**한다. 따라서 어댑터를 붙인 직후 $BA = 0$ 이고
 모델 출력은 동일하다(`allclose`, atol 1e-6). 이것이 "튜닝을 시작하는 지점이 사전학습 모델과 같다"는 보증이다.
 
 테스트가 이를 강제한다.
+
+### 그런데 기본 학습에는 LoRA 를 걸지 않는다
+
+`--lora` 는 구현해 두었지만 `make train-slm` 은 넘기지 않는다. 이 모델은 **사전학습
+없이 처음부터** 학습하는데, `mark_only_lora_trainable()` 이 베이스를 얼려 버리기
+때문이다. LoRA 는 "이미 학습된 가중치를 조금 움직인다"는 전제 위에 서 있는 기법이라,
+전제가 없는 자리에 걸면 무작위 초기값이 그대로 남는다.
+
+같은 설정(seed 0 · 1 epoch · 300 예시)으로 재 보면:
+
+| 구성 | 학습되는 파라미터 | dev loss |
+|---|---:|---:|
+| SFT 전체 (기본) | 393,696 (100%) | **7.137** |
+| `--lora` | 18,432 (**4.47%**) | 7.512 |
+
+95.5% 가 초기값에 고정되니 당연한 결과다. `--lora` 는 이 저장소에서
+**사전학습 체크포인트를 가져와 적응시킬 때** 쓰라고 남겨 둔 경로다.
 
 ```python
 before = model(ids)["logits"].clone()
@@ -81,11 +98,13 @@ assert trainable / total < 0.05                                   # 학습 파�
 가장 흔한 실수는 프롬프트 토큰에도 손실을 주는 것이다. 그러면 모델이 **스키마 카드를 외운다.**
 
 ```
-[프롬프트: 질문 + 스키마 카드]  <|sql|>  [정답 SQL]  <eos>
+[프롬프트: 스키마 카드 + 질문]  <|sql|>  [정답 SQL]  <eos>
  labels = -100 ...................        실제 토큰 ....
 ```
 
-- 길이 초과 시 **프롬프트의 앞쪽을 자른다**. 질문과 스키마 카드의 뒷부분(가장 관련 높은 테이블)을 살리기 위해서다.
+- 길이 초과 시 **프롬프트의 앞쪽을 자른다**. 프롬프트가 `스키마 카드 → 질문` 순서라
+  뒤쪽에 있는 질문을 살리기 위해서다(sLLM 스키마 카드는 관련도 순이 아니라
+  테이블명 사전순으로 렌더링된다 — `schema/card.py`).
 - AdamW(β=0.9/0.95), linear warmup + cosine decay, grad clipping 1.0, grad accumulation.
 - 매 에폭 dev loss와 **토큰 정확도**를 기록하고 best 체크포인트만 저장한다.
 - AMP는 CUDA에서만 켠다 — CPU에서 bf16 autocast는 이 크기에서 이득이 없다.
@@ -227,7 +246,7 @@ LoRA 타게팅·손실 마스킹·DPO 선호쌍 생성·서빙 어댑터는 그�
 
 ```bash
 make flywheel                 # 스키마 → 학습 데이터
-make train-slm                # 토크나이저 학습 → SFT (+LoRA) → (옵션) DPO
+make train-slm                # 토크나이저 학습 → SFT → DPO  (LoRA 는 붙이지 않는다, 아래 참조)
 cat data/generated/slm/training_report.json
 pytest -m slow tests/test_training.py   # 실제로 학습되는지 검증
 ```

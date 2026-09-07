@@ -147,22 +147,25 @@ src/aegis_sql/
 POST /v1/query {"question": "..."}
   │
   ├─ span: normalize        (~1ms)   KoreanNormalizer
-  ├─ span: ambiguity        (~1ms)   모호하면 여기서 status=clarify 로 종료
+  ├─ span: intent_guard     (~1ms)   **SQL 을 만들기 전에** 파괴적·PII 요청을 여기서 차단
   ├─ span: link             (~15ms)  하이브리드 스키마 링킹 (전체 스키마 2,554토큰 → 400~850토큰)
-  ├─ span: fewshot          (~5ms)   마스킹 유사도 + MMR
+  ├─ span: ambiguity        (~1ms)   링킹 결과를 받아 판정 — 모호하면 status=clarify 로 종료
   ├─ span: route            (~0.3ms) numpy 라우터 → tier + confidence
+  ├─ span: fewshot          (~5ms)   마스킹 유사도 + MMR — **라우팅 뒤**, 프롬프트를
+  │                          읽는 티어(slm/llm/ensemble)일 때만 돈다
   ├─ span: generate         (티어에 따라 3ms ~ 수 초)
+  ├─ span: vote             (앙상블 시) 실행 결과 해시 다수결 — 가드·실행 **이전**
   ├─ span: static_check     (~2ms)   실행 전에 잡히는 오류
   ├─ span: guard            (~3ms)   PII 차단 / 마스킹 / LIMIT / 행정책
   ├─ span: execute          (~5~50ms)
   ├─ span: repair           (실행 실패 시 — 그리고 **성공했더라도 정적 검사가
   │                          "확실히 틀린 비교"를 잡았을 때**) 규칙 8종 → 재실행
   │                          → 그래도 실패면 LLM 수리. 교정본은 가드를 다시 통과해야 한다
-  ├─ span: vote             (앙상블 시) 실행 결과 해시 다수결
   └─ span: answer           한국어 요약 (LLM 있을 때만)
   │
   └─ AnswerBundle{ sql, executed_sql, rows, tier, confidence, cost_usd, trace }
 ```
 
-트레이스는 응답 본문(`?explain=true`)과 CLI(`aegis ask --explain`), 웹 콘솔에서 그대로 볼 수 있다.
+트레이스는 응답 본문(요청 JSON 의 `"explain": true` — 쿼리스트링이 아니다)과
+CLI(`aegis ask --explain`), 웹 콘솔에서 그대로 볼 수 있다.
 "왜 이 컬럼을 골랐는가"는 `linked.evidence`에 점수와 출처(dense/lexical/glossary/value)로 남는다.
