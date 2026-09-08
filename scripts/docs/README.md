@@ -27,9 +27,12 @@ make serve &                                   # 다른 창에서 (기본 8000)
 # ① 화면 캡처 12장 → docs/images/console-*.png
 node scripts/docs/capture.mjs
 
-# ② 웹 콘솔 히어로 GIF
+# ② 웹 콘솔 3막 GIF (조회 → 차단 → 되묻기)
+#    ⚠ README 맨 위 히어로(docs/images/console-demo.gif)를 덮어쓰지 않는다.
+#    지금 그 자리에 있는 것은 사람이 직접 조작해 녹화한 83초짜리이고,
+#    아래 스크립트는 뷰포트 1200x1000 을 820 으로 줄인 14초짜리를 만든다.
 node scripts/docs/demo_console.mjs
-scripts/docs/gif.sh /tmp/aegis-frames/console docs/images/console-demo.gif 820
+scripts/docs/gif.sh /tmp/aegis-frames/console /tmp/console-3막.gif 820
 
 # ③ 터미널 GIF (aegis ask 3막)
 python3 scripts/docs/build_terminal.py         # 실제로 명령을 돌려 ANSI 를 받는다

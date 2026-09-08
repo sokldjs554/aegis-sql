@@ -757,6 +757,7 @@ class PolicyGuard:
                 scope_applied = False
                 ordered_tables = sorted(physical.items(), key=lambda item: (item[1], item[0]))
                 for anchor_index, (alias, table) in enumerate(ordered_tables):
+                    condition: exp.Expr | None
                     if table.upper() == policy.table.upper():
                         condition = self._qualified_filter(rendered, policy.table, alias)
                     elif policy.propagate:
