@@ -36,11 +36,6 @@ jobs:
           pip install -e ".[llm,dev]"
       - name: Lint
         run: ruff check src tests scripts
-      # README 가 "mypy 클린" 을 게시하므로 CI 가 지키게 한다.  버전별 편차를 피해
-      # 한 버전에서만 돌린다 — 타입 검사는 파이썬 버전마다 반복할 이유가 없다.
-      - name: Typecheck
-        if: matrix.python == '3.11'
-        run: mypy src/aegis_sql --ignore-missing-imports
       - name: Build demo database (small scale)
         run: python scripts/build_demo_db.py --scale 0.25 --force
       - name: Build & validate benchmark (gold SQL must execute)
@@ -79,6 +74,12 @@ jobs:
           # with no GPU.
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[all]"
+      # README 가 "mypy 클린" 을 게시하므로 CI 가 지키게 한다.  core 잡이 아니라
+      # 여기서 돌리는 이유: training/model.py 는 torch 가 없으면 Module = object 로
+      # 폴백하는데 mypy 가 그것을 기반 클래스로 인정하지 않는다.  torch 가 실제로
+      # 깔린 이 잡에서만 nn.Module 이 진짜 타입이라 검사가 의미를 갖는다.
+      - name: Typecheck
+        run: mypy src/aegis_sql --ignore-missing-imports
       - run: python scripts/build_demo_db.py --scale 0.25 --force
       - run: python scripts/build_benchmark.py
 
