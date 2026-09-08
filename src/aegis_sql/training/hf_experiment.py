@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from aegis_sql.schema.card import SchemaCardBuilder
+from aegis_sql.schema.card import SchemaCardBuilder, Style
 from aegis_sql.types import LinkedSchema
 
 SYSTEM_PROMPT = (
@@ -49,7 +49,7 @@ def prepare_records(
     rows: list[dict[str, Any]],
     card_builder: SchemaCardBuilder,
     *,
-    style: str = "slm",
+    style: Style = "slm",
 ) -> list[PreparedExample]:
     """Render the same AEGIS schema representation for every supervision pair.
 

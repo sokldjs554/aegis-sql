@@ -525,9 +525,9 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | | |
 |---|---|
-| Python | 26,520줄 (src 21,991 / tests 2,476 / scripts 2,053) · 추적 파일 150개 |
-| 테스트 | **269개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 |
-| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) |
+| Python | 27,482줄 (src 22,229 / tests 2,617 / scripts 2,636) · 추적 파일 168개 |
+| 테스트 | **273개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 (CI 강제) |
+| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 논문 리뷰 [`docs/research/`](docs/research/) 10편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
 
@@ -537,7 +537,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 26,500줄, `src/` 함수 1,038개 중 1,020개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 269개 |
+| **Python** | 약 27,500줄, `src/` 함수 1,047개 중 1,028개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 273개 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -583,7 +583,7 @@ aegis-sql/
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
-└── tests/                  269개 테스트 (실제 DB 대상, 목킹 없음)
+└── tests/                  273개 테스트 (실제 DB 대상, 목킹 없음)
 ```
 
 ---
