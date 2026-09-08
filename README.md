@@ -328,13 +328,15 @@ $ aegis ask "설계사 실적 좀 보여줘"
 ```mermaid
 flowchart LR
     Q["자연어 질문"] --> N["① 한국어 정규화<br/>조사·날짜·금액·의도<br/><i>LLM 호출 없음</i>"]
-    N --> A{"② 모호한가?"}
+    N --> IG{"② 요청 의도 가드<br/>PII·변경 요청인가?"}
+    IG -->|차단| B["거버넌스 차단<br/><i>SQL 을 만들기 전에</i>"]
+    IG -->|통과| L["③ 하이브리드 스키마 링킹<br/>dense+BM25+용어사전+값매칭<br/>+FK 그래프 조인 경로"]
+    L --> A{"④ 모호한가?<br/><i>링킹 결과로 판정</i>"}
     A -->|예| C["되묻기"]
-    A -->|아니오| L["③ 하이브리드 스키마 링킹<br/>dense+BM25+용어사전+값매칭<br/>+FK 그래프 조인 경로"]
-    L --> R["④ 캐스케이드 라우터<br/>난이도 17차원 → 티어 선택<br/><i>Keras 학습 / numpy 서빙</i>"]
-    R --> G["⑤ SQL 생성<br/>template / sLLM / LLM / ensemble"]
-    G --> V["⑥ 정적검사 → AST 거버넌스<br/>→ 샌드박스 실행"]
-    V -->|실패| F["⑦ 자가교정 8종<br/>→ 실패 시 LLM 수리"]
+    A -->|아니오| R["⑤ 캐스케이드 라우터<br/>난이도 17차원 → 티어 선택<br/><i>Keras 학습 / numpy 서빙</i>"]
+    R --> G["⑥ SQL 생성<br/>template / sLLM / LLM / ensemble"]
+    G --> V["⑦ 정적검사 → AST 거버넌스<br/>→ 샌드박스 실행"]
+    V -->|실패| F["⑧ 자가교정 8종<br/>→ 실패 시 LLM 수리"]
     F --> V
     V --> O["SQL + 결과 + 근거 + 비용"]
     V -.->|"교정 로그"| DP["DPO 선호쌍"]
@@ -388,7 +390,8 @@ LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐
 > 밝혀 둡니다.
 
 **hard 티어는 실측이 설계를 증명합니다.** 문법 기반 template은 hard 0% —
-상관 서브쿼리·2단 CTE는 구조적으로 도달할 수 없는 형태 — 지만, LLM 티어를 켜면
+집계값과 비교하는 스칼라 서브쿼리·2단 CTE는 구조적으로 도달할 수 없는 형태
+(생성기가 렌더하는 중첩 SELECT 는 팬아웃 조인을 바꾼 상관 `EXISTS` 하나뿐입니다) — 지만, LLM 티어를 켜면
 **hard 30%(단독) / 20%(캐스케이드)**로 올라갑니다. "상위 티어가 hard를 담당한다"는
 캐스케이드 설계 가설이 수치로 확인되었습니다.
 
@@ -419,7 +422,8 @@ template 구간을 줄이는 것**입니다. 다만 ensemble은 호출 수 5배 
 | `no-glossary` — 사내 용어사전 제거 | 34.4% | **−10.0%p** | 20.0% |
 | `dense-only` — BM25 제거 | 41.1% | −3.3%p | 27.5% |
 | `no-schema-linking` — 전체 스키마 투입 | 43.3% | −1.1%p | 30.0% |
-| `no-value-link` / `lexical-only` / `no-fk-expand` / `no-repair` | 44.4% | ±0.0%p | 32.5% |
+| `no-value-link` / `lexical-only` / `no-repair` | 44.4% | ±0.0%p | 32.5% |
+| `no-fk-expand` — 기준선이 이미 `fk_expand_hops: 0` 이라 끌 것이 없는 동일 구성 (어블레이션이 아닙니다) | 44.4% | — | 32.5% |
 | `no-fewshot` / `card-compact` | 44.4% | n/a | 32.5% |
 
 **41개짜리 사내 용어사전이 10%p를 만듭니다.** 이 도메인에서 정확도를 가르는 것은
@@ -533,7 +537,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 26,500줄, 전 함수 타입힌트, `ruff` + `mypy` 클린, pytest 269개 |
+| **Python** | 약 26,500줄, `src/` 함수 1,038개 중 1,020개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 269개 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |

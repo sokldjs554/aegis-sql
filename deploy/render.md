@@ -31,8 +31,9 @@ Render 를 고른 결정적 이유는 **구조적으로 청구가 불가능**하
 낫다** — 0.8초에 뜬다.
 
 메모리는 문제가 아니다. 무료 한도가 512MB 인데 이 앱의 실측 RSS 는
-**78MB** 다(엔진 구성 + 질의 3회 후). 여유가 크다. sLLM 체크포인트가
-이미지에 들어가지 않아 PyTorch 가 적재되지 않기 때문이다.
+**78MB** 다(엔진 구성 + 질의 3회 후). 여유가 크다. 이미지에 PyTorch 자체가
+없기 때문이다 — Dockerfile 은 `pip install -e ".[llm]"` 만 돌리고 torch 는 학습
+전용 `train` extra 에만 있다(sLLM 체크포인트도 굽지 않는다).
 
 ## 절차
 
@@ -73,8 +74,10 @@ curl -s -X POST "$URL/v1/query" -H 'content-type: application/json' \
 
 ## LLM API 키를 넣지 말 것
 
-`render.yaml` 에 `ANTHROPIC_API_KEY` 를 넣으면 답변 문장을 LLM 이 써 주는
-보조 호출이 켜진다. 그러면:
+`render.yaml` 에 `ANTHROPIC_API_KEY` 를 넣으면 — 기본 provider 가 `auto` 라 —
+LLM 경로가 통째로 열린다. `Tier.LLM` 과 `Tier.ENSEMBLE` 이 SQL 생성 티어로
+등록되어 라우터의 선택지가 되고, 자가교정의 LLM 수리와 답변 문장 합성도 함께
+켜진다. 그러면:
 
 - 화면의 비용·지연이 `$0 · 6ms` 에서 **`$0.0013 · 2,600ms`** 로 바뀐다
 - README 가 게시한 `template 44.4% ($0·6ms)` 와 화면이 어긋난다

@@ -27,7 +27,7 @@
 
 이전 판에서는 서울을 권했는데, 요금 페이지를 다시 읽고 바꿨습니다.
 
-Cloud Run 요금 페이지의 `Regional price tiers` 절은 `asia-northeast1
+Cloud Run 요금 페이지의 `Regional price tiers` 절은 `asia-northeast3
 (Seoul, South Korea)` 를 **Tier 2** 로 분류합니다. 그리고 무료 한도는
 *"The free tier is applied as a spending based discount using Tier 1
 pricing"* 입니다. 즉 **사용은 Tier 2 단가로 계산되고 할인은 Tier 1 단가로
