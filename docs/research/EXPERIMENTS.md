@@ -14,13 +14,21 @@
 
 schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 그럴듯한 SQL을 억지로 만드는지 또는 명시적으로 abstain하는지 확인할 수 있다.
 
-### 첫 probe 후보
+### probe dataset
+
+`data/research/ehrsql_unanswerable_probes.jsonl`에 첫 research set을 고정했다.
+
+- unanswerable 15문항
+- schema에 실제로 답이 있는 hard-negative answerable 15문항
+
+예시:
 
 - "신용점수가 700점 이하인 고객의 계약 유지율을 알려줘" — 신용점수 정보 없음
 - "직업군별 실효율을 보여줘" — 고객 직업 이력 없음
 - "태풍 발생일 전후 보험금 청구 증가율은?" — 외부 기상 데이터 없음
-- "고객의 최근 건강검진 결과별 보험료를 비교해줘" — 건강검진 데이터 없음
-- "경쟁사 상품 대비 보험료가 비싼 상품을 알려줘" — 경쟁사 데이터 없음
+- hard negative: "지역별 평균 월납보험료를 알려줘" — 고객 지역코드와 계약 보험료로 답변 가능
+
+이 파일은 아직 KorFin-Bench 본 점수에는 넣지 않는다. answerability 상태와 평가 지표가 먼저 구현되어야 하기 때문이다.
 
 ### 필요한 구현
 
@@ -31,11 +39,12 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 
 ### 완료 조건
 
-- 최소 15개 unanswerable probe
-- 최소 15개 유사하지만 answerable한 hard-negative probe
+- 최소 15개 unanswerable probe ✅
+- 최소 15개 유사하지만 answerable한 hard-negative probe ✅
 - 두 지표를 리포트에 별도 표시
+- 엔진의 명시적 abstention 경로 구현
 
-**현재 상태:** 설계 완료 / 코드·측정 미실행
+**현재 상태:** probe dataset 구현 완료 / 엔진 abstention·지표·측정 미실행
 
 ---
 
