@@ -12,13 +12,7 @@ small domain capability registry, not a claim that arbitrary out-of-domain
 questions can be solved by keywords alone.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Any
-
-from aegis_sql.types import SchemaGraph
-
 
 _NORMALIZE_TABLE = str.maketrans("", "", " _-./()")
 
@@ -73,8 +67,8 @@ class SchemaAnswerabilityDetector:
 
     def __init__(
         self,
-        schema: SchemaGraph,
-        glossary_entries: list[Any] | tuple[Any, ...] | None = None,
+        schema,
+        glossary_entries: list[object] | tuple[object, ...] | None = None,
         *,
         rules: tuple[CapabilityRule, ...] = DEFAULT_CAPABILITY_RULES,
     ) -> None:
