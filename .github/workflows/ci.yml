@@ -36,6 +36,11 @@ jobs:
           pip install -e ".[llm,dev]"
       - name: Lint
         run: ruff check src tests scripts
+      # README 가 "mypy 클린" 을 게시하므로 CI 가 지키게 한다.  버전별 편차를 피해
+      # 한 버전에서만 돌린다 — 타입 검사는 파이썬 버전마다 반복할 이유가 없다.
+      - name: Typecheck
+        if: matrix.python == '3.11'
+        run: mypy src/aegis_sql --ignore-missing-imports
       - name: Build demo database (small scale)
         run: python scripts/build_demo_db.py --scale 0.25 --force
       - name: Build & validate benchmark (gold SQL must execute)
