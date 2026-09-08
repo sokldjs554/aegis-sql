@@ -45,15 +45,26 @@ python scripts/eval_answerability.py
 
 CI에서는 `tests/test_answerability_research.py`가 실제 demo schema + glossary를 사용해 같은 가설을 검증한다. 또한 schema에 `신용점수` column을 임시로 추가했을 때 기존 거부가 사라지는지도 확인해, 단순 benchmark ID 암기가 아니라 schema evidence에 반응하는지 검사한다.
 
+## 측정 결과
+
+실제 demo schema + glossary에 대해 고정한 30개 research probe에서:
+
+| 지표 | 결과 |
+|---|---:|
+| unanswerable recall | **15/15 = 100.0%** |
+| false abstention rate | **0/15 = 0.0%** |
+| accuracy | **30/30 = 100.0%** |
+| confusion | TP 15 / TN 15 / FP 0 / FN 0 |
+
+이 결과는 Python 3.10/3.11/3.12 core CI에서 동일한 integration test로 재검증됐다.
+
 ## 결과 해석 규칙
 
-이 실험에서 높은 점수가 나와도 **일반적인 OOD detector 성능**으로 주장하지 않는다. 30개 probe는 이번 연구 질문을 위해 직접 구성한 작은 데이터셋이다.
+위 100%는 **일반적인 OOD detector 성능이 아니다.** 30개 probe는 이번 연구 질문을 위해 직접 구성한 작은 고정 데이터셋이다. 따라서 포트폴리오에서도 `30개 research probe에서`라는 범위를 반드시 함께 적는다.
 
 포트폴리오에서 사용할 수 있는 표현은 다음 수준까지다.
 
-> EHRSQL을 검토한 뒤 기존 평가셋에 `명확하지만 DB로 답할 수 없는 질문`이 빠져 있음을 확인했다. 15개 unanswerable과 15개 answerable hard-negative probe를 만들고, 실제 schema/glossary evidence에 기반한 capability gate를 구현해 별도 평가했다.
-
-수치는 CI/실험 실행이 통과한 뒤에만 이 문서에 기록한다.
+> EHRSQL을 검토한 뒤 기존 평가셋에 `명확하지만 DB로 답할 수 없는 질문`이 빠져 있음을 확인했다. 15개 unanswerable과 15개 answerable hard-negative probe를 만들고, 실제 schema/glossary evidence에 기반한 capability gate를 구현했다. 고정한 30개 research probe에서 unanswerable recall 15/15, false abstention 0/15를 확인했으며, 일반 OOD 성능으로 확대 해석하지 않았다.
 
 ## 현재 상태
 
@@ -61,5 +72,5 @@ CI에서는 `tests/test_answerability_research.py`가 실제 demo schema + gloss
 - schema-capability detector: 구현 완료
 - 독립 평가 runner: 구현 완료
 - 실제 demo schema integration test: 구현 완료
-- 측정 결과: **CI 확인 중**
+- research probe 측정: **완료 — 15/15 recall, 0/15 false abstention**
 - production `AegisEngine.ask()` abstention 경로: 아직 미통합
