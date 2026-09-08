@@ -8,43 +8,46 @@
 
 ### 문제
 
-현재 KorFin-Bench는 answerable 90문항, governance 10문항, ambiguity 6문항으로 구성되어 있다. 그러나 질문이 명확하고 안전해도 **현재 schema에 필요한 정보가 없어서 답할 수 없는 경우**를 독립적으로 측정하지 않는다.
+KorFin-Bench는 answerable 90문항, governance 10문항, ambiguity 6문항으로 구성되어 있다. 그러나 질문이 명확하고 안전해도 **현재 schema에 필요한 정보가 없어서 답할 수 없는 경우**를 독립적으로 측정하지 않았다.
 
 ### 가설
 
-schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 그럴듯한 SQL을 억지로 만드는지 또는 명시적으로 abstain하는지 확인할 수 있다.
+schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 그럴듯한 SQL을 억지로 만드는지 또는 명시적으로 abstain해야 하는지 확인할 수 있다.
 
-### probe dataset
+### 구현
 
-`data/research/ehrsql_unanswerable_probes.jsonl`에 첫 research set을 고정했다.
+- `data/research/ehrsql_unanswerable_probes.jsonl`
+  - unanswerable 15문항
+  - 유사하지만 실제 schema로 답할 수 있는 hard-negative 15문항
+- `src/aegis_sql/nlu/answerability.py`
+  - 실제 demo schema + glossary evidence에 반응하는 deterministic capability detector
+- `scripts/eval_answerability.py`
+  - unanswerable recall / false abstention / accuracy 측정
+- `tests/test_answerability_research.py`
+  - 실제 demo schema integration test
+  - schema에 matching evidence를 추가하면 기존 abstention이 해제되는지 확인
+- `src/aegis_sql/research/capability_engine.py`
+  - default engine을 바꾸지 않고 명시적으로 opt-in하는 executable abstention adapter
+- `scripts/run_answerability_engine.py`
+  - 실제 질의를 `unanswerable` 또는 기존 AEGIS 결과로 실행
 
-- unanswerable 15문항
-- schema에 실제로 답이 있는 hard-negative answerable 15문항
+### 측정 결과
 
-예시:
+고정한 30개 research probe에서:
 
-- "신용점수가 700점 이하인 고객의 계약 유지율을 알려줘" — 신용점수 정보 없음
-- "직업군별 실효율을 보여줘" — 고객 직업 이력 없음
-- "태풍 발생일 전후 보험금 청구 증가율은?" — 외부 기상 데이터 없음
-- hard negative: "지역별 평균 월납보험료를 알려줘" — 고객 지역코드와 계약 보험료로 답변 가능
+- unanswerable recall: **15/15 = 100.0%**
+- false abstention: **0/15 = 0.0%**
+- accuracy: **30/30 = 100.0%**
 
-이 파일은 아직 KorFin-Bench 본 점수에는 넣지 않는다. answerability 상태와 평가 지표가 먼저 구현되어야 하기 때문이다.
+이 수치는 일반 OOD 성능이 아니다. 이번 가설을 위해 직접 고정한 30개 probe 범위의 결과다.
 
-### 필요한 구현
+### production 적용 판단
 
-1. `AnswerStatus.UNANSWERABLE` 또는 동등한 명시적 abstention 상태
-2. answerability 판단의 근거 기록
-3. `unanswerable_recall`과 `false_abstention_rate` 지표
-4. 정상 answerable 질문을 거부하지 않는 회귀 테스트
+`CapabilityAwareEngine`으로 end-to-end abstention path까지 실행 가능하게 만들었지만, **default `AegisEngine.ask()`의 동작은 아직 바꾸지 않았다.** 30개 curated probe만으로 모든 실제 고객 질문에 default abstention을 켜는 것은 근거가 부족하기 때문이다.
 
-### 완료 조건
+즉 `코드 미완성`이 아니라 **연구 adapter 구현 완료 / default promotion gate 보류** 상태다. 실제 고객 질문이나 더 넓은 OOD set에서 false-abstention을 검증한 뒤 core path로 승격한다.
 
-- 최소 15개 unanswerable probe ✅
-- 최소 15개 유사하지만 answerable한 hard-negative probe ✅
-- 두 지표를 리포트에 별도 표시
-- 엔진의 명시적 abstention 경로 구현
-
-**현재 상태:** probe dataset 구현 완료 / 엔진 abstention·지표·측정 미실행
+**현재 상태:** probe + detector + 지표 + 측정 + executable adapter **완료** / default core promotion은 추가 외부 검증 대기
 
 ---
 
@@ -58,29 +61,33 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 
 ### 가설
 
-동일 AEGIS flywheel 데이터에서 pretrained 1.5B/3B 모델을 LoRA/SFT하면 from-scratch 5.3M보다 downstream EX가 크게 높아질 가능성이 있다.
+동일 AEGIS flywheel 데이터에서 pretrained Qwen2.5-Coder 1.5B를 LoRA/QLoRA하면 from-scratch 5.3M과 다른 downstream EX 특성이 나타날 것이다.
 
-### 비교 조건
+### 구현 완료
 
-| 축 | 조건 |
-|---|---|
-| 데이터 | 동일 train/dev/test split |
-| 평가 | 동일 KorFin-Bench |
-| retrieval | 동일 schema linking 결과 |
-| 모델 A | AegisLM 5.3M from-scratch |
-| 모델 B | pretrained 1.5B + LoRA/SFT |
-| 모델 C | pretrained 3B + LoRA/SFT (자원 허용 시) |
+- HuggingFace `transformers` + PEFT + bitsandbytes optional stack
+- `Qwen/Qwen2.5-Coder-1.5B-Instruct` LoRA/QLoRA training entry point
+- 기존 flywheel train/dev split 그대로 재사용
+- 기존 `SchemaCardBuilder(style="slm")` 재사용
+- train/dev SHA-256 + schema fingerprint + seed + LoRA 설정 manifest 기록
+- target SQL이 prompt에 leakage되지 않는 CI test
+- 기존 AEGIS normalizer + schema linker + policy guard + executor + execution-match를 그대로 쓰는 evaluator
+- Colab-ready notebook
+- `scripts/run_qwen_colab.sh` full-run runner
 
-### 측정
+자세한 실행 절차: [LitE-SQL-QWEN-EXPERIMENT.md](LitE-SQL-QWEN-EXPERIMENT.md)
 
-- EX / execution success
-- easy/medium/hard
-- model memory
-- p50/p95 latency
-- 학습 시간
-- glossary on/off 교차 실험
+### 아직 남은 측정
 
-**현재 상태:** 설계 완료 / HuggingFace·Qwen 스택 미추가 / 측정 미실행
+1. GPU에서 **base Qwen2.5-Coder 1.5B** KorFin 90문항 전체 EX
+2. 동일 GPU에서 **1.5B QLoRA** 학습
+3. adapter 적용 후 같은 KorFin 90문항 전체 EX
+4. easy/medium/hard, p50/p95 latency, peak GPU memory 기록
+5. 1.5B 결과를 본 뒤 자원 허용 시 3B 반복
+
+현재 ChatGPT 실행 환경에는 실제 CUDA 학습 런타임이 없고, 외부 유료 GPU를 임의로 생성하는 것은 비용이 발생할 수 있어 자동 실행하지 않는다. **성능 수치는 아직 없음**이 정확한 상태다.
+
+**현재 상태:** 코드·Colab·평가 경로·CI **완료** / 실제 1.5B GPU full run만 외부 GPU 대기
 
 ---
 
@@ -94,29 +101,60 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 
 ### 가설
 
-router confidence가 낮고 후보의 execution-result group이 분산된 경우에만 상위 tier/resampling을 발동하면 비용 증가를 제한하면서 EX를 개선할 수 있다.
+router confidence가 낮고 후보의 execution-result group이 분산된 경우에만 resampling을 발동하면 비용 증가를 제한하면서 실패 후보 pool을 복구할 가능성이 있다.
 
-### 측정
+### 구현 완료
 
-- unique execution-result group 수
-- top-group share
-- router confidence
-- resampling trigger rate
-- EX delta
-- 추가 LLM 호출 수
-- cost/query
-- p95 latency
+- `src/aegis_sql/research/selective_resampling.py`
+  - route confidence
+  - execution-result group 수
+  - winner agreement
+  - candidate count
+  를 이용한 side-effect-free trigger policy
+- `scripts/eval_selective_resampling.py`
+  - 실제로 기록된 candidate-pool JSONL을 받아 trigger rate 계산
+  - `baseline_correct / resampled_correct`가 실제 관측돼 있을 때만 counterfactual accuracy 계산
+  - cost / latency 증가도 같이 계산
+- `tests/test_paper_driven_runtime.py`
+  - low-confidence + disagreement에서만 trigger되는지 회귀 테스트
 
-### 성공 기준
+### 중요한 구분
 
-정확도만 올리는 것을 성공으로 보지 않는다. 다음을 같이 보고 판단한다.
+이 policy는 R³-SQL의 learned/agentic judge를 재현한 것이 아니다. 현재 AEGIS가 이미 보유한 observable signal로 만든 **보수적인 heuristic approximation**이다.
 
-- EX 증가
-- 질의당 비용 증가율
-- p95 지연 증가율
-- hard 문항 개선 여부
+또한 현재 저장된 `reports/eval_llm.json`은 최종 EX/tier mix는 있지만 candidate별 execution group/agreement와 실제 resampled outcome을 저장하지 않는다. 따라서 지금 숫자를 만들어 `EX가 개선됐다`고 주장하지 않는다.
 
-**현재 상태:** 설계 완료 / 측정 미실행
+### 다음 실제 측정 조건
+
+LLM/ensemble을 다시 실행할 때 candidate pool마다 다음을 기록한다.
+
+- route confidence
+- candidate count
+- unique execution-result groups
+- winner agreement
+- baseline correctness
+- trigger 시 추가 sample 결과의 correctness
+- extra cost / latency
+
+그 로그를 `scripts/eval_selective_resampling.py`에 넣어 실제 delta를 계산한다.
+
+**현재 상태:** trigger policy + offline evaluator + tests **완료** / 실제 resampled outcome 로그 측정은 LLM 재실행 대기
+
+---
+
+## EXP-04 — SafeQL-inspired Component Repair Audit
+
+**근거 논문:** [SAFEQL.md](SAFEQL.md)
+
+SafeQL은 DBMS parser/binder/type analyzer feedback으로 오류 component를 찾고, SQL 전체 재생성 대신 safe query space에서 부분 수정한다. AEGIS의 deterministic repair와 문제의식은 유사하지만 구현 수준은 다르다.
+
+후속 검토 항목:
+
+- repair log에 SELECT/FROM/WHERE/JOIN/value/function component label 추가
+- 복수 deterministic repair 후보가 가능한 경우 AST edit distance 기반 ranking
+- local repair budget을 소진했을 때만 LLM repair를 부르는 gate 정량화
+
+**현재 상태:** 논문 리뷰 및 AEGIS gap 분석 완료 / 신규 구현은 EXP-01~03의 측정 이후 우선순위 재평가
 
 ---
 
@@ -131,3 +169,5 @@ router confidence가 낮고 후보의 execution-result group이 분산된 경우
 - seed
 - raw JSON 결과 경로
 - 실패한 가설도 삭제하지 않고 결과와 해석을 함께 기록
+
+특히 `준비된 실험`, `smoke run`, `full benchmark`를 같은 숫자로 취급하지 않는다.
