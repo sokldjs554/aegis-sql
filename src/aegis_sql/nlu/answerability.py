@@ -14,18 +14,17 @@ questions can be solved by keywords alone.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 
 from aegis_sql.types import SchemaGraph
 
 
-_NORMALIZE = re.compile(r"[\s_\-./()]+")
+_NORMALIZE_TABLE = str.maketrans("", "", " _-./()")
 
 
 def _norm(text: str) -> str:
-    return _NORMALIZE.sub("", text.casefold())
+    return text.casefold().translate(_NORMALIZE_TABLE)
 
 
 def _contains_group(text: str, group: tuple[str, ...]) -> bool:
