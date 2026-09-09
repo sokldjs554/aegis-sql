@@ -61,7 +61,7 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 
 ### 가설
 
-동일 AEGIS flywheel 데이터에서 pretrained Qwen2.5-Coder 1.5B를 LoRA/QLoRA하면 from-scratch 5.3M과 다른 downstream EX 특성이 나타날 것이다.
+고정한 AEGIS flywheel snapshot에서 Qwen2.5-Coder 1.5B base와 QLoRA 이후 모델을 비교하면 pretrained adaptation의 downstream EX 변화를 측정할 수 있을 것이다. 과거 from-scratch 5.3M 결과는 원본 JSONL이 보존되지 않아 이번 paired comparison에 포함하지 않는다.
 
 ### 구현 완료
 
@@ -70,6 +70,7 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 - 기존 flywheel train/dev split 그대로 재사용
 - 기존 `SchemaCardBuilder(style="slm")` 재사용
 - train/dev SHA-256 + schema fingerprint + seed + LoRA 설정 manifest 기록
+- Git에 고정한 합성 snapshot train 9,000 / dev 1,153과 materialize hash 검증
 - target SQL이 prompt에 leakage되지 않는 CI test
 - 기존 AEGIS normalizer + schema linker + policy guard + executor + execution-match를 그대로 쓰는 evaluator
 - Colab-ready notebook
@@ -84,6 +85,8 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 3. adapter 적용 후 같은 KorFin 90문항 전체 EX
 4. easy/medium/hard, p50/p95 latency, peak GPU memory 기록
 5. 1.5B 결과를 본 뒤 자원 허용 시 3B 반복
+
+과거 AegisLM 5.3M과 `동일 데이터` 비교를 주장하려면 이 snapshot으로 AegisLM을 다시 학습·평가해야 한다. 그 전까지 0.0% EX는 역사적 참고값으로만 표시한다.
 
 현재 ChatGPT 실행 환경에는 실제 CUDA 학습 런타임이 없고, 외부 유료 GPU를 임의로 생성하는 것은 비용이 발생할 수 있어 자동 실행하지 않는다. **성능 수치는 아직 없음**이 정확한 상태다.
 

@@ -8,8 +8,37 @@ set -euo pipefail
 #   SMOKE=1 bash scripts/run_qwen_colab.sh
 
 MODEL="${MODEL:-Qwen/Qwen2.5-Coder-1.5B-Instruct}"
-OUT="${OUT:-data/generated/hf/qwen2.5-coder-1.5b}"
 SMOKE="${SMOKE:-0}"
+
+if [[ "$SMOKE" == "1" ]]; then
+  RUN_KIND="smoke"
+  DEFAULT_OUT="data/generated/hf/qwen2.5-coder-1.5b-smoke"
+  TRAIN_ARGS=(--limit-train 64 --limit-dev 32 --epochs 0.2)
+  EVAL_ARGS=(--limit 10)
+  EXPECTED_ITEMS=10
+  echo "Running SMOKE mode: 64 train / 32 dev / 10 eval items"
+else
+  RUN_KIND="full"
+  DEFAULT_OUT="data/generated/hf/qwen2.5-coder-1.5b-full"
+  TRAIN_ARGS=()
+  EVAL_ARGS=()
+  EXPECTED_ITEMS=90
+  echo "Running FULL mode: frozen 9,000-row Qwen snapshot + all 90 answerable KorFin items"
+fi
+
+OUT="${OUT:-$DEFAULT_OUT}"
+BASE_REPORT="${BASE_REPORT:-reports/qwen2.5-coder-1.5b-${RUN_KIND}-base.json}"
+ADAPTED_REPORT="${ADAPTED_REPORT:-reports/qwen2.5-coder-1.5b-${RUN_KIND}-adapted.json}"
+SUMMARY_REPORT="${SUMMARY_REPORT:-reports/qwen2.5-coder-1.5b-${RUN_KIND}-summary.json}"
+RESULT_BUNDLE="${RESULT_BUNDLE:-reports/qwen2.5-coder-1.5b-${RUN_KIND}-results.zip}"
+SNAPSHOT_DIR="${SNAPSHOT_DIR:-data/research/qwen_flywheel_v1}"
+REFERENCE_ROOT="${REFERENCE_ROOT:-data/generated/qwen-flywheel-v1}"
+REFERENCE_DB="${REFERENCE_DB:-$REFERENCE_ROOT/aegis_demo.sqlite}"
+REFERENCE_DATA="${REFERENCE_DATA:-$REFERENCE_ROOT/dataset}"
+
+export PYTHONHASHSEED=0
+export AEGIS_DATABASE__PATH="$REFERENCE_DB"
+export AEGIS_FLYWHEEL__OUTPUT_DIR="$REFERENCE_DATA"
 
 if ! command -v nvidia-smi >/dev/null 2>&1; then
   echo "ERROR: NVIDIA GPU runtime is required. In Colab choose Runtime > Change runtime type > GPU." >&2
@@ -30,26 +59,19 @@ PY
 python -m pip install -q --upgrade pip
 python -m pip install -q -e ".[hf]"
 
-# The comparison must use the real AEGIS demo schema and the existing skeleton-
-# clustered flywheel split. Build only when the artifacts are absent.
-if [[ ! -f data/demo/aegis_demo.sqlite ]]; then
-  python scripts/build_demo_db.py --scale 1.0
-fi
+# Materialize the committed synthetic snapshot instead of regenerating the
+# flywheel in Colab. The old 12,540-row artefact was never committed and its
+# profile cache did not include a database-content hash, so it cannot support
+# an exact paired comparison. This snapshot makes every Qwen run use identical
+# train/dev records; the historical AegisLM result remains explicitly unpaired.
+mkdir -p "$REFERENCE_ROOT"
+python scripts/build_demo_db.py --out "$REFERENCE_DB" --scale 1.0 --force
+python scripts/qwen_dataset_snapshot.py materialize \
+  --snapshot "$SNAPSHOT_DIR" \
+  --out "$REFERENCE_DATA"
+
 if [[ ! -f data/benchmark/korfin_bench.jsonl ]]; then
   python scripts/build_benchmark.py
-fi
-if [[ ! -f data/generated/flywheel/train.jsonl || ! -f data/generated/flywheel/dev.jsonl ]]; then
-  python -m aegis_sql.cli flywheel --n-programs 4000
-fi
-
-if [[ "$SMOKE" == "1" ]]; then
-  TRAIN_ARGS=(--limit-train 64 --limit-dev 32 --epochs 0.2)
-  EVAL_ARGS=(--limit 10)
-  echo "Running SMOKE mode: 64 train / 32 dev / 10 eval items"
-else
-  TRAIN_ARGS=()
-  EVAL_ARGS=()
-  echo "Running FULL mode: existing full flywheel split + all answerable KorFin items"
 fi
 
 mkdir -p reports "$OUT"
@@ -58,6 +80,8 @@ mkdir -p reports "$OUT"
 python scripts/train_hf_text2sql.py \
   --model "$MODEL" \
   --qlora \
+  --data-dir "$REFERENCE_DATA" \
+  --seed 20260824 \
   --out "$OUT" \
   --prepare-only \
   "${TRAIN_ARGS[@]}"
@@ -66,13 +90,15 @@ python scripts/train_hf_text2sql.py \
 python scripts/eval_hf_text2sql.py \
   --model "$MODEL" \
   --load-4bit \
-  --out reports/qwen2.5-coder-1.5b-base.json \
+  --out "$BASE_REPORT" \
   "${EVAL_ARGS[@]}"
 
 # 2) Same model adapted on the unchanged AEGIS flywheel split.
 python scripts/train_hf_text2sql.py \
   --model "$MODEL" \
   --qlora \
+  --data-dir "$REFERENCE_DATA" \
+  --seed 20260824 \
   --out "$OUT" \
   "${TRAIN_ARGS[@]}"
 
@@ -81,35 +107,27 @@ python scripts/eval_hf_text2sql.py \
   --model "$MODEL" \
   --adapter "$OUT/adapter" \
   --load-4bit \
-  --out reports/qwen2.5-coder-1.5b-adapted.json \
+  --out "$ADAPTED_REPORT" \
   "${EVAL_ARGS[@]}"
 
-python - <<'PY'
-import json
+python scripts/summarize_qwen_experiment.py \
+  --manifest "$OUT/experiment_manifest.json" \
+  --base "$BASE_REPORT" \
+  --adapted "$ADAPTED_REPORT" \
+  --out "$SUMMARY_REPORT" \
+  --run-kind "$RUN_KIND" \
+  --expected-items "$EXPECTED_ITEMS"
+
+python - "$RESULT_BUNDLE" "$SUMMARY_REPORT" "$BASE_REPORT" "$ADAPTED_REPORT" \
+  "$OUT/experiment_manifest.json" <<'PY'
+import sys
+import zipfile
 from pathlib import Path
 
-paths = {
-    "base": Path("reports/qwen2.5-coder-1.5b-base.json"),
-    "adapted": Path("reports/qwen2.5-coder-1.5b-adapted.json"),
-}
-rows = {}
-for name, path in paths.items():
-    d = json.loads(path.read_text(encoding="utf-8"))
-    rows[name] = d
-    print("\n", name.upper())
-    print("items:", d["items"])
-    print("EX:", f'{d["execution_accuracy"]:.1%}')
-    print("difficulty:", {k: f'{v["ex"]:.1%}' for k, v in d["by_difficulty"].items()})
-    print("latency_ms:", d["latency_ms"])
-    if "max_cuda_memory_bytes" in d:
-        print("peak_cuda_GiB:", round(d["max_cuda_memory_bytes"] / (1024**3), 2))
-
-base = rows["base"]["execution_accuracy"]
-adapted = rows["adapted"]["execution_accuracy"]
-print("\nDELTA")
-print("adapted - base:", f'{(adapted-base)*100:+.1f} percentage points')
-print("\nRaw reports:")
-for p in paths.values():
-    print(" -", p)
-print("Manifest:", "data/generated/hf/qwen2.5-coder-1.5b/experiment_manifest.json")
+bundle = Path(sys.argv[1])
+artifacts = [Path(value) for value in sys.argv[2:]]
+with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    for artifact in artifacts:
+        archive.write(artifact, arcname=artifact.name)
+print(f"result bundle: {bundle}")
 PY
