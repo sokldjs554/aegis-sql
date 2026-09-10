@@ -224,7 +224,9 @@ def build_qwen_summary(
         raise ValueError("adapted report does not identify a PEFT adapter")
 
     dataset = manifest.get("dataset")
-    source_snapshot = dataset.get("source_snapshot") if isinstance(dataset, dict) else None
+    if not isinstance(dataset, dict):
+        raise ValueError("training manifest dataset metadata is missing")
+    source_snapshot = dataset.get("source_snapshot")
     if not isinstance(source_snapshot, dict) or source_snapshot.get("name") != "aegis-qwen-flywheel-v1":
         raise ValueError("the frozen Qwen dataset snapshot is missing")
     if run_kind == "full" and (
