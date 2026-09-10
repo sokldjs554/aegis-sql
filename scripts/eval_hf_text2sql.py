@@ -20,7 +20,14 @@ from aegis_sql.config import PROJECT_ROOT, get_settings
 from aegis_sql.eval.harness import load_benchmark
 from aegis_sql.eval.metrics import execution_match
 from aegis_sql.pipeline import AegisEngine
-from aegis_sql.training.hf_experiment import SYSTEM_PROMPT, PreparedExample, user_prompt
+from aegis_sql.training.hf_experiment import (
+    SYSTEM_PROMPT,
+    PreparedExample,
+    file_sha256,
+    git_sha,
+    runtime_metadata,
+    user_prompt,
+)
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 _CODE_FENCE = re.compile(r"```(?:sql)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
@@ -53,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--out", default="reports/hf-qwen-eval.json")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--max-new-tokens", type=int, default=256)
+    ap.add_argument("--warmup-runs", type=int, default=1)
     ap.add_argument("--load-4bit", action="store_true")
     return ap.parse_args()
 
@@ -68,6 +76,11 @@ def main() -> int:
 
     if args.load_4bit and not torch.cuda.is_available():
         raise SystemExit("--load-4bit requires CUDA")
+    if args.warmup_runs < 0:
+        raise SystemExit("--warmup-runs must be non-negative")
+
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
 
     quantization = None
     if args.load_4bit:
@@ -95,7 +108,9 @@ def main() -> int:
 
     settings = get_settings()
     engine = AegisEngine.build(settings)
-    items = [i for i in load_benchmark(_resolve(args.benchmark)) if i.expect == "ok"]
+    database_path = _resolve(settings.database.path)
+    benchmark_path = _resolve(args.benchmark)
+    items = [i for i in load_benchmark(benchmark_path) if i.expect == "ok"]
     if args.limit is not None:
         items = items[: args.limit]
 
@@ -119,15 +134,26 @@ def main() -> int:
             device = next(model.parameters()).device
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
+            generation_args = {
+                "max_new_tokens": args.max_new_tokens,
+                "do_sample": False,
+                "pad_token_id": tokenizer.pad_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+            }
+            if n == 1 and args.warmup_runs:
+                with torch.inference_mode():
+                    for _ in range(args.warmup_runs):
+                        model.generate(**inputs, **generation_args)
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             started = time.perf_counter()
-            with torch.no_grad():
-                generated = model.generate(
-                    **inputs,
-                    max_new_tokens=args.max_new_tokens,
-                    do_sample=False,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                )
+            with torch.inference_mode():
+                generated = model.generate(**inputs, **generation_args)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             latency_ms = (time.perf_counter() - started) * 1000
             latencies.append(latency_ms)
             new_tokens = generated[0, inputs["input_ids"].shape[1] :]
@@ -180,6 +206,19 @@ def main() -> int:
     report = {
         "model": args.model,
         "adapter": args.adapter or None,
+        "evaluation": {
+            "git_sha": git_sha(),
+            "benchmark": str(benchmark_path),
+            "benchmark_sha256": file_sha256(benchmark_path),
+            "database": str(database_path),
+            "database_sha256": file_sha256(database_path),
+            "limit": args.limit,
+            "max_new_tokens": args.max_new_tokens,
+            "warmup_runs": args.warmup_runs,
+            "quantization": "NF4 4-bit" if args.load_4bit else "none",
+            "latency_scope": "model.generate only; CUDA synchronized; warmup excluded",
+        },
+        "runtime": runtime_metadata(torch),
         "items": len(rows),
         "execution_accuracy": ratio("all"),
         "by_difficulty": {
@@ -191,6 +230,8 @@ def main() -> int:
     }
     if torch.cuda.is_available():
         report["max_cuda_memory_bytes"] = int(torch.cuda.max_memory_allocated())
+        report["max_cuda_memory_reserved_bytes"] = int(torch.cuda.max_memory_reserved())
+        report["gpu_memory_scope"] = "model load plus warmup and measured generation"
 
     out = _resolve(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
