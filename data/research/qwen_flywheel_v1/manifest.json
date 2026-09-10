@@ -1,0 +1,132 @@
+{
+  "name": "aegis-qwen-flywheel-v1",
+  "format_version": 1,
+  "synthetic_data": true,
+  "source": {
+    "schema": {
+      "name": "aegis_demo",
+      "fingerprint": "26cee9e1989d6426",
+      "tables": 11,
+      "database": "aegis_demo.sqlite"
+    },
+    "config": {
+      "seed": 20260824,
+      "n_programs_requested": 4000,
+      "n_programs_sampled": 4000,
+      "augment_per_example": 3,
+      "difficulty_mix": {
+        "easy": 0.3,
+        "medium": 0.45,
+        "hard": 0.25
+      },
+      "require_nonempty_result": true,
+      "dedupe_threshold": 0.92,
+      "templates_registered": 22
+    },
+    "counts": {
+      "total": 12048,
+      "splits": {
+        "train": 9634,
+        "dev": 1153,
+        "test": 1261
+      },
+      "by_difficulty": {
+        "easy": 3614,
+        "hard": 3012,
+        "medium": 5422
+      },
+      "by_template": {
+        "easy_aggregate_by_code": 339,
+        "easy_aggregate_in_window": 706,
+        "easy_count_by_code": 198,
+        "easy_count_in_window": 584,
+        "easy_count_over_threshold": 389,
+        "easy_distinct_count": 584,
+        "easy_top_n_rows": 814,
+        "hard_above_global_average": 604,
+        "hard_anti_join_not_exists": 227,
+        "hard_cte_two_stage": 280,
+        "hard_join_having_subquery": 143,
+        "hard_left_join_is_null": 621,
+        "hard_nested_aggregate": 228,
+        "hard_period_over_period": 275,
+        "hard_rank_emulation": 634,
+        "medium_date_bucket_trend": 870,
+        "medium_group_by_code_label": 726,
+        "medium_group_by_dimension": 1110,
+        "medium_having_threshold": 613,
+        "medium_multi_predicate": 595,
+        "medium_ratio_nullif": 613,
+        "medium_three_table_join": 895
+      },
+      "by_source": {
+        "augment": 8655,
+        "backtranslate": 3393
+      },
+      "by_split_difficulty": {
+        "train": {
+          "easy": 2901,
+          "hard": 2403,
+          "medium": 4330
+        },
+        "dev": {
+          "easy": 334,
+          "hard": 275,
+          "medium": 544
+        },
+        "test": {
+          "easy": 379,
+          "hard": 334,
+          "medium": 548
+        }
+      }
+    },
+    "leakage": {
+      "skeletons": {
+        "train": 31,
+        "dev": 10,
+        "test": 12
+      },
+      "train_test_overlap": 0,
+      "train_dev_overlap": 0,
+      "dev_test_overlap": 0
+    }
+  },
+  "database_generation": {
+    "scale": 1.0,
+    "marketing_consent_rate": 0.4,
+    "python_hash_seed": 0
+  },
+  "selection": {
+    "seed": 20260824,
+    "train": "seeded shuffle then first 9000",
+    "dev": "complete source dev split in file order"
+  },
+  "splits": {
+    "train": {
+      "count": 9000,
+      "records_sha256": "a10237f5a33d99652fe286294a1697d454f61cd1cd440d87bdfabd17b8b08af5",
+      "jsonl_sha256": "a10237f5a33d99652fe286294a1697d454f61cd1cd440d87bdfabd17b8b08af5",
+      "gzip_sha256": "198ca2bdb0cbaef2b9a251c6ac99f4b216fd7dfd98684abfdaa916c9805070fb"
+    },
+    "dev": {
+      "count": 1153,
+      "records_sha256": "72d09fa2008ad75ab03f6ac29b2d5bea4588cee7b4ec215fdb3953bdf325f8b7",
+      "jsonl_sha256": "72d09fa2008ad75ab03f6ac29b2d5bea4588cee7b4ec215fdb3953bdf325f8b7",
+      "gzip_sha256": "13777e326db1b86bb4bf0110a3e4ef2cbd423e50a2902a3d6cf8b8308285b904"
+    }
+  },
+  "generator_files_sha256": {
+    "scripts/build_demo_db.py": "f5d3a0c32e6e246268cc44bed613ac7900bda93d8fa4525bd9c48c4c34f261f6",
+    "src/aegis_sql/schema/profile.py": "aa2eb888e85845173c5ab04b5e77dfaaaec8548bfc1615dfe33f83fbdff6c0e4",
+    "src/aegis_sql/flywheel/sql_sampler.py": "5170a81c54f93e429c65b8661088cf217cdb7ffd1244c1f576924531ebafd51d",
+    "src/aegis_sql/flywheel/back_translate.py": "387ef17051a4fef4f515bf45974f81efe418124264335eefab5b2d72e8cca3db",
+    "src/aegis_sql/flywheel/augment.py": "9cb6eb959b3724634d5547b6e822689efdef9882048b530523e77b6ba986e57b",
+    "src/aegis_sql/flywheel/quality_filter.py": "f3e1365a7250bb9b07e5d0b0988f95f9b91a92391d45105343e9148efad07b76",
+    "src/aegis_sql/flywheel/build_dataset.py": "e5625d4f3ac512cb792b329244e3d3b560253a2d9a4a4dc8f058e1eea8dc0a4f"
+  },
+  "comparison_scope": {
+    "qwen_base_vs_qlora": "paired on this exact snapshot and KorFin evaluator",
+    "historical_aegislm_5_3m": "unpaired until retrained on this snapshot"
+  }
+}

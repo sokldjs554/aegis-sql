@@ -10,6 +10,7 @@ data instead of hallucinating predicates.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from dataclasses import asdict, dataclass, field
@@ -50,6 +51,9 @@ class ColumnProfile:
 @dataclass(slots=True)
 class SchemaProfile:
     fingerprint: str
+    source_sha256: str = ""
+    sample: int = 200
+    max_values: int = 25
     columns: dict[str, ColumnProfile] = field(default_factory=dict)
 
     def get(self, table: str, column: str) -> ColumnProfile | None:
@@ -57,14 +61,25 @@ class SchemaProfile:
 
     def to_json(self) -> str:
         return json.dumps(
-            {"fingerprint": self.fingerprint, "columns": {k: asdict(v) for k, v in self.columns.items()}},
+            {
+                "fingerprint": self.fingerprint,
+                "source_sha256": self.source_sha256,
+                "sample": self.sample,
+                "max_values": self.max_values,
+                "columns": {k: asdict(v) for k, v in self.columns.items()},
+            },
             ensure_ascii=False,
         )
 
     @classmethod
     def from_json(cls, payload: str) -> SchemaProfile:
         data = json.loads(payload)
-        prof = cls(fingerprint=data["fingerprint"])
+        prof = cls(
+            fingerprint=data["fingerprint"],
+            source_sha256=data.get("source_sha256", ""),
+            sample=int(data.get("sample", 200)),
+            max_values=int(data.get("max_values", 25)),
+        )
         for key, val in data["columns"].items():
             prof.columns[key] = ColumnProfile(**val)
         return prof
@@ -78,15 +93,21 @@ class Profiler:
 
     def profile(self, schema: SchemaGraph, cache_path: str | Path | None = None) -> SchemaProfile:
         fp = schema.fingerprint()
+        source_sha256 = _file_sha256(self.db_path)
         if cache_path:
-            cached = self._load_cache(Path(cache_path), fp)
+            cached = self._load_cache(Path(cache_path), fp, source_sha256)
             if cached:
                 log.debug("profile cache hit", fingerprint=fp)
                 return cached
 
         conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)
         try:
-            prof = SchemaProfile(fingerprint=fp)
+            prof = SchemaProfile(
+                fingerprint=fp,
+                source_sha256=source_sha256,
+                sample=self.sample,
+                max_values=self.max_values,
+            )
             code_labels = self._load_code_labels(conn, schema)
             for table in schema.tables.values():
                 for col in table.columns:
@@ -108,14 +129,20 @@ class Profiler:
 
     # -- internals -------------------------------------------------------- #
 
-    def _load_cache(self, path: Path, fingerprint: str) -> SchemaProfile | None:
+    def _load_cache(self, path: Path, fingerprint: str, source_sha256: str) -> SchemaProfile | None:
         if not path.exists():
             return None
         try:
             prof = SchemaProfile.from_json(path.read_text(encoding="utf-8"))
         except Exception:  # pragma: no cover - corrupt cache
             return None
-        return prof if prof.fingerprint == fingerprint else None
+        valid = (
+            prof.fingerprint == fingerprint
+            and prof.source_sha256 == source_sha256
+            and prof.sample == self.sample
+            and prof.max_values == self.max_values
+        )
+        return prof if valid else None
 
     def _load_code_labels(self, conn: sqlite3.Connection, schema: SchemaGraph) -> dict[str, dict[str, str]]:
         for candidate in ("TB_COMM_CD", "TB_CODE", "TC_CMMN_CD", "COMMON_CODE"):
@@ -157,7 +184,7 @@ class Profiler:
             # Frequency-ranked values keep the profile informative on skewed columns.
             rows = conn.execute(
                 f"SELECT {q}, COUNT(*) c FROM {t} WHERE {q} IS NOT NULL "
-                f"GROUP BY {q} ORDER BY c DESC LIMIT {self.max_values}"
+                f"GROUP BY {q} ORDER BY c DESC, CAST({q} AS TEXT) ASC LIMIT {self.max_values}"
             ).fetchall()
             cp.values = [str(r[0]) for r in rows]
             cp.is_categorical = 0 < cp.distinct_count <= 40 and dtype.upper() not in _NUMERIC
@@ -168,3 +195,11 @@ class Profiler:
         except sqlite3.Error as exc:  # pragma: no cover - defensive
             log.warning("profile failed", table=table, column=column, error=str(exc))
         return cp
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
