@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import time
 from pathlib import Path
 
 from aegis_sql.config import PROJECT_ROOT, get_settings
@@ -27,12 +27,18 @@ from aegis_sql.training.hf_experiment import (
     SYSTEM_PROMPT,
     PreparedExample,
     experiment_manifest,
+    file_sha256,
+    git_sha,
     load_jsonl,
     prepare_records,
+    records_sha256,
+    runtime_metadata,
+    select_records,
     user_prompt,
 )
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+DEFAULT_SEED = 20260824
 
 
 class TokenizedSQLDataset:
@@ -101,23 +107,20 @@ def _card_builder():
         raise FileNotFoundError(f"demo database missing: {db}; run `make demo-db` first")
     schema = introspect(db)
     profile = Profiler(db, sample=settings.database.profile_sample).profile(schema)
-    return schema, SchemaCardBuilder(schema, profile, JoinGraph(schema))
+    return db, schema, SchemaCardBuilder(schema, profile, JoinGraph(schema))
 
 
-def _git_sha() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
-
-
-def _load_examples(data_dir: Path, split: str, builder, limit: int | None):
+def _load_examples(data_dir: Path, split: str, builder, limit: int | None, seed: int):
     path = data_dir / f"{split}.jsonl"
     if not path.exists():
         raise FileNotFoundError(f"flywheel split missing: {path}; run `make flywheel` first")
-    return path, prepare_records(load_jsonl(path, limit=limit), builder)
+    records = select_records(
+        load_jsonl(path),
+        limit=limit,
+        seed=seed,
+        shuffle_before_limit=split == "train" and limit is not None,
+    )
+    return path, records, prepare_records(records, builder)
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,7 +136,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lora-r", type=int, default=16)
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--lora-dropout", type=float, default=0.05)
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--limit-train", type=int, default=None)
     ap.add_argument("--limit-dev", type=int, default=None)
     ap.add_argument("--qlora", action="store_true", help="load base weights in 4-bit (CUDA only)")
@@ -151,9 +154,11 @@ def main() -> int:
     out = _resolve(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    schema, builder = _card_builder()
-    train_path, train_examples = _load_examples(data_dir, "train", builder, args.limit_train)
-    dev_path, dev_examples = _load_examples(data_dir, "dev", builder, args.limit_dev)
+    db_path, schema, builder = _card_builder()
+    train_path, train_records, train_examples = _load_examples(
+        data_dir, "train", builder, args.limit_train, args.seed
+    )
+    dev_path, dev_records, dev_examples = _load_examples(data_dir, "dev", builder, args.limit_dev, args.seed)
     manifest = experiment_manifest(
         model=args.model,
         train_path=train_path,
@@ -166,8 +171,32 @@ def main() -> int:
         lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
     )
-    manifest["git_sha"] = _git_sha()
+    manifest["git_sha"] = git_sha()
+    manifest["database"] = {"path": str(db_path), "sha256": file_sha256(db_path)}
+    manifest["dataset"]["train_selected_sha256"] = records_sha256(train_records)
+    manifest["dataset"]["dev_selected_sha256"] = records_sha256(dev_records)
+    manifest["dataset"]["selection"] = (
+        "train: seeded shuffle then prefix when limited, otherwise file order; dev: file order prefix"
+    )
+    source_manifest_path = data_dir / "manifest.json"
+    if source_manifest_path.is_file():
+        source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+        manifest["dataset"]["source_snapshot"] = {
+            "name": source_manifest.get("name"),
+            "format_version": source_manifest.get("format_version"),
+            "manifest_sha256": file_sha256(source_manifest_path),
+            "comparison_scope": source_manifest.get("comparison_scope"),
+        }
     manifest["max_length"] = args.max_length
+    manifest["training_config"] = {
+        "epochs": args.epochs,
+        "batch_size_per_device": args.batch_size,
+        "gradient_accumulation_steps": args.grad_accum,
+        "effective_batch_size_single_gpu": args.batch_size * args.grad_accum,
+        "learning_rate": args.learning_rate,
+        "max_length": args.max_length,
+        "seed": args.seed,
+    }
     manifest["status"] = "prepared"
     manifest_path = out / "experiment_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -192,6 +221,10 @@ def main() -> int:
 
     if args.qlora and not torch.cuda.is_available():
         raise SystemExit("--qlora requires CUDA; omit it for a CPU/GPU full-precision LoRA run")
+
+    manifest["runtime"] = runtime_metadata(torch)
+    manifest["status"] = "initializing"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
     if tokenizer.pad_token_id is None:
@@ -262,16 +295,31 @@ def main() -> int:
         eval_dataset=dev_ds,
         data_collator=SQLCollator(tokenizer.pad_token_id),
     )
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        torch.cuda.reset_peak_memory_stats()
+    training_started = time.perf_counter()
     result = trainer.train()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    training_seconds = time.perf_counter() - training_started
     adapter_dir = out / "adapter"
     trainer.save_model(str(adapter_dir))
     tokenizer.save_pretrained(str(adapter_dir))
 
     manifest["status"] = "trained"
     manifest["train_metrics"] = result.metrics
+    manifest["training"] = {
+        "wall_clock_seconds": round(training_seconds, 3),
+        "trainer_runtime_seconds": round(float(result.metrics.get("train_runtime", 0.0)), 3),
+        "train_samples_per_second": round(float(result.metrics.get("train_samples_per_second", 0.0)), 4),
+        "train_steps_per_second": round(float(result.metrics.get("train_steps_per_second", 0.0)), 4),
+        "scope": "Trainer.train including scheduled evaluation and best-checkpoint reload",
+    }
     manifest["adapter_dir"] = str(adapter_dir)
     if torch.cuda.is_available():
         manifest["max_cuda_memory_bytes"] = int(torch.cuda.max_memory_allocated())
+        manifest["max_cuda_memory_reserved_bytes"] = int(torch.cuda.max_memory_reserved())
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"adapter: {adapter_dir}")
     return 0

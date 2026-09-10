@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from aegis_sql.schema.card import SchemaCardBuilder, token_estimate
+from aegis_sql.schema.introspect import introspect
+from aegis_sql.schema.profile import Profiler
 from aegis_sql.types import LinkedSchema
 
 
@@ -77,6 +81,29 @@ def test_profile_extracts_code_labels(profile):
 def test_profile_detects_yyyymmdd_columns(profile):
     assert profile.get("TB_CTRT", "CTRT_DT").is_yyyymmdd
     assert not profile.get("TB_CTRT", "MON_PRM").is_yyyymmdd
+
+
+def test_profile_cache_tracks_database_content_and_orders_frequency_ties(tmp_path):
+    db = tmp_path / "profile.sqlite"
+    cache = tmp_path / "profile.json"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE T_SAMPLE (VALUE TEXT)")
+    conn.executemany("INSERT INTO T_SAMPLE VALUES (?)", [("b",), ("a",)])
+    conn.commit()
+    conn.close()
+
+    schema = introspect(db)
+    first = Profiler(db, max_values=10).profile(schema, cache_path=cache)
+    assert first.get("T_SAMPLE", "VALUE").values == ["a", "b"]
+
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE T_SAMPLE SET VALUE = 'c' WHERE VALUE = 'a'")
+    conn.commit()
+    conn.close()
+
+    second = Profiler(db, max_values=10).profile(schema, cache_path=cache)
+    assert second.source_sha256 != first.source_sha256
+    assert second.get("T_SAMPLE", "VALUE").values == ["b", "c"]
 
 
 @pytest.mark.parametrize("style", ["mschema", "ddl", "compact", "slm"])
