@@ -41,7 +41,11 @@ R³-SQL을 그대로 복제하면 AEGIS가 이미 가진 cost-aware router와 �
 - resampling 전/후 EX
 - 추가 호출 수, 질의당 비용, p95 지연
 
-실험은 아직 실행하지 않았다. 결과가 나오기 전까지는 `PAPERS.md`에서 **후속실험 후보**로만 표기한다.
+실제 후보를 재생성하는 paired runner, 문항별 checkpoint/resume, 비용·지연·EX
+summary와 strict evidence gate까지 구현했다. 고정 프로토콜은
+[R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 기록했다. hosted provider
+90문항 full run은 아직 실행하지 않았으므로 결과가 나오기 전까지는
+`PAPERS.md`에서 **후속실험 후보**로만 표기한다.
 
 ## 6. 면접에서 30초 설명
 

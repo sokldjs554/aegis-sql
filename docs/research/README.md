@@ -24,7 +24,7 @@
 |---|---|---|---|
 | [SafeQL](SAFEQL.md) — VLDB 2026, KAIST | DBMS-guided partial repair | deterministic repair와 최신 search-based refinement 대조 | gap 분석 완료 |
 | [EXPO-SQL](EXPO-SQL.md) — Findings ACL 2026 | clause-level execution reward | query-level DPO의 다음 학습 신호 후보 | 후속실험 후보 |
-| [R³-SQL](R3-SQL.md) — Findings ACL 2026 | 후보 ranking · resampling | execution-result grouping과 selective resampling 대조 | policy 구현 완료 / 측정 대기 |
+| [R³-SQL](R3-SQL.md) — Findings ACL 2026 | 후보 ranking · resampling | execution-result grouping과 selective resampling 대조 | live runner·evidence gate 완료 / full 측정 대기 |
 | [LitE-SQL](LitE-SQL.md) — Findings EACL 2026 | lightweight model · vector schema linking | AEGIS 5.3M sLLM 실패와 가장 직접적인 비교군 | Qwen 경로 구현 완료 / GPU 측정 대기 |
 | [SEED](SEED.md) — ICDEW 2025, 서울대 | automatic evidence generation | glossary/value/FK evidence와 대조 | 비교 · 자동화 후보 |
 | [EHRSQL](EHRSQL.md) — KAIST 중심 | 실무 benchmark · unanswerable | KorFin-Bench에 없던 answerability 축 발견 | 30-probe 측정 완료 |
@@ -47,7 +47,12 @@ EHRSQL을 검토한 뒤 15 unanswerable + 15 answerable hard-negative probe를 �
 
 ### Q4. 후보가 없을 때 ranking을 잘하는 것으로 충분한가?
 
-R³-SQL을 대조해 route confidence + execution-result group dispersion을 사용하는 **side-effect-free selective-resampling policy**와 offline evaluator를 구현했다. 현재 과거 eval report에는 candidate-level group/agreement 및 실제 resampled outcome이 없어 개선 수치는 주장하지 않는다.
+R³-SQL을 대조해 route confidence + execution-result group dispersion을 사용하는
+**side-effect-free selective-resampling policy**와 actual candidate regeneration
+runner를 구현했다. 문항별 raw checkpoint, resume, provider fallback 차단,
+paired EX·추가 비용·p50/p95 summary 및 strict evidence gate를 포함한다. 현재
+hosted full run은 아직 없어 개선 수치는 주장하지 않는다. 실행 절차는
+[R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 있다.
 
 ### Q5. SQL을 틀렸을 때 전체를 다시 만들 필요가 있는가?
 

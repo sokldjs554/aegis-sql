@@ -421,6 +421,8 @@ class TemplateGenerator:
             candidates=[candidate],
             tier=Tier.TEMPLATE,
             model="template",
+            requested_samples=1,
+            completed_samples=1,
             latency_ms=now_ms() - started,
         )
 
