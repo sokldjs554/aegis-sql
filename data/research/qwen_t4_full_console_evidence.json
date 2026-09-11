@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "evidence_status": "console_recovered_after_colab_runtime_reset",
+  "portfolio_evidence_ready_printed": true,
+  "raw_result_bundle_archived": false,
+  "source": {
+    "filename": "AEGIS_SQL_Qwen_1_5B_QLoRA.ipynb",
+    "sha256": "e0938295cf9855df8ee12b61accf312672584d7374b8872a989fde99e54b3cb9",
+    "preserved_outputs": {
+      "base_item_statuses": 90,
+      "adapted_item_statuses": 90,
+      "training_log": true,
+      "strict_summary_stdout": true
+    }
+  },
+  "experiment": {
+    "model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "git_sha": "27aeccc681f6a7341ae2375c75a5e101ad2f2a30",
+    "run_kind": "full",
+    "items": 90,
+    "runtime": {
+      "torch": "2.11.0+cu128",
+      "cuda_available": true,
+      "gpu": "Tesla T4"
+    },
+    "dataset": {
+      "snapshot": "aegis-qwen-flywheel-v1",
+      "train_count": 9000,
+      "dev_count": 1153,
+      "schema_fingerprint": "26cee9e1989d6426"
+    },
+    "configuration_from_git_revision": {
+      "epochs": 2.0,
+      "batch_size_per_device": 1,
+      "gradient_accumulation_steps": 16,
+      "effective_batch_size_single_gpu": 16,
+      "learning_rate": 0.0002,
+      "max_length": 1024,
+      "quantization": "NF4 4-bit",
+      "lora_r": 16,
+      "lora_alpha": 32,
+      "lora_targets": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj"
+      ],
+      "seed": 20260824
+    }
+  },
+  "training": {
+    "wall_clock_seconds": 9788.2,
+    "wall_clock_hms": "02:43:08.2",
+    "peak_cuda_memory_gib": 3.085,
+    "trainable_parameters": 4358144,
+    "all_parameters": 1548072448,
+    "trainable_percent": 0.2815,
+    "optimizer_steps": 1126,
+    "train_samples_per_second": 1.839,
+    "train_steps_per_second": 0.115,
+    "train_loss": 0.01168,
+    "eval_loss": {
+      "epoch_1": 0.09219,
+      "epoch_2": 0.1052
+    }
+  },
+  "base": {
+    "correct": 10,
+    "total": 90,
+    "execution_accuracy": 0.1111111111,
+    "by_difficulty": {
+      "easy": {
+        "correct": 10,
+        "total": 30,
+        "ex": 0.3333333333
+      },
+      "medium": {
+        "correct": 0,
+        "total": 40,
+        "ex": 0.0
+      },
+      "hard": {
+        "correct": 0,
+        "total": 20,
+        "ex": 0.0
+      }
+    },
+    "latency_ms": {
+      "p50": 3776.95,
+      "p95": 7692.91
+    },
+    "peak_cuda_memory_gib": 1.134,
+    "correct_ids": [
+      "kfb-e05",
+      "kfb-e09",
+      "kfb-e15",
+      "kfb-e18",
+      "kfb-e20",
+      "kfb-e21",
+      "kfb-e22",
+      "kfb-e27",
+      "kfb-e28",
+      "kfb-e29"
+    ]
+  },
+  "adapted": {
+    "correct": 11,
+    "total": 90,
+    "execution_accuracy": 0.1222222222,
+    "by_difficulty": {
+      "easy": {
+        "correct": 9,
+        "total": 30,
+        "ex": 0.3
+      },
+      "medium": {
+        "correct": 2,
+        "total": 40,
+        "ex": 0.05
+      },
+      "hard": {
+        "correct": 0,
+        "total": 20,
+        "ex": 0.0
+      }
+    },
+    "latency_ms": {
+      "p50": 5388.4,
+      "p95": 10199.67
+    },
+    "peak_cuda_memory_gib": 1.15,
+    "correct_ids": [
+      "kfb-e05",
+      "kfb-e10",
+      "kfb-e15",
+      "kfb-e20",
+      "kfb-e21",
+      "kfb-e22",
+      "kfb-e23",
+      "kfb-e26",
+      "kfb-e28",
+      "kfb-m06",
+      "kfb-m31"
+    ]
+  },
+  "paired_outcomes": {
+    "delta_ex_percentage_points": 1.1111,
+    "gained": 5,
+    "regressed": 4,
+    "unchanged": 81,
+    "gained_ids": [
+      "kfb-e10",
+      "kfb-e23",
+      "kfb-e26",
+      "kfb-m06",
+      "kfb-m31"
+    ],
+    "regressed_ids": [
+      "kfb-e09",
+      "kfb-e18",
+      "kfb-e27",
+      "kfb-e29"
+    ]
+  },
+  "latency_comparison": {
+    "p50_delta_ms": 1611.45,
+    "p50_increase_percent": 42.67,
+    "p95_delta_ms": 2506.76,
+    "p95_increase_percent": 32.59,
+    "scope": "model.generate only; CUDA synchronized; warmup excluded"
+  },
+  "evidence_limitations": [
+    "The Colab VM reset after the strict summary and ZIP were created but before the ZIP was downloaded.",
+    "The preserved notebook contains aggregate metrics and all 180 per-item OK/MISS statuses, but not predicted SQL text or per-item latency values.",
+    "The printed portfolio_evidence_ready=True attests that the strict validator passed at the recorded Git revision; the deleted JSON files cannot be independently re-read.",
+    "Use this record as console-recovered measured evidence. A future rerun is required for a fully archived row-level bundle."
+  ]
+}
