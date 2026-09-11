@@ -240,7 +240,7 @@ class LLMGenerator:
         n = max(1, int(ctx.n_samples))
         tier = Tier.ENSEMBLE if n > 1 else Tier.LLM
         model = str(getattr(self.client, "model", "") or getattr(self.client, "name", "llm"))
-        result = GenerationResult(tier=tier, model=model)
+        result = GenerationResult(tier=tier, model=model, requested_samples=n)
         if not self.available():
             log.debug("llm tier unavailable, returning no candidates", model=model)
             return result
@@ -256,6 +256,8 @@ class LLMGenerator:
             result.error = str(exc)
             result.latency_ms = now_ms() - started
             return result
+
+        result.completed_samples = len(completions)
 
         version = self.registry.get("nl2sql.user").ref
         for completion in completions:
