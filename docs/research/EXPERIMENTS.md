@@ -78,19 +78,26 @@ schema capability 밖의 질문을 별도 probe로 만들면, 현재 엔진이 �
 
 자세한 실행 절차: [LitE-SQL-QWEN-EXPERIMENT.md](LitE-SQL-QWEN-EXPERIMENT.md)
 
-### 아직 남은 측정
+### 실제 측정 결과
 
-1. GPU에서 **base Qwen2.5-Coder 1.5B** KorFin 90문항 전체 EX
-2. 동일 GPU에서 **1.5B QLoRA** 학습
-3. adapter 적용 후 같은 KorFin 90문항 전체 EX
-4. easy/medium/hard, p50/p95 latency, peak GPU memory 기록
-5. 1.5B 결과를 본 뒤 자원 허용 시 3B 반복
+Git revision `27aeccc681f6a7341ae2375c75a5e101ad2f2a30`을 Colab Tesla T4에서 full run했다.
+
+- base EX: **10/90 = 11.1%**
+- QLoRA 이후 EX: **11/90 = 12.2%**
+- delta: **+1문항 / +1.11%p**
+- difficulty: easy **33.3% → 30.0%**, medium **0.0% → 5.0%**, hard **0.0% → 0.0%**
+- p50 latency: **3,776.95 ms → 5,388.40 ms**
+- p95 latency: **7,692.91 ms → 10,199.67 ms**
+- inference peak CUDA: **1.134 GiB → 1.150 GiB**
+- QLoRA training: **9,788.2초**, peak CUDA **3.085 GiB**
+
+base 실패를 복구한 문항은 5개, base 성공에서 회귀한 문항은 4개다. 순개선이 1개뿐이므로 큰 성능 향상으로 표현하지 않는다. 상세 결과와 증거 제한은 [LitE-SQL-QWEN-EXPERIMENT.md](LitE-SQL-QWEN-EXPERIMENT.md)에 기록했다.
 
 과거 AegisLM 5.3M과 `동일 데이터` 비교를 주장하려면 이 snapshot으로 AegisLM을 다시 학습·평가해야 한다. 그 전까지 0.0% EX는 역사적 참고값으로만 표시한다.
 
-현재 ChatGPT 실행 환경에는 실제 CUDA 학습 런타임이 없고, 외부 유료 GPU를 임의로 생성하는 것은 비용이 발생할 수 있어 자동 실행하지 않는다. **성능 수치는 아직 없음**이 정확한 상태다.
+Colab runtime reset 때문에 생성된 원본 row-level JSON/ZIP은 보존하지 못했다. 다운로드한 notebook에는 180개 개별 OK/MISS, 학습 로그, strict summary 출력이 남아 있어 `data/research/qwen_t4_full_console_evidence.json`으로 복구했다. aggregate 측정은 완료됐지만 완전한 row-level audit bundle은 향후 재실행 과제다.
 
-**현재 상태:** 코드·Colab·평가 경로·CI **완료** / 실제 1.5B GPU full run만 외부 GPU 대기
+**현재 상태:** 코드·Colab·평가 경로·실제 1.5B GPU full run **완료** / console evidence 복구 완료 / 원본 ZIP 보존 미완료
 
 ---
 
