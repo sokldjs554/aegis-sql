@@ -77,6 +77,21 @@ def test_costs_and_latency_are_recorded(engine):
     assert bundle.trace_id
 
 
+def test_generation_stage_exposes_measured_sample_counts(engine):
+    events = []
+    bundle = engine.ask(
+        "전체 계약은 몇 건인가요?",
+        on_stage=lambda stage, payload: events.append((stage, payload)),
+        synthesize_answer=False,
+    )
+
+    generated = next(payload for stage, payload in events if stage == "generate")
+    assert bundle.status is AnswerStatus.OK
+    assert generated["requested_samples"] == 1
+    assert generated["completed_samples"] == 1
+    assert generated["candidate_count"] == 1
+
+
 # --------------------------------------------------------------------------- #
 # API
 # --------------------------------------------------------------------------- #
