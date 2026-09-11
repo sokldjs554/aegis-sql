@@ -125,8 +125,17 @@ router confidence가 낮고 후보의 execution-result group이 분산된 경우
   - 실제로 기록된 candidate-pool JSONL을 받아 trigger rate 계산
   - `baseline_correct / resampled_correct`가 실제 관측돼 있을 때만 counterfactual accuracy 계산
   - cost / latency 증가도 같이 계산
+- `scripts/run_selective_resampling.py`
+  - 정상 cascade baseline과 trigger 문항의 fresh forced-ensemble을 같은 run에서 paired 측정
+  - 후보 SQL/raw output, execution group/agreement, provider response·token·cost·latency 기록
+  - 문항별 JSONL `fsync`와 동일 설정 `--resume`
+  - hosted provider fallback 차단 및 full-run evidence gate
+- `scripts/run_r3_colab.sh`
+  - 결정론적 DB 재생성, Colab/Drive checkpoint, 완료 즉시 ZIP download
 - `tests/test_paper_driven_runtime.py`
   - low-confidence + disagreement에서만 trigger되는지 회귀 테스트
+- `tests/test_selective_resampling_live.py`
+  - paired EX·cost·p50/p95 계산과 strict evidence gate 회귀 테스트
 
 ### 중요한 구분
 
@@ -134,7 +143,7 @@ router confidence가 낮고 후보의 execution-result group이 분산된 경우
 
 또한 현재 저장된 `reports/eval_llm.json`은 최종 EX/tier mix는 있지만 candidate별 execution group/agreement와 실제 resampled outcome을 저장하지 않는다. 따라서 지금 숫자를 만들어 `EX가 개선됐다`고 주장하지 않는다.
 
-### 다음 실제 측정 조건
+### 고정한 실제 측정 조건
 
 LLM/ensemble을 다시 실행할 때 candidate pool마다 다음을 기록한다.
 
@@ -146,9 +155,9 @@ LLM/ensemble을 다시 실행할 때 candidate pool마다 다음을 기록한다
 - trigger 시 추가 sample 결과의 correctness
 - extra cost / latency
 
-그 로그를 `scripts/eval_selective_resampling.py`에 넣어 실제 delta를 계산한다.
+실행 프로토콜과 Colab/재개 절차는 [R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 고정했다.
 
-**현재 상태:** trigger policy + offline evaluator + tests **완료** / 실제 resampled outcome 로그 측정은 LLM 재실행 대기
+**현재 상태:** trigger policy + live runner + resume + strict summary + tests **완료** / hosted provider 90문항 full run 수치 측정 대기
 
 ---
 
