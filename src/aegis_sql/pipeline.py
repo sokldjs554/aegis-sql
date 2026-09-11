@@ -291,6 +291,7 @@ class AegisEngine:
         allow_clarify: bool = True,
         tier: Tier | None = None,
         on_stage: Callable[[str, dict[str, Any]], None] | None = None,
+        synthesize_answer: bool = True,
     ) -> AnswerBundle:
         """Run one question end to end.  Never raises for query-level failures."""
         tracer = Tracer("query")
@@ -304,7 +305,16 @@ class AegisEngine:
 
         with trace_context(tracer.trace_id):
             try:
-                self._run(question, ctx or {}, allow_clarify, tier, tracer, bundle, emit)
+                self._run(
+                    question,
+                    ctx or {},
+                    allow_clarify,
+                    tier,
+                    tracer,
+                    bundle,
+                    emit,
+                    synthesize_answer,
+                )
             except Exception as exc:  # pragma: no cover - last-resort safety net
                 log.error("pipeline failure", exc_info=True, error=str(exc))
                 bundle.status = AnswerStatus.FAILED
@@ -322,7 +332,17 @@ class AegisEngine:
         )
         return bundle
 
-    def _run(self, question, ctx, allow_clarify, forced_tier, tracer, bundle, emit) -> None:
+    def _run(
+        self,
+        question,
+        ctx,
+        allow_clarify,
+        forced_tier,
+        tracer,
+        bundle,
+        emit,
+        synthesize_answer,
+    ) -> None:
         c = self.c
         st = self.settings
 
@@ -420,7 +440,11 @@ class AegisEngine:
         # -- 12. natural-language answer --------------------------------- #
         if bundle.status is AnswerStatus.OK and bundle.result and bundle.result.ok:
             with tracer.span("answer"):
-                bundle.answer_text = self._answer_text(bundle)
+                bundle.answer_text = (
+                    self._answer_text(bundle)
+                    if synthesize_answer
+                    else _describe_result(bundle.result)
+                )
             emit("answer", {"text": bundle.answer_text})
 
     # ------------------------------------------------------------------ #
@@ -471,14 +495,28 @@ class AegisEngine:
         TOKENS.labels(kind="prompt").inc(gen.prompt_tokens)
         TOKENS.labels(kind="completion").inc(gen.completion_tokens)
         bundle.candidates = gen.candidates
+        emit(
+            "generate",
+            {
+                "sql": gen.candidates[0].sql if gen.candidates else None,
+                "tier": decision.tier.value,
+                "model": gen.model,
+                "requested_samples": gen.requested_samples,
+                "completed_samples": gen.completed_samples,
+                "candidate_count": len(gen.candidates),
+                "prompt_tokens": gen.prompt_tokens,
+                "completion_tokens": gen.completion_tokens,
+                "cost_usd": gen.cost_usd,
+                "latency_ms": gen.latency_ms,
+                "error": gen.error,
+            },
+        )
         if not gen.candidates:
             bundle.status = AnswerStatus.FAILED
             bundle.answer_text = "SQL을 생성하지 못했습니다." + (
                 f" (원인: {gen.error})" if gen.error else ""
             )
             return False
-        emit("generate", {"sql": gen.candidates[0].sql, "tier": decision.tier.value})
-
         # self-consistency across candidates (only when we actually sampled several)
         candidate: SQLCandidate = gen.candidates[0]
         if len(gen.candidates) > 1 and st.verify.self_consistency:

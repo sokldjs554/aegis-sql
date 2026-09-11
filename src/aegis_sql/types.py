@@ -262,6 +262,11 @@ class GenerationResult:
     candidates: list[SQLCandidate] = field(default_factory=list)
     tier: Tier = Tier.TEMPLATE
     model: str = ""
+    #: Samples requested from the active generator and successfully returned.
+    #: On a hosted LLM tier, ``completed_samples`` is the number of provider
+    #: responses that came back (one billed call per response in ``complete_n``).
+    requested_samples: int = 1
+    completed_samples: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_ms: float = 0.0

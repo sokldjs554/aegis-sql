@@ -13,6 +13,9 @@ from aegis_sql.research.selective_resampling import (
     ResamplingThresholds,
     decide_selective_resampling,
     evaluate_policy,
+    ids_sha256,
+    summarize_live_experiment,
+    validate_live_evidence,
 )
 
 __all__ = [
@@ -23,4 +26,7 @@ __all__ = [
     "ResamplingThresholds",
     "decide_selective_resampling",
     "evaluate_policy",
+    "ids_sha256",
+    "summarize_live_experiment",
+    "validate_live_evidence",
 ]
