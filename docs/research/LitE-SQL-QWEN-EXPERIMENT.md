@@ -108,6 +108,36 @@ adapter 가중치나 결과 숫자는 Git에 자동 반영하지 않는다. 먼�
 
 3B는 **1.5B 실험을 먼저 끝낸 뒤** 데이터·LoRA 설정을 바꾸지 않고 모델 ID만 교체해 비교한다. 자원 부족으로 설정을 바꾸면 같은 실험으로 취급하지 않고 manifest에 별도 run으로 남긴다.
 
+## 실제 GPU full run — Tesla T4
+
+2026-09-10에 Git revision `27aeccc681f6a7341ae2375c75a5e101ad2f2a30`을 Colab Tesla T4에서 실행했다. 고정 snapshot train 9,000 / dev 1,153과 answerable KorFin 90문항을 사용했고, strict summary가 `portfolio_evidence_ready=true`를 출력했다.
+
+| 지표 | Qwen base | QLoRA 이후 | 변화 |
+|---|---:|---:|---:|
+| 전체 EX | 10/90 = 11.1% | 11/90 = 12.2% | +1문항 / +1.11%p |
+| easy | 10/30 = 33.3% | 9/30 = 30.0% | -1문항 |
+| medium | 0/40 = 0.0% | 2/40 = 5.0% | +2문항 |
+| hard | 0/20 = 0.0% | 0/20 = 0.0% | 변화 없음 |
+| p50 generation latency | 3,776.95 ms | 5,388.40 ms | +42.67% |
+| p95 generation latency | 7,692.91 ms | 10,199.67 ms | +32.59% |
+| inference peak CUDA | 1.134 GiB | 1.150 GiB | +0.016 GiB |
+
+QLoRA 학습 wall-clock은 **9,788.2초(2시간 43분 8.2초)**, 학습 peak CUDA memory는 **3.085 GiB**였다. base에서 실패했다가 adapted에서 성공한 문항은 5개, 반대로 회귀한 문항은 4개로 순개선은 1개다. 따라서 이 결과는 `QLoRA로 유의미한 성능 향상을 증명했다`가 아니라 **동일 조건에서 작은 순증가와 난이도별 성공 이동을 관측했다**고 해석한다.
+
+학습 로그에서는 dev loss가 epoch 1의 0.09219에서 epoch 2의 0.1052로 증가했다. 이는 두 번째 epoch의 과적합 가능성을 후속 변수로 검토할 근거지만, 단일 run만으로 원인을 확정하지 않는다.
+
+### 증거 상태
+
+Colab runtime이 strict summary와 ZIP 생성 후 초기화되어 원본 JSON/ZIP은 내려받지 못했다. 다운로드한 notebook에는 다음이 보존됐다.
+
+- commit SHA, PyTorch/CUDA, Tesla T4
+- snapshot train/dev count와 schema fingerprint
+- base/adapted 각각 90개의 개별 OK/MISS
+- 학습 progress와 epoch별 eval loss
+- 최종 지표와 `portfolio_evidence_ready=true`
+
+기계 판독 가능한 복구 기록은 `data/research/qwen_t4_full_console_evidence.json`에 두었고, source notebook SHA-256도 함께 기록했다. aggregate 수치는 실제 측정값으로 사용할 수 있지만, predicted SQL과 per-item latency를 포함한 완전한 row-level audit에는 향후 ZIP 보존 재실행이 필요하다.
+
 ## 성공/실패 해석
 
 ### Qwen adaptation이 크게 개선된다면
@@ -132,6 +162,7 @@ flywheel의 질문 분포, schema card, 데이터 규모나 objective를 다시 
 - 고정 train/dev snapshot + hash 검증: **완료**
 - LoRA/QLoRA training entry point: **구현 완료**
 - AEGIS retrieval + KorFin EX evaluator: **구현 완료**
-- 1.5B 실제 GPU 학습/평가: **미실행 — 성능 수치 주장 없음**
+- 1.5B 실제 GPU 학습/평가: **완료 — Tesla T4, KorFin 90문항, console-recovered evidence**
+- 원본 row-level JSON/ZIP 보존: **미완료 — runtime reset 전 다운로드 실패**
 - 과거 5.3M과 동일 데이터 비교: **미완료 — snapshot 기반 AegisLM 재학습 전에는 unpaired**
-- 3B 실제 비교: **1.5B 결과 이후 진행**
+- 3B 실제 비교: **선택적 후속 실험**
