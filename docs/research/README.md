@@ -14,6 +14,7 @@
 
 ## 먼저 볼 파일
 
+- [실제 논문 독해 기록](READING-LOG.md) — 원문 검토를 끝낸 논문만 문제·방법·AEGIS 비교·판단 네 줄로 기록
 - [국문/영문 실제 독서 목록](READING-LIST-KO-EN.md) — 면접 전 읽을 논문만 최신성·AEGIS 연관성 순으로 정리
 - [기존 면접형 읽기 가이드](READING-GUIDE.md) — 논문별 질문과 30초 답변
 - [Paper-driven experiments](EXPERIMENTS.md) — 어떤 가설을 코드/측정으로 연결했는지와 현재 상태
