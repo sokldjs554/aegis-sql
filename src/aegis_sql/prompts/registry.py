@@ -4,7 +4,7 @@ Prompts are the single most-edited artefact in an LLM system and the one least
 likely to be under review.  Here every prompt is a YAML record with an id, a
 semantic version, a content hash and metadata, so that an evaluation report can
 say *which prompt* produced a number, an A/B test can pin two versions
-side-by-side, and `aegis prompt diff` can show what changed.
+side-by-side, and `aegis prompt show` can surface the changelog of what changed.
 
 See ``docs/PROMPT_ENGINEERING.md`` for the methodology and the measured deltas.
 """
