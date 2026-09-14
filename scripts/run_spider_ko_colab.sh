@@ -58,7 +58,7 @@ fi
 python -m pip install -q --upgrade pip
 python -m pip install -q -e ".[hf]"
 
-if [[ ! -f "$DATASET_FILE" ]]; then
+if [[ ! -f "$DATASET_FILE" || ! -f "$DATASET_MANIFEST" ]]; then
   python scripts/prepare_spider_ko.py \
     --out "$DATASET_FILE" \
     --manifest "$DATASET_MANIFEST"
