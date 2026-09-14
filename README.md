@@ -525,7 +525,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | | |
 |---|---|
-| Python | 27,482줄 (src 22,229 / tests 2,617 / scripts 2,636) · 추적 파일 168개 |
+| Python | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · 추적 파일 194개 |
 | 테스트 | **278개 통과, 2개 skip** (실제 DB 대상) · `ruff` + `mypy` 클린 (CI 강제) |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 원문 독해 완료 [`READING-LOG`](docs/research/READING-LOG.md) 5편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
@@ -578,7 +578,7 @@ paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, eviden
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 27,500줄, `src/` 함수 1,047개 중 1,028개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 278 passed / 2 skipped |
+| **Python** | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · `py.typed` 배포 · `ruff` + `mypy` CI · pytest 278 passed / 2 skipped |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
