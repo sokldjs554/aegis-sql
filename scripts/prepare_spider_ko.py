@@ -53,7 +53,7 @@ def main() -> int:
             missing = [key for key in required if not str(row.get(key) or "").strip()]
             if missing:
                 raise SystemExit(f"row {index} missing required fields: {', '.join(missing)}")
-            payload = {key: row.get(key) for key in row.keys()}
+            payload = {key: row.get(key) for key in row}
             fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     manifest = {
