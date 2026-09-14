@@ -29,3 +29,10 @@
 - 핵심 방법: 실행을 정답·실행 가능 오답·실행 오류로 나누고, 오답에는 10종 결과 차이와 `FROM/JOIN→WHERE→GROUP BY→HAVING→SELECT→ORDER BY→LIMIT` 순 incremental execution을, 오류에는 메시지 parsing과 역방향 clause tracing을 적용해 오류 절을 찾은 뒤 clause별 token reward로 REINFORCE++를 학습한다; Qwen2.5-Coder-7B·SynSQL-Complex-5K 조건의 BIRD dev에서 query-level reward 68.5% 대비 71.3%(+2.8%p)를 기록했다.
 - AEGIS와 같은 점/다른 점: 둘 다 실행 피드백으로 모델 실패를 학습 신호화하고 맞는 부분을 보존하려 하지만, 현행 AEGIS DPO는 repair log의 gold 전체를 `chosen`, failed SQL 전체를 `rejected`로 두고 target-span sequence log-probability를 비교하는 반면 EXPO-SQL은 결과·오류 원인을 clause에 귀속해 같은 SQL 안의 token마다 다른 보상을 주며 학습 중 DB를 반복 실행한다.
 - 적용·변형·기각 판단: **변형 적용** — 8×H100 REINFORCE++를 재현하지 않고 gold/failed SQL의 AST 차이와 기존 실행 로그로 clause label·단계적 preference를 오프라인 생성해 현행 query-level DPO와 같은 데이터·seed·budget에서 EX·difficulty·invalid SQL·clause 오류·학습 시간/메모리를 비교한다; SQLite만 검증됐고 실행 오류 보상이 본문 식(−1.5)과 부록 사례(−1.0)에서 불일치하므로 수치를 그대로 복제하지 않는다.
+
+## E3 · [Piao et al., *LitE-SQL: A Lightweight and Efficient Text-to-SQL Framework with Vector-based Schema Linking and Execution-Guided Self-Correction*](https://aclanthology.org/2026.findings-eacl.186/) (원문 검토: 2026-09-12)
+
+- 해결하는 문제: 전체 스키마와 대형 proprietary LLM·다중 후보 생성에 의존하면 context·연산·지연·privacy 비용이 커지고, 작은 모델은 불필요한 column이 섞일 때 성능이 더 크게 떨어지는 배포 간극을 다룬다.
+- 핵심 방법: Qwen3-Embedding-0.6B로 column 문서를 미리 색인하고 positive와 유사한 hard negative만 남기는 HN-SupCon으로 top-k schema를 검색한 뒤, Qwen2.5-Coder 1.5B/3B/7B를 LoRA SFT와 DPO+NLL RFT로 학습해 실행 실패 SQL·오류 메시지를 반복 교정한다; 다만 대표 7B BIRD 72.10%는 정답 schema 조건이고 retriever·SFT·RFT를 함께 쓴 top-25 결과는 60.56%(SFT 58.21%→RFT 60.56%)다.
+- AEGIS와 같은 점/다른 점: 둘 다 column 단위 vector schema linking, pretrained Qwen LoRA 계열 적응, 실행 검증·교정을 결합하지만, LitE-SQL은 learned dense retriever와 반복 LLM 교정·DPO+NLL을 쓰는 반면 AEGIS는 dense·BM25·glossary·값·FK 경로의 출처가 남는 hybrid retrieval과 deterministic AST repair 우선 정책을 쓰고 이번 Qwen 비교군에는 RFT를 적용하지 않았다.
+- 적용·변형·기각 판단: **변형 적용·실측 완료** — 이 논문을 근거로 같은 AEGIS snapshot·retrieval·KorFin 90문항에서 Qwen2.5-Coder-1.5B base와 QLoRA를 Tesla T4로 비교해 EX 11.1%→12.2%(+1.11%p), easy 33.3%→30.0%, medium 0%→5%, hard 0% 유지와 p50 3.78s→5.39s를 확인했다; 서로 다른 benchmark의 절대 점수 비교와 ‘QLoRA가 크게 개선했다’는 해석은 기각하고 HN-SupCon/RFT는 동일 조건 어블레이션 전까지 후속 후보로 둔다.
