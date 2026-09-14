@@ -51,6 +51,51 @@ def test_query_timeout_returns_504(settings, monkeypatch):
         time.sleep(0.1)
 
 
+def test_timed_out_worker_keeps_capacity_until_real_worker_finishes(settings, monkeypatch):
+    from aegis_sql.api import app as app_mod
+    from aegis_sql.api.app import create_app
+
+    limited = _with_runtime_limits(settings, timeout_s=0.02, max_concurrent=1)
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    call_lock = threading.Lock()
+    call_count = 0
+
+    with TestClient(create_app(limited), raise_server_exceptions=False) as client:
+        engine_type = type(app_mod._ENGINE)
+        real_ask = engine_type.ask
+
+        def block_first_ask(self, *args, **kwargs):
+            nonlocal call_count
+            with call_lock:
+                call_count += 1
+                number = call_count
+            if number == 1:
+                started.set()
+                release.wait(timeout=1.0)
+            try:
+                return real_ask(self, *args, **kwargs)
+            finally:
+                if number == 1:
+                    finished.set()
+
+        monkeypatch.setattr(engine_type, "ask", block_first_ask)
+        first = client.post("/v1/query", json={"question": "전체 계약은 몇 건인가요?"})
+        assert started.is_set()
+        assert first.status_code == 504
+
+        second = client.post(
+            "/v1/query",
+            json={"question": "실효된 계약은 몇 건인가요?"},
+        )
+        assert second.status_code == 429
+        assert second.json()["detail"]["code"] == "QUERY_CAPACITY_EXCEEDED"
+
+        release.set()
+        assert finished.wait(timeout=1.0)
+
+
 def test_query_capacity_returns_429_while_first_request_is_still_running(settings, monkeypatch):
     from aegis_sql.api import app as app_mod
     from aegis_sql.api.app import create_app
