@@ -1,5 +1,7 @@
 name: Refresh full-scale template evidence
 
+# Branch-only one-shot: removed after the measured artifacts are committed.
+
 on:
   push:
     branches:
