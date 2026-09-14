@@ -18,11 +18,17 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 <sub><b>웹 콘솔을 바로 열어 보세요</b> — <a href="https://aegis-sql.onrender.com">aegis-sql.onrender.com</a><br/>
 무료 인스턴스라 접속이 없으면 잠들어 있습니다. <b>첫 접속은 1~2분 걸릴 수 있습니다.</b><br/>
 API 키 없이 도는 구성이라 화면의 비용은 실제로 $0 입니다.<br/>
+질의 탭은 <code>template</code>을 실시간 실행하고, <b>LLM 실험</b> 탭은 보관된 Claude·Qwen·R³ 실측과 채택/기각 판단을 API 호출 없이 보여줍니다.<br/>
 무료 배포는 기동 시간을 줄이기 위해 0.5배 DB(계약 6,500건)를 사용하며, 아래 영상·Colab은 전체 규모(13,000건)입니다.</sub>
 
 <sub><b>숫자까지 직접 재현하려면</b> — Colab 배지를 누르면 클론·설치부터<br/>
 데모 DB 생성(37만 행) · 벤치마크 106문항 · 어블레이션 10구성(기준선 + 9변형)까지 약 3분에 돕니다.<br/>
 GPU도 필요 없습니다.</sub>
+
+<br/>
+
+<sub><b>면접관 60초 동선</b> — <a href="https://aegis-sql.onrender.com/?view=experiments">저장된 LLM 실험 근거 바로 열기</a><br/>
+세 가지 고정 사례에서 template 실패 SQL과 Claude 성공 SQL을 나란히 확인한 뒤 Qwen·R³ 승격 판단까지 볼 수 있습니다.</sub>
 
 <br/>
 
@@ -172,6 +178,19 @@ docker build -t aegis-sql . && docker run --rm -p 8000:8000 aegis-sql
   결과 표의 열을 이름으로 맞춰 표시하므로, 값이 `황**` 인 이유가 화면에서 바로 보입니다.
 - 라이트/다크/자동 테마, 모바일 폭까지 대응합니다. 한글 입력 조합 중 Enter 가
   질의를 쏘지 않도록 IME 조합 상태를 확인합니다.
+
+#### 저장된 LLM 사례 재생
+
+`LLM 실험` 탭은 모델을 라이브로 부르는 연출이 아니라, 같은 고정 문항에서 나온 SQL과
+EX 판정을 다시 보여주는 감사 화면입니다. easy·medium·hard 한 문항씩 고정해
+**template이 무엇을 놓쳤고 Claude가 어떤 구조로 복구했는지** 바로 대조할 수 있습니다.
+
+- `kfb-e08` (easy) — 잘못된 분모·테이블 → 고객별 조건부 마케팅 동의 비율
+- `kfb-m24` (medium) — 무관한 fraud 조건 → 지점 3-way join + `HAVING`
+- `kfb-h17` (hard) — 월별 집계만 수행 → `LAG` 기반 직전 달 비교
+
+[저장된 사례 바로 열기](https://aegis-sql.onrender.com/?view=experiments) · 수치는 API 호출 없이
+체크인된 평가 리포트와 benchmark gold preview에서 읽으며, 원본 SHA-256도 화면에 표시합니다.
 
 <p align="center">
   <img src="docs/images/console-chart.png" width="820"
@@ -360,10 +379,13 @@ flowchart LR
 <!-- RESULTS:BEGIN -->
 ## 측정 결과
 
-> 전부 `make setup && make eval` 로 재현됩니다. 표는 리포트 산출물을 옮긴 것이고, 리포트
-> 하단에는 사용된 **프롬프트 해시·스키마 지문·활성 티어**가 함께 기록됩니다.
-> template 열은 **API 키 없이** 측정(`reports/eval.md`), LLM 열은 **claude-sonnet-5 실측**
-> (`reports/eval_llm_only.md` 단독 / `reports/eval_llm.md` 캐스케이드)입니다.
+> template 열은 `make setup && make eval`로 **API 키 없이** 재현할 수 있고
+> ([`reports/eval_template.md`](reports/eval_template.md)), LLM 열은 비용을 들여 보관한
+> **claude-sonnet-5 실측**입니다
+> ([`reports/eval_llm_only.md`](reports/eval_llm_only.md) 단독 /
+> [`reports/eval_llm.md`](reports/eval_llm.md) 캐스케이드). 각 리포트에는 프롬프트 해시·
+> 스키마 지문·활성 티어가 남습니다. `make experiment-evidence`는 이 원본들에서 웹 콘솔용
+> 공개 manifest를 다시 만듭니다.
 
 ### 요약 — KorFin-Bench 106문항, 티어 구성별
 
@@ -374,13 +396,18 @@ flowchart LR
 | — medium (40) | 32.5% | 35.0% | 40.0% |
 | — hard (20) | 0.0% | 20.0% | **30.0%** |
 | 실행 성공률 | **100.0%** | **100.0%** | 95.6% |
-| VES (BIRD) | 0.357 | 0.409 | 0.420 |
-| p50 / p95 지연 | **6 ms / 21 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
+| VES (BIRD) | 0.389 | 0.409 | 0.420 |
+| p50 / p95 지연 | **6 ms / 24 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
 | 질의당 비용 | **$0** | $0.0279 | $0.0127 |
 | 티어 분포 (ok 90) | template 90 | template 54 · ensemble 36 | llm 90 |
 | **거버넌스 (10) / 모호성 (6)** | 100% / 100% | 100% / 100% | 100% / 100% |
 
+template은 GitHub Actions의 Ubuntu·Python 3.13에서 전체 373,778행 DB로 다시 측정했습니다.
 LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐스케이드 약 $2.5.
+
+> **비교 범위** — EX는 같은 frozen benchmark·gold-result snapshot으로 확인합니다. 다만
+> template과 과거 Claude 실행은 하드웨어·Python 환경이 다르므로, 표의 지연시간은 각 run의
+> 운영 비용 근거일 뿐 모델 간 속도 우열을 뜻하지 않습니다.
 
 > **비용 수치에 대한 정정** — 위 표의 질의당 비용은 SQL 생성 호출만 계상된 값입니다.
 > 답변 문장을 만드는 보조 LLM 호출은 생성기 내부(`aux_cost_usd`)에만 쌓이고 질의 비용에
@@ -564,11 +591,52 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | | |
 |---|---|
-| Python | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · 추적 파일 191개 |
-| 테스트 | **292개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 (CI 강제) |
+| Python | 약 30,000줄 · 패키지 전체 타입 검사와 lint를 CI에서 강제 |
+| 테스트 | 실제 SQLite DB 기반 pytest + `ruff` + `mypy`를 GitHub Actions에서 강제 |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + [`docs/research/`](docs/research/) — 영문 논문 리뷰 8편 · 국문 논문 완독 기록 2편 · 실험 기록 3편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
+
+---
+
+## 논문 → 판단 → 구현 → 실험
+
+`docs/PAPERS.md`의 34편은 설계 근거를 찾기 위한 **참고문헌 매핑 수**이지, 원문
+독해 완료 수가 아닙니다. 방법·실험·한계까지 확인하고 네 줄 판단을 남긴 논문은
+현재 [5편](docs/research/READING-LOG.md)이며, 읽을 목록과 분리했습니다.
+
+| 논문에서 얻은 문제 | AEGIS에서 내린 판단과 구현 | 실제 확인 |
+|---|---|---|
+| EHRSQL의 clear-but-unanswerable | 스키마에 답할 근거가 없는 질문을 생성 전에 기권하는 `CapabilityAwareEngine`과 30개 고정 probe 추가 | unanswerable recall **15/15**, answerable false abstention **0/15**. 단, 직접 구성한 30문항 범위 |
+| LitE-SQL의 lightweight pretrained generator | 5.3M scratch 실패를 모델 크기 하나로 단정하지 않고, 같은 AEGIS snapshot·retrieval·평가로 Qwen2.5-Coder 1.5B base/QLoRA 비교 | Tesla T4·KorFin 90문항에서 **11.1%→12.2%(+1.11%p)**. 큰 개선 주장은 기각 |
+| R³-SQL의 selective resampling | 낮은 router confidence와 실행 결과 분산이 동시에 나타날 때만 새 5-sample ensemble을 호출하는 paired runner 구현 | 4/90 trigger, **52.2%→51.1%(−1.11%p)**, 비용 +9.29%, p95 37.58s→43.17s. 기본 승격 기각 |
+| SafeQL·EXPO-SQL의 부분 오류 신호 | 첫 실행 성공 repair와 query-level DPO의 한계를 확인하고 component ranking·clause-aware preference를 후속 가설로 분리 | 아직 미구현·미측정이므로 성능 주장 없음 |
+
+### Qwen2.5-Coder 1.5B 실제 GPU full run
+
+2026-09-10, Tesla T4에서 frozen train 9,000 / dev 1,153 snapshot과 KorFin
+answerable 90문항을 사용했습니다.
+
+| 지표 | Qwen base | QLoRA 이후 | 변화 |
+|---|---:|---:|---:|
+| EX | 10/90 = 11.1% | 11/90 = 12.2% | **+1문항 / +1.11%p** |
+| easy / medium / hard | 33.3% / 0% / 0% | 30.0% / 5.0% / 0% | easy −1, medium +2, hard ±0문항 |
+| p50 / p95 latency | 3.78s / 7.69s | 5.39s / 10.20s | +42.67% / +32.59% |
+| inference peak CUDA | 1.134 GiB | 1.150 GiB | +0.016 GiB |
+
+QLoRA 학습은 **9,788.2초(2시간 43분 8.2초)**, peak CUDA **3.085 GiB**였다.
+base 실패를 5건 복구했지만 성공 4건이 회귀해 순증가는 1건이다. runtime reset으로
+원본 row-level JSON/ZIP은 잃었고 notebook console 180개 판정과 strict-summary 출력만
+[기계 판독 기록](data/research/qwen_t4_full_console_evidence.json)으로 복구했으므로,
+aggregate 실측에는 쓰되 완전한 row-level audit라고 부르지 않는다.
+
+### R³-SQL-inspired selective resampling 실제 측정
+
+2026-09-11, `claude-sonnet-5`로 동일 run의 baseline과 trigger된 새 ensemble을
+paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, evidence error
+0건이었다. 추가 $0.331545를 쓰고도 gain 0·regression 1이어서, 불확실성 trigger와
+새 답 acceptance를 분리해야 한다는 결론을 얻었다. [조건·해석](docs/research/R3-SQL-EXPERIMENT.md) ·
+[원본 summary](data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json)
 
 ---
 
@@ -576,11 +644,11 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 30,000줄, `src/` 함수 1,076개 중 1,057개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 292개 |
+| **Python** | 약 30,000줄 · `py.typed` 배포 · `ruff` + `mypy` + 실제 DB pytest를 CI에서 강제 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
-| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy`, `/v1/policy/check`, `/v1/schema`, `/v1/feedback`, `/metrics`, 단일 파일 웹 콘솔 |
+| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy`, `/v1/policy/check`, `/v1/schema`, `/v1/experiments`, `/v1/feedback`, `/metrics`, 단일 파일 웹 콘솔 |
 | **VectorDB** | [`retrieval/vectorstore.py`](src/aegis_sql/retrieval/vectorstore.py) — Chroma / FAISS / 무의존 numpy 스토어를 **동일 인터페이스**로 |
 | **RAG 파이프라인** | [`retrieval/schema_linker.py`](src/aegis_sql/retrieval/schema_linker.py) — 하이브리드 검색 + FK 그래프 확장 + 근거(evidence) 기록 |
 | **Prompt Engineering** | [`prompts/`](src/aegis_sql/prompts/) — 버전·해시 레지스트리 + **실행 정확도로 채점하는 자동 최적화**. 방법론: [`docs/PROMPT_ENGINEERING.md`](docs/PROMPT_ENGINEERING.md) |
@@ -622,7 +690,7 @@ aegis-sql/
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
-└── tests/                  292개 테스트 (실제 DB 대상, 목킹 없음)
+└── tests/                  실제 DB 기반 회귀·API·학습 테스트
 ```
 
 ---

@@ -63,17 +63,25 @@ SQL이 실행됐다는 사실과 SQL이 의미적으로 맞다는 사실을 구�
 
 ---
 
-## K3. 조예진·김무철·이남연, 「효율적인 프롬프트 엔지니어링과 사용자 피드백 기반 인터랙티브 Text-to-SQL 시스템 설계」 — 2026
+## K3. 권동욱·문재완·이종욱, 「구조 기반 예제 생성을 활용한 문맥 학습 기반 Text-to-SQL 기법」 — 성균관대학교, 2025
 
-- 소속: 연세대학교 컴퓨터과학과 / 중앙대학교 / 한신대학교
-- 학술지: 한국경영공학회지, 2026, 31(1), 37-47
-- KCI: https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003319623
-- 핵심: Llama 3.2 3B, structured CoT prompting, 사용자 feedback 기반 instruction tuning
-- AEGIS 연결: lightweight model, prompt engineering, feedback flywheel
+- 영어 제목: *SEG-SQL: Structure-aware Example Generation for Text-to-SQL Method with In-context Learning*
+- 학술지: 정보과학회논문지, 52(11), 992-1001
+- DOI: https://doi.org/10.5626/JOK.2025.52.11.992
+- KCI 서지·초록 및 1쪽 미리보기: https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003264129
+- 원문: https://www.dbpia.co.kr/journal/articleDetail?nodeId=NODE12548332 (구독 필요)
+- 상태: **원문 접근 비용 때문에 보류(2026-09-12)** — 초록·미리보기만으로 완독 처리하지 않음
+- AEGIS 연결: SQL 구조 기반 few-shot, pseudo SQL 생성, candidate generation 비용·품질
 
 **왜 읽는가**
 
-2026년 국내 국문 Text-to-SQL 연구라서 최신 용어와 실험 흐름을 한국어로 익히기 좋다. 특히 AEGIS의 Qwen lightweight-model 실험과 사용자 피드백 기반 데이터 개선을 비교하기 쉽다.
+자연어 유사도 검색만으로 목표 SQL과 구조적으로 가까운 예제를 확보하기 어렵다는 문제를, 초기 SQL의 구조 힌트 벡터를 변형해 pseudo SQL과 자연어 질문 쌍을 새로 만드는 방식으로 해결한다. AEGIS의 few-shot retrieval과 후보 재생성에서 `검색할 것`과 `새로 만들 것`의 경계를 정하는 근거가 된다.
+
+**읽고 답할 질문**
+
+1. 구조 힌트 벡터는 SQL의 어떤 요소를 표현하며, 비트 변형의 유효성 제약은 무엇인가?
+2. pseudo SQL과 SQL-to-Text 결과의 실행 가능성·의미 보존을 어떻게 검증하는가?
+3. 구조 예제 생성의 EX 향상과 추가 호출·latency 사이의 trade-off는 무엇인가?
 
 ---
 
@@ -170,7 +178,7 @@ AEGIS의 30개 clear-but-unanswerable probe를 만든 직접적인 문제의식�
 
 1. **K1 서울대 Evidence 학위 연구보고서** — 한국어로 schema/evidence 개념 잡기
 2. **K2 서울대 동적 교정 논문** — 한국어로 execution/refinement 개념 잡기
-3. **K3 2026 국문 인터랙티브 Text-to-SQL** — 최신 lightweight/prompt/feedback 흐름
+3. **K3 성균관대 SEG-SQL** — 구조 기반 few-shot 생성과 비용·품질 trade-off
 4. **E1 SafeQL** — 최신 KAIST repair 연구
 5. **E2 EXPO-SQL** — 최신 성균관대 execution/RL 연구
 6. **E3 LitE-SQL** — 연세대 lightweight model 연구
@@ -179,7 +187,7 @@ AEGIS의 30개 clear-but-unanswerable probe를 만든 직접적인 문제의식�
 9. **E5 SEED** — K1의 국제 논문 버전
 10. **E6 EHRSQL** — answerability benchmark 원전
 
-면접 직전 최소 완독 목표는 **K1, K2, E1, E2, E3, E4 총 6편**이다.
+면접 직전 최소 완독 목표는 **K1, K2, K3, E1, E2, E3 총 6편**이다.
 
 ## 증거 규칙
 
