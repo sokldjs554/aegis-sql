@@ -126,7 +126,20 @@
   .ghostbtn .fp{font-family:var(--mono); font-size:11px; color:var(--muted)}
   .dot{width:7px; height:7px; border-radius:50%; background:var(--good); flex:none}
   .dot.bad{background:var(--critical)}
-  @media (max-width:620px){ .ghostbtn .fp, .ghostbtn .lbl{display:none} }
+  @media (max-width:760px){
+    .appbar-in{padding:0 10px; gap:5px}
+    .navtabs{margin-left:2px}
+    .navtab{padding:0 8px; font-size:12px}
+    .navtab::after{left:8px; right:8px}
+    #statusBtn .fp, #statusBtn .lbl, #statusBtn .car, #themeLbl{display:none}
+    #schemaBtn{display:none}
+    #statusBtn, #themeBtn{padding:0 8px}
+  }
+  @media (max-width:460px){
+    .brand{font-size:0; gap:0}
+    .navtab{padding:0 6px; font-size:11.5px}
+    .navtab::after{left:6px; right:6px}
+  }
 
   main{max-width:1240px; margin:0 auto; padding:26px 22px 60px}
 
@@ -174,6 +187,15 @@
   .kbd{font-family:var(--mono); font-size:11px; border:1px solid var(--line); border-bottom-width:2px;
        border-radius:5px; padding:1px 5px; color:var(--muted); background:var(--surface-2)}
   .hint{font-size:12.5px; color:var(--muted)}
+  .scope-note{display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin:-2px 0 14px;
+              padding:9px 12px; border:1px solid var(--line); border-radius:var(--radius-sm);
+              background:var(--surface); color:var(--muted); font-size:12.3px}
+  .scope-note .live{font-family:var(--mono); font-size:10.5px; font-weight:700; color:var(--good);
+                    background:var(--good-soft); border-radius:999px; padding:2px 8px}
+  .scope-note b{color:var(--ink-2)}
+  .scope-note button{margin-left:auto; border:0; background:none; padding:2px 0; color:var(--accent-ink);
+                     font:600 12.3px/1.4 inherit; cursor:pointer}
+  .scope-note button:hover{text-decoration:underline}
 
   /* ---------- examples & history ---------------------------------------- */
   .exgroups{display:flex; flex-wrap:wrap; gap:8px 20px; margin:0 0 14px}
@@ -424,10 +446,107 @@
   .outcome p{font-size:12.8px; line-height:1.6; color:var(--muted); text-align:left}
   .honest{max-width:840px; margin:26px auto 0; padding-top:18px; border-top:1px solid var(--line-2);
           font-size:12.3px; line-height:1.6; color:var(--muted); text-align:center}
+
+  /* ---------- recorded model experiments ------------------------------
+     라이브 template 질의와 과거 LLM/GPU 실측을 한 화면에서 섞지 않는다.
+     여기의 숫자는 /v1/experiments 한 곳에서만 오고, 카드에는 채택·기각 판단과
+     증거 범위를 같이 둔다. 높은 숫자만 골라 보이는 성과 대시보드가 아니다. */
+  .labhero{position:relative; overflow:hidden; border:1px solid var(--line); border-radius:var(--radius);
+           background:var(--surface); box-shadow:var(--shadow); padding:27px 30px; margin-bottom:14px}
+  .labhero::after{content:""; position:absolute; width:260px; height:260px; right:-110px; top:-150px;
+                  border-radius:50%; background:var(--accent-soft); opacity:.75; pointer-events:none}
+  .labhero .eyebrow{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono);
+                    font-size:10.5px; font-weight:700; color:var(--accent-ink); letter-spacing:.3px}
+  .labhero .eyebrow::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--accent)}
+  .labhero h1{position:relative; margin:8px 0 5px; font-size:23px; line-height:1.35; letter-spacing:-.5px}
+  .labhero p{position:relative; max-width:760px; margin:0; color:var(--muted); font-size:13.2px}
+  .labscope{display:flex; align-items:flex-start; gap:10px; margin-top:17px; padding-top:14px;
+            border-top:1px solid var(--line-2); color:var(--ink-2); font-size:12.5px}
+  .labscope .rec{flex:none; font-family:var(--mono); font-size:10.5px; font-weight:700;
+                 color:#8a6a10; background:var(--warning-soft); border-radius:999px; padding:2px 8px}
+  .labsection{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+              box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden}
+  .labhead{display:flex; align-items:flex-start; gap:12px; padding:18px 20px 14px;
+           border-bottom:1px solid var(--line-2)}
+  .labhead .copy{flex:1}
+  .labhead h2{margin:0; font-size:15.5px; letter-spacing:-.2px}
+  .labhead p{margin:3px 0 0; font-size:12.3px; color:var(--muted)}
+  .labpills{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end}
+  .labpill{font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:999px;
+           color:var(--muted); background:var(--surface-2); border:1px solid var(--line)}
+  .labpill.good{color:var(--good); background:var(--good-soft); border-color:transparent}
+  .labpill.warn{color:#8a6a10; background:var(--warning-soft); border-color:transparent}
+  .labpill.bad{color:var(--critical); background:var(--critical-soft); border-color:transparent}
+  .tiercards{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding:16px 20px 20px}
+  .tiercard{border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 15px;
+            background:var(--surface-2); min-width:0}
+  .tiercard.featured{border-color:color-mix(in srgb, var(--accent) 42%, var(--line));
+                     background:color-mix(in srgb, var(--accent-soft) 42%, var(--surface))}
+  .tiercard .th{display:flex; align-items:center; gap:7px; font-weight:700; font-size:13px}
+  .tiercard .model{font-family:var(--mono); color:var(--muted); font-size:10.5px;
+                   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+  .tiercard .score{display:flex; align-items:baseline; gap:7px; margin:13px 0 8px}
+  .tiercard .score b{font-family:var(--mono); font-size:27px; line-height:1; letter-spacing:-1px}
+  .tiercard .score span{font-size:11.5px; color:var(--muted)}
+  .extrack{height:6px; border-radius:999px; background:var(--bar-track); overflow:hidden}
+  .extrack i{display:block; height:100%; border-radius:999px; background:var(--bar)}
+  .diffs{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin:12px 0;
+         border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--line)}
+  .diffs div{background:var(--surface); text-align:center; padding:5px 3px}
+  .diffs small{display:block; font-size:9.5px; color:var(--muted); text-transform:uppercase}
+  .diffs b{font-family:var(--mono); font-size:11.5px; font-weight:600}
+  .tiermeta{display:grid; grid-template-columns:1fr 1fr; gap:5px 10px; font-size:10.8px; color:var(--muted)}
+  .tiermeta b{display:block; font-family:var(--mono); color:var(--ink-2); font-size:11.5px}
+  .labbody{padding:17px 20px 20px}
+  .labdecision{display:flex; gap:10px; align-items:flex-start; padding:12px 14px; margin:0 20px 20px;
+               border-left:3px solid var(--accent); background:var(--accent-soft);
+               border-radius:0 var(--radius-sm) var(--radius-sm) 0; color:var(--ink-2); font-size:12.5px}
+  .labdecision.bad{border-left-color:var(--critical); background:var(--critical-soft)}
+  .labdecision b{flex:none; font-size:11px; letter-spacing:.3px}
+  .labnote{display:flex; gap:9px; align-items:flex-start; padding:11px 13px; margin-top:13px;
+           border:1px solid var(--line); border-radius:var(--radius-sm); color:var(--muted);
+           background:var(--surface-2); font-size:12px}
+  .labsection > .labnote{margin:0 20px 20px}
+  .labnote.warn{border-color:color-mix(in srgb, var(--warning) 35%, var(--line));
+                background:var(--warning-soft); color:var(--ink-2)}
+  .compare{width:100%; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden}
+  .comparerow{display:grid; grid-template-columns:minmax(150px,1.25fr) 1fr 1fr; background:var(--surface)}
+  .comparerow + .comparerow{border-top:1px solid var(--line-2)}
+  .comparerow > div{padding:8px 11px; font-size:12px; min-width:0}
+  .comparerow > div + div{border-left:1px solid var(--line-2)}
+  .comparerow.head{background:var(--surface-2); color:var(--muted); font-size:10.5px; font-weight:700}
+  .comparerow .metric{color:var(--muted)}
+  .comparerow .val{font-family:var(--mono); color:var(--ink-2); font-variant-numeric:tabular-nums}
+  .statgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; margin-top:12px}
+  .stat{border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; background:var(--surface-2)}
+  .stat .k{font-size:10.5px; color:var(--muted)}
+  .stat .v{font-family:var(--mono); font-size:17px; font-weight:600; margin-top:2px;
+           font-variant-numeric:tabular-nums}
+  .stat .s{font-size:10.5px; color:var(--muted); margin-top:2px}
+  .sources{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:16px 20px 20px}
+  .source{display:flex; align-items:center; gap:9px; min-width:0; padding:9px 11px; border:1px solid var(--line);
+          border-radius:var(--radius-sm); color:var(--ink-2); text-decoration:none; background:var(--surface-2)}
+  .source:hover{border-color:var(--accent); color:var(--accent-ink)}
+  .source .sl{min-width:0; flex:1}
+  .source .sn{display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .source .sh{display:block; font:10px/1.5 var(--mono); color:var(--muted); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis}
+  .labloading{padding:48px 20px; text-align:center; color:var(--muted); font-size:13px}
   @media (max-width:720px){
     .outcomes{grid-template-columns:1fr; gap:20px; max-width:420px}
     .outcome{border-left:0; padding:0}
     .outcome + .outcome{border-top:1px solid var(--line-2); padding-top:18px}
+    .labhero{padding:22px 18px}
+    .labhero h1{font-size:19px}
+    .labhead{display:block; padding:15px 16px 12px}
+    .labpills{justify-content:flex-start; margin-top:9px}
+    .tiercards{grid-template-columns:1fr; padding:14px 16px 16px}
+    .labbody{padding:14px 16px 16px}
+    .labdecision{margin:0 16px 16px}
+    .sources{grid-template-columns:1fr; padding:14px 16px 16px}
+    .comparerow{grid-template-columns:minmax(108px,.8fr) 1fr 1fr}
+    .comparerow > div{padding:7px 8px; font-size:10.8px}
+    .scope-note button{margin-left:0}
   }
   .errbox{border-left:3px solid var(--critical); background:var(--critical-soft); padding:12px 15px;
           border-radius:0 var(--radius-sm) var(--radius-sm) 0}
@@ -464,8 +583,9 @@
       AEGIS<span>-SQL</span>
     </div>
     <div class="navtabs" role="tablist" aria-label="콘솔 모드">
-      <button class="navtab" id="modeAsk" role="tab" aria-selected="true">질의</button>
-      <button class="navtab" id="modeGuard" role="tab" aria-selected="false">거버넌스 샌드박스</button>
+      <button class="navtab" id="modeAsk" role="tab" aria-controls="askMode" aria-selected="true">질의</button>
+      <button class="navtab" id="modeGuard" role="tab" aria-controls="guardMode" aria-selected="false">거버넌스 샌드박스</button>
+      <button class="navtab" id="modeLab" role="tab" aria-controls="labMode" aria-selected="false">LLM 실험</button>
     </div>
     <div class="spacer"></div>
     <button class="ghostbtn" id="statusBtn" title="누르면 엔진 상태·스키마 지문·프롬프트 버전을 엽니다">
@@ -478,7 +598,7 @@
 
 <main>
 
-  <section id="askMode">
+  <section id="askMode" role="tabpanel" aria-labelledby="modeAsk">
     <div class="askwrap">
       <div class="askrow">
         <div class="field">
@@ -508,6 +628,12 @@
       </div>
     </div>
 
+    <div class="scope-note" role="note">
+      <span class="live">LIVE · TEMPLATE</span>
+      <span>현재 질의는 <b>API 키 없는 template 티어</b>로 실행됩니다. Claude·Qwen GPU 실측은 별도 기록입니다.</span>
+      <button id="scopeLab">실측 결과 보기 →</button>
+    </div>
+
     <div class="exgroups" id="examples"></div>
     <div class="exgroups" id="history"></div>
 
@@ -515,7 +641,7 @@
     <div id="out"></div>
   </section>
 
-  <section id="guardMode" class="hidden">
+  <section id="guardMode" class="hidden" role="tabpanel" aria-labelledby="modeGuard">
     <div class="askwrap">
       <div class="panel-title">임의의 SQL을 붙여넣으면 실행하지 않고 정책만 판정합니다</div>
       <label class="sr" for="gsql">검사할 SQL</label>
@@ -527,6 +653,20 @@ FROM TB_CUST c JOIN TB_CTRT t ON t.CUST_ID = c.CUST_ID</textarea>
       </div>
     </div>
     <div id="gout"></div>
+  </section>
+
+  <section id="labMode" class="hidden" role="tabpanel" aria-labelledby="modeLab">
+    <div class="labhero">
+      <span class="eyebrow">RECORDED MODEL EVIDENCE</span>
+      <h1>모델을 붙였다는 말보다, 배포 판단의 근거를 보여줍니다</h1>
+      <p>같은 KorFin-Bench에서 호스티드 LLM, Qwen QLoRA, 선택적 재샘플링을 실제로 측정하고
+         정확도·지연·비용이 기준을 넘지 못한 구성은 기본 경로에 넣지 않았습니다.</p>
+      <div class="labscope">
+        <span class="rec">저장된 실측 · 라이브 아님</span>
+        <span>질의 탭만 template 티어를 실시간 실행합니다. 이 탭은 보관된 리포트에서 읽은 결과이며 모델 API를 호출하지 않습니다.</span>
+      </div>
+    </div>
+    <div id="labContent"><div class="labloading">실험 근거를 불러오는 중입니다…</div></div>
   </section>
 
   <footer>
@@ -623,6 +763,7 @@ let asked = [];
 let schemaCache = null;
 let policyCache = null;
 let healthCache = null;
+let experimentCache = null;
 const PURPOSE_KO = { marketing: "마케팅" };
 
 const $ = (s) => document.querySelector(s);
@@ -1727,6 +1868,186 @@ function repairPane(rs) {
   return box;
 }
 
+/* ---------- recorded model evidence ------------------------------------
+   라이브 질의와 저장된 실험을 같은 동사로 표현하지 않는다. 이 화면은
+   /v1/experiments 가 공개해도 되는 집계만 읽고, 모델 호출은 전혀 만들지 않는다. */
+const pct = (value, digits = 1) => `${(Number(value) * 100).toFixed(digits)}%`;
+const pp = (value) => `${Number(value) > 0 ? "+" : ""}${Number(value).toFixed(2)}pp`;
+function latency(value) {
+  const ms = Number(value);
+  return ms < 1000 ? `${fmt(ms, 1)}ms` : `${(ms / 1000).toFixed(2)}s`;
+}
+function money(value, digits = 4) {
+  return Number(value) === 0 ? "$0" : `$${Number(value).toFixed(digits)}`;
+}
+function labHeader(title, subtitle, pills = []) {
+  const head = el("div", "labhead");
+  head.appendChild(el("div", "copy", `<h2>${esc(title)}</h2><p>${esc(subtitle)}</p>`));
+  const ps = el("div", "labpills");
+  pills.forEach(([label, tone]) => ps.appendChild(el("span", `labpill${tone ? ` ${tone}` : ""}`, esc(label))));
+  head.appendChild(ps);
+  return head;
+}
+function diffGrid(values) {
+  return `<div class="diffs">${["easy", "medium", "hard"].map((key) =>
+    `<div><small>${key}</small><b>${pct(values[key])}</b></div>`).join("")}</div>`;
+}
+function tierCard(run) {
+  const mix = Object.entries(run.tier_mix || {}).map(([key, value]) => `${key} ${value}`).join(" · ");
+  const card = el("div", `tiercard${run.key === "llm_only" ? " featured" : ""}`,
+    `<div class="th"><span>${run.key === "template" ? "●" : run.key === "cascade" ? "◆" : "▲"}</span>${esc(run.label)}</div>` +
+    `<div class="model" title="${esc(run.model)}">${esc(run.model)}</div>` +
+    `<div class="score"><b>${pct(run.execution_accuracy)}</b><span>${fmt(run.correct)}/${fmt(run.total)} EX</span></div>` +
+    `<div class="extrack" title="Execution Accuracy ${pct(run.execution_accuracy)}"><i style="width:${(Number(run.execution_accuracy) * 100).toFixed(2)}%"></i></div>` +
+    diffGrid(run.by_difficulty) +
+    `<div class="tiermeta">` +
+      `<span>p50<b>${latency(run.p50_latency_ms)}</b></span>` +
+      `<span>p95<b>${latency(run.p95_latency_ms)}</b></span>` +
+      `<span>실행 가능<b>${pct(run.executable_rate)}</b></span>` +
+      `<span>질의당 비용<b>${money(run.cost_per_query_usd)}${run.cost_per_query_usd ? "*" : ""}</b></span>` +
+    `</div>` +
+    (mix ? `<div class="model" style="margin-top:10px" title="${esc(mix)}">route · ${esc(mix)}</div>` : ""));
+  return card;
+}
+function compareRow(metric, left, right, head = false) {
+  return el("div", `comparerow${head ? " head" : ""}`,
+    `<div class="metric">${esc(metric)}</div><div class="val">${esc(left)}</div><div class="val">${esc(right)}</div>`);
+}
+function stat(label, value, sub = "") {
+  return el("div", "stat",
+    `<div class="k">${esc(label)}</div><div class="v">${esc(value)}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ""}`);
+}
+function decision(text, rejected = false, label = "판단") {
+  return el("div", `labdecision${rejected ? " bad" : ""}`,
+    `<b>${esc(label)}</b><span>${esc(text)}</span>`);
+}
+
+function renderTierEvidence(data) {
+  const section = el("section", "labsection");
+  section.appendChild(labHeader(
+    "Template ↔ Claude 티어 비교",
+    "동일한 KorFin-Bench 정답 SQL을 실행해 결과 집합 일치 여부(EX)를 비교했습니다.",
+    [[data.benchmark], [`${data.answerable_items} answerable`], [`${data.total_items} total`]],
+  ));
+  const cards = el("div", "tiercards");
+  data.runs.forEach((run) => cards.appendChild(tierCard(run)));
+  section.appendChild(cards);
+  section.appendChild(decision(data.decision_ko));
+  section.appendChild(el("div", "labnote",
+    `<span>ⓘ</span><span>${esc(data.cost_scope_ko)}</span>`));
+  return section;
+}
+
+function renderQwenEvidence(qwen) {
+  const section = el("section", "labsection");
+  section.appendChild(labHeader(
+    "Qwen2.5-Coder 1.5B · Base vs QLoRA",
+    qwen.model,
+    [[qwen.gpu, "good"], [`${qwen.items}문항`], ["기본 티어 미승격", "bad"]],
+  ));
+  const body = el("div", "labbody");
+  const table = el("div", "compare");
+  table.appendChild(compareRow("측정값", "Base", "QLoRA", true));
+  table.appendChild(compareRow("Execution Accuracy",
+    `${qwen.base.correct}/${qwen.base.total} · ${pct(qwen.base.execution_accuracy)}`,
+    `${qwen.adapted.correct}/${qwen.adapted.total} · ${pct(qwen.adapted.execution_accuracy)}`));
+  table.appendChild(compareRow("easy / medium / hard",
+    `${pct(qwen.base.by_difficulty.easy)} / ${pct(qwen.base.by_difficulty.medium)} / ${pct(qwen.base.by_difficulty.hard)}`,
+    `${pct(qwen.adapted.by_difficulty.easy)} / ${pct(qwen.adapted.by_difficulty.medium)} / ${pct(qwen.adapted.by_difficulty.hard)}`));
+  table.appendChild(compareRow("p50 / p95 latency",
+    `${latency(qwen.base.latency_ms.p50)} / ${latency(qwen.base.latency_ms.p95)}`,
+    `${latency(qwen.adapted.latency_ms.p50)} / ${latency(qwen.adapted.latency_ms.p95)}`));
+  table.appendChild(compareRow("peak CUDA memory",
+    `${Number(qwen.base.peak_cuda_memory_gib).toFixed(3)} GiB`,
+    `${Number(qwen.adapted.peak_cuda_memory_gib).toFixed(3)} GiB`));
+  body.appendChild(table);
+  const stats = el("div", "statgrid");
+  stats.appendChild(stat("학습 시간", qwen.training.wall_clock_hms, `${fmt(qwen.training.wall_clock_seconds, 1)}초`));
+  stats.appendChild(stat("학습 peak GPU", `${Number(qwen.training.peak_cuda_memory_gib).toFixed(3)} GiB`, qwen.gpu));
+  stats.appendChild(stat("trainable parameters", fmt(qwen.training.trainable_parameters), `${qwen.training.trainable_percent}%`));
+  stats.appendChild(stat("paired 변화", `+${qwen.paired.gained} / −${qwen.paired.regressed}`, `${qwen.paired.unchanged} unchanged · ${pp(qwen.paired.delta_ex_percentage_points)}`));
+  body.appendChild(stats);
+  body.appendChild(el("div", "labnote warn",
+    `<span>△</span><span><b>증거 범위</b> · ${esc(qwen.evidence.limitation_ko)}</span>`));
+  section.appendChild(body);
+  section.appendChild(decision(qwen.decision_ko, true, "NO-GO"));
+  return section;
+}
+
+function renderResamplingEvidence(r3) {
+  const section = el("section", "labsection");
+  section.appendChild(labHeader(
+    "R³-SQL식 selective resampling",
+    "불확실한 후보만 재생성한 paired run — 좋아진 사례뿐 아니라 회귀와 추가 비용도 함께 셌습니다.",
+    [[r3.model], [`raw ${r3.evidence.raw_rows_archived}행`, "good"], ["정책 기각", "bad"]],
+  ));
+  const body = el("div", "labbody");
+  const table = el("div", "compare");
+  table.appendChild(compareRow("측정값", "Baseline", "Resampling", true));
+  table.appendChild(compareRow("Execution Accuracy",
+    `${r3.baseline.correct}/${r3.items} · ${pct(r3.baseline.execution_accuracy)}`,
+    `${r3.policy.correct}/${r3.items} · ${pct(r3.policy.execution_accuracy)}`));
+  table.appendChild(compareRow("총 비용", money(r3.baseline.cost_usd, 3), money(r3.policy.cost_usd, 3)));
+  table.appendChild(compareRow("p50 latency", latency(r3.baseline.p50_latency_ms), latency(r3.policy.p50_latency_ms)));
+  table.appendChild(compareRow("p95 latency", latency(r3.baseline.p95_latency_ms), latency(r3.policy.p95_latency_ms)));
+  body.appendChild(table);
+  const stats = el("div", "statgrid");
+  stats.appendChild(stat("trigger rate", pct(r3.trigger_rate), `${r3.triggered}/${r3.items} 전체 · ${r3.triggered}/${r3.eligible_items} eligible`));
+  stats.appendChild(stat("ΔEX", pp(r3.delta_ex_percentage_points), "baseline → resampling"));
+  stats.appendChild(stat("추가 비용", money(r3.extra_cost_usd, 3), `+${pct(r3.cost_increase_ratio)} total`));
+  stats.appendChild(stat("paired 변화", `+${r3.transitions.gains} / −${r3.transitions.regressions}`, `${r3.transitions.unchanged} unchanged`));
+  body.appendChild(stats);
+  section.appendChild(body);
+  section.appendChild(decision(r3.decision_ko, true, "REJECT"));
+  return section;
+}
+
+function renderSources(sources) {
+  const section = el("section", "labsection");
+  section.appendChild(labHeader(
+    "재현 가능한 근거 파일",
+    "표시된 숫자는 아래 파일에서 빌드되며 SHA-256으로 원본 변경을 확인할 수 있습니다.",
+    [[`${sources.length} sources`, "good"]],
+  ));
+  const grid = el("div", "sources");
+  sources.forEach((source) => {
+    const link = el("a", "source",
+      `<span>↗</span><span class="sl"><span class="sn">${esc(source.label)}</span>` +
+      `<span class="sh">${esc(source.path)} · ${esc(source.sha256.slice(0, 12))}</span></span>`);
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    grid.appendChild(link);
+  });
+  section.appendChild(grid);
+  return section;
+}
+
+function renderExperimentLab(data) {
+  const root = $("#labContent");
+  root.innerHTML = "";
+  root.appendChild(renderTierEvidence(data.tier_comparison));
+  root.appendChild(renderQwenEvidence(data.qwen));
+  root.appendChild(renderResamplingEvidence(data.selective_resampling));
+  root.appendChild(renderSources(data.sources));
+}
+
+async function loadExperiments() {
+  if (experimentCache) { renderExperimentLab(experimentCache); return; }
+  const root = $("#labContent");
+  root.innerHTML = '<div class="labloading">실험 근거를 불러오는 중입니다…</div>';
+  try {
+    const response = await fetch("/v1/experiments");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    experimentCache = await response.json();
+    renderExperimentLab(experimentCache);
+  } catch (error) {
+    root.innerHTML = `<div class="panel panel-pad"><div class="errbox"><b>실험 근거를 불러오지 못했습니다</b>` +
+      `<div>${esc(error.message || error)}</div><button class="copybtn" id="labRetry" style="margin-top:10px">다시 시도</button></div></div>`;
+    $("#labRetry").onclick = loadExperiments;
+  }
+}
+
 /* ---------- governance sandbox ------------------------------------------- */
 async function checkPolicy() {
   const sql = $("#gsql").value.trim();
@@ -1801,16 +2122,21 @@ $("#q").addEventListener("keydown", (e) => {
 $("#gcheck").onclick = checkPolicy;
 document.addEventListener("keydown", (e) => {
   const tag = document.activeElement && document.activeElement.tagName;
-  if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); $("#q").focus(); }
+  if (e.key === "/" && !$("#askMode").classList.contains("hidden") && tag !== "INPUT" && tag !== "TEXTAREA") {
+    e.preventDefault(); $("#q").focus();
+  }
 });
-function setMode(ask) {
-  $("#modeAsk").setAttribute("aria-selected", String(ask));
-  $("#modeGuard").setAttribute("aria-selected", String(!ask));
-  $("#askMode").classList.toggle("hidden", !ask);
-  $("#guardMode").classList.toggle("hidden", ask);
+function setMode(mode) {
+  const panes = { ask: "askMode", guard: "guardMode", lab: "labMode" };
+  const tabs = { ask: "modeAsk", guard: "modeGuard", lab: "modeLab" };
+  Object.entries(panes).forEach(([key, id]) => $("#" + id).classList.toggle("hidden", key !== mode));
+  Object.entries(tabs).forEach(([key, id]) => $("#" + id).setAttribute("aria-selected", String(key === mode)));
+  if (mode === "lab") loadExperiments();
 }
-$("#modeAsk").onclick = () => setMode(true);
-$("#modeGuard").onclick = () => setMode(false);
+$("#modeAsk").onclick = () => setMode("ask");
+$("#modeGuard").onclick = () => setMode("guard");
+$("#modeLab").onclick = () => setMode("lab");
+$("#scopeLab").onclick = () => setMode("lab");
 
 renderExamples();
 loadHealth();
