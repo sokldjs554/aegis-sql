@@ -15,18 +15,22 @@
 ## 먼저 볼 파일
 
 - [실제 논문 독해 기록](READING-LOG.md) — 원문 검토를 끝낸 논문만 문제·방법·AEGIS 비교·판단 네 줄로 기록
-- [국문/영문 실제 독서 목록](READING-LIST-KO-EN.md) — 면접 전 읽을 논문만 최신성·AEGIS 연관성 순으로 정리
+- [국문/영문 독서 계획](READING-LIST-KO-EN.md) — 아직 읽을 자료를 최신성·AEGIS 연관성 순으로 정리
 - [기존 면접형 읽기 가이드](READING-GUIDE.md) — 논문별 질문과 30초 답변
 - [Paper-driven experiments](EXPERIMENTS.md) — 어떤 가설을 코드/측정으로 연결했는지와 현재 상태
 
 ## 핵심 리뷰
 
+원문에서 방법·실험·한계까지 확인한 완료 기록은 현재 **5편(K1, K2, E1~E3)**이다.
+아래 주제 노트나 `PAPERS.md`의 참고문헌 수와 완료 편수를 섞지 않는다. SEG-SQL은
+원문 접근에 비용이 필요해 보류했다.
+
 | 논문 | 분야 | AEGIS와의 관계 | 상태 |
 |---|---|---|---|
-| [SafeQL](SAFEQL.md) — VLDB 2026, KAIST | DBMS-guided partial repair | deterministic repair와 최신 search-based refinement 대조 | gap 분석 완료 |
-| [EXPO-SQL](EXPO-SQL.md) — Findings ACL 2026 | clause-level execution reward | query-level DPO의 다음 학습 신호 후보 | 후속실험 후보 |
-| [R³-SQL](R3-SQL.md) — Findings ACL 2026 | 후보 ranking · resampling | execution-result grouping과 selective resampling 대조 | live runner·evidence gate 완료 / full 측정 대기 |
-| [LitE-SQL](LitE-SQL.md) — Findings EACL 2026 | lightweight model · vector schema linking | AEGIS 5.3M sLLM 실패와 가장 직접적인 비교군 | Qwen 경로 구현 완료 / GPU 측정 대기 |
+| [SafeQL](SAFEQL.md) — VLDB 2026, KAIST | DBMS-guided partial repair | deterministic repair와 최신 search-based refinement 대조 | **원문 독해 완료** / 변형 가설 |
+| [EXPO-SQL](EXPO-SQL.md) — Findings ACL 2026 | clause-level execution reward | query-level DPO의 다음 학습 신호 후보 | **원문 독해 완료** / 후속실험 후보 |
+| [R³-SQL](R3-SQL.md) — Findings ACL 2026 | 후보 ranking · resampling | execution-result grouping과 selective resampling 대조 | Anthropic 90문항 실측 / **−1.11%p로 승격 기각** |
+| [LitE-SQL](LitE-SQL.md) — Findings EACL 2026 | lightweight model · vector schema linking | AEGIS 5.3M sLLM 실패와 가장 직접적인 비교군 | **원문 독해 + Qwen T4 full run 완료** |
 | [SEED](SEED.md) — ICDEW 2025, 서울대 | automatic evidence generation | glossary/value/FK evidence와 대조 | 비교 · 자동화 후보 |
 | [EHRSQL](EHRSQL.md) — KAIST 중심 | 실무 benchmark · unanswerable | KorFin-Bench에 없던 answerability 축 발견 | 30-probe 측정 완료 |
 | [RAT-SQL](RAT-SQL.md) — ACL 2020 | schema encoding/linking | neural relation encoder 대신 명시적 FK/evidence layer | 변형 |
@@ -36,7 +40,7 @@
 
 ### Q1. 작은 모델 실패의 원인은 "크기"인가 "사전학습 부재"인가?
 
-AEGIS의 5.3M from-scratch 모델은 DPO reward margin이 개선됐지만 KorFin-Bench EX는 0.0%였다. LitE-SQL을 대조해 **Qwen2.5-Coder 1.5B pretrained adaptation 비교 경로**를 만들었다. 같은 flywheel split, schema representation, retrieval, guard, execution-match를 고정했고 실제 GPU full run만 남아 있다.
+AEGIS의 5.3M from-scratch 모델은 DPO reward margin이 개선됐지만 KorFin-Bench EX는 0.0%였다. LitE-SQL을 대조해 **Qwen2.5-Coder 1.5B pretrained adaptation 비교 경로**를 만들고 Tesla T4에서 실제 full run했다. 같은 snapshot·retrieval·KorFin answerable 90문항에서 base 11.1%→QLoRA 12.2%(+1.11%p), easy 33.3%→30.0%, medium 0%→5.0%, hard 0% 유지였다. 학습은 9,788.2초·peak 3.085 GiB였고 p50은 3.78초→5.39초로 늘어, 큰 개선이 아니라 작은 순증가와 회귀가 함께 관측됐다고 해석한다.
 
 ### Q2. 보험 domain evidence를 사람이 얼마나 만들어야 하는가?
 
@@ -51,8 +55,10 @@ EHRSQL을 검토한 뒤 15 unanswerable + 15 answerable hard-negative probe를 �
 R³-SQL을 대조해 route confidence + execution-result group dispersion을 사용하는
 **side-effect-free selective-resampling policy**와 actual candidate regeneration
 runner를 구현했다. 문항별 raw checkpoint, resume, provider fallback 차단,
-paired EX·추가 비용·p50/p95 summary 및 strict evidence gate를 포함한다. 현재
-hosted full run은 아직 없어 개선 수치는 주장하지 않는다. 실행 절차는
+paired EX·추가 비용·p50/p95 summary 및 strict evidence gate를 포함한다.
+`claude-sonnet-5` 90문항 full run에서 4문항(4.4%)이 trigger됐으나 EX는
+52.2%→51.1%(−1.11%p), 추가 비용은 $0.331545(+9.29%), p95는
+37.58초→43.17초였다. 따라서 현재 heuristic은 승격하지 않는다. 실행 조건과 원본은
 [R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 있다.
 
 ### Q5. SQL을 틀렸을 때 전체를 다시 만들 필요가 있는가?
@@ -71,4 +77,4 @@ EXPO-SQL은 query-level reward가 맞는 clause와 틀린 clause를 구분하지
 - **실험 증거**: 이미 측정한 값만 명시하고, 미실행 가설은 별도로 표시
 - **Git 증거**: 리뷰 노트와 후속 구현을 별도 커밋/PR로 남겨 변경 순서를 추적
 
-구체적인 실험 설계와 남은 측정은 [EXPERIMENTS.md](EXPERIMENTS.md)에 기록한다. 실제 측정값이 생기기 전에는 README/포트폴리오의 성능 주장에 반영하지 않는다.
+구체적인 실험 설계와 남은 측정은 [EXPERIMENTS.md](EXPERIMENTS.md)에 기록한다. 실제 측정값만 README/포트폴리오에 반영하며, 실패한 가설도 비용·지연과 함께 남긴다.

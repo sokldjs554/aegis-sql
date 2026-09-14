@@ -20,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SEED = 20260824
 TODAY = date(2026, 8, 24)
-MARKETING_CONSENT_RATE = 0.40
+FULL_MARKETING_CONSENT_RATE = 0.42
+SMALL_DEMO_MARKETING_CONSENT_RATE = 0.40
 
 # --------------------------------------------------------------------------- #
 # Reference data
@@ -174,8 +175,26 @@ def rand_date(rng: random.Random, start: date, end: date) -> date:
 # --------------------------------------------------------------------------- #
 
 
+def marketing_consent_rate(scale: float) -> float:
+    """Keep the public 0.5x demo distinct without changing the frozen full dataset."""
+
+    if scale <= 0.5:
+        return SMALL_DEMO_MARKETING_CONSENT_RATE
+    return FULL_MARKETING_CONSENT_RATE
+
+
+def remove_sqlite_artifacts(path: Path) -> None:
+    """Remove a database and SQLite sidecars before a deterministic rebuild."""
+
+    for suffix in ("", "-journal", "-wal", "-shm"):
+        artifact = Path(f"{path}{suffix}")
+        if artifact.exists():
+            artifact.unlink()
+
+
 def build(conn: sqlite3.Connection, scale: float = 1.0) -> dict[str, int]:
     rng = random.Random(SEED)
+    consent_rate = marketing_consent_rate(scale)
     counts: dict[str, int] = {}
     cur = conn.cursor()
 
@@ -233,7 +252,7 @@ def build(conn: sqlite3.Connection, scale: float = 1.0) -> dict[str, int]:
             f"{rng.randint(1,63):02d}{rng.randint(100,999):03d}", addr,
             f"010-{rng.randint(1000,9999)}-{rng.randint(1000,9999)}",
             f"user{i + 1}@{rng.choice(['naver.com','gmail.com','daum.net','kakao.com'])}",
-            ymd(join), grade, "Y" if rng.random() < MARKETING_CONSENT_RATE else "N", rgn,
+            ymd(join), grade, "Y" if rng.random() < consent_rate else "N", rgn,
         ))
     cur.executemany("INSERT INTO TB_CUST VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", customers)
     counts["TB_CUST"] = len(customers)
@@ -409,11 +428,10 @@ def main() -> int:
     args = ap.parse_args()
 
     out = Path(args.out)
-    if out.exists():
-        if not args.force:
-            print(f"[skip] {out} already exists (use --force to rebuild)")
-            return 0
-        out.unlink()
+    if out.exists() and not args.force:
+        print(f"[skip] {out} already exists (use --force to rebuild)")
+        return 0
+    remove_sqlite_artifacts(out)
     out.parent.mkdir(parents=True, exist_ok=True)
 
     conn = sqlite3.connect(out)

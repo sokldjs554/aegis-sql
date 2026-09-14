@@ -1,9 +1,9 @@
-# R³-SQL-inspired Selective Resampling — Live Experiment
+# R³-SQL-inspired Selective Resampling — Measured Experiment
 
-이 문서는 `EXP-03`의 **실제 후보 재생성 실험**을 재현하는 절차다. 실행기와
-검증기는 완성됐지만 hosted provider full run 숫자는 아직 없다. 따라서 결과
-bundle의 `portfolio_evidence_ready`가 `true`가 되기 전에는 EX 개선·비용 증가
-수치를 README, 포트폴리오, 자소서에 쓰지 않는다.
+이 문서는 `EXP-03`의 **실제 후보 재생성 실험**과 재현 절차를 기록한다.
+2026-09-11 Anthropic full run과 2026-09-13 독립 재검증에서
+`portfolio_evidence_ready=true`를 확인했다. 결과는 개선이 아니라 성능 하락이며,
+그 실패까지 원본 행 단위 로그와 함께 보존한다.
 
 ## 고정한 비교 프로토콜
 
@@ -18,6 +18,7 @@ bundle의 `portfolio_evidence_ready`가 `true`가 되기 전에는 EX 개선·�
 | 비용 | provider usage token과 저장소 내 고정 price table로 계산한 USD 추정치 |
 | 지연시간 | end-to-end wall latency; 자연어 답변 합성은 양쪽 모두 제외 |
 | retrieval | hashing embedder + numpy store, few-shot 0개 |
+| runtime | Linux 6.6 · Python 3.13.15 · answer synthesis OFF |
 | seed | DB/로컬 구성은 `PYTHONHASHSEED=0`; hosted sampling seed는 지원되지 않아 `null`로 기록 |
 
 여기서 resampling은 기존 후보와 새 후보를 합쳐 learned ranker로 재평가하는
@@ -27,7 +28,43 @@ ensemble 결과로 교체하는 heuristic approximation이다. 따라서 결과�
 
 과거 `reports/eval_llm.json`의 52.2%는 candidate-level log가 없어 이 실험의
 baseline으로 재사용하지 않는다. 이번 full run 안에서 새로 얻은 paired
-baseline만 비교 기준이다.
+baseline만 비교 기준이다. 또한 이 paired run의 지연·비용은 위 조건에서만 해석하며,
+다른 시점·하드웨어에서 측정한 README 티어 카드와 직접 속도 비교하지 않는다.
+
+## 실제 full run — 2026-09-11
+
+Git revision `73a1a3c4a8e2875660471f01b18bb664ecdb975c`에서
+`claude-sonnet-5`를 실제 호출해 KorFin-Bench answerable 90문항을 같은 run 안에서
+paired 비교했다. 업로드된 bundle을 `--strict`로 다시 계산했으며 evidence error는
+0건이었다.
+
+| 지표 | 결과 |
+|---|---:|
+| trigger | 4/90 = **4.4%** (eligible 4/50 = 8.0%) |
+| baseline EX | 47/90 = **52.2%** |
+| selective-resampling EX | 46/90 = **51.1%** |
+| ΔEX | **−1문항 / −1.11%p** |
+| gain / regression / unchanged | **0 / 1 / 89** |
+| easy / medium / hard | 100%→100% / 32.5%→32.5% / 20.0%→15.0% |
+| 비용 | $3.567036→$3.898581, 추가 **$0.331545 (+9.29%)** |
+| 추가 비용 | trigger당 $0.082886 / 전체 질의당 $0.003684 |
+| p50 latency | 9,978.20 ms→9,978.20 ms |
+| p95 latency | 37,578.92 ms→43,171.68 ms |
+| trigger 추가 latency p50 / p95 | 32,224.72 / 44,735.07 ms |
+
+4개 trigger 가운데 2개 오답은 다시 생성해도 오답이었고, 1개 정답은 유지됐으며,
+hard 1개(`kfb-h17`)는 맞았던 baseline을 새 오답으로 교체했다. 즉 낮은 router
+confidence와 execution-group 분산은 **불확실성**은 찾았지만 **재생성하면 복구될
+문항**을 식별하지 못했다. 기존 답을 새 답으로 무조건 교체하는 현재 approximation은
+R³-SQL의 learned ranking/judge가 맡는 수용 판단을 대체하지 못한다.
+
+따라서 현재 heuristic은 기본 파이프라인에 승격하지 않는다. 후속안은 추가 유료 호출
+전에 저장된 후보만으로 기존/신규 결과를 함께 비교하는 acceptance gate를 설계하는
+것이며, 새 hosted full run은 비용을 쓸 수 있을 때까지 보류한다.
+
+원본 증거: [manifest](../../data/research/r3_selective_resampling_full/r3-selective-resampling-manifest.json) ·
+[raw JSONL](../../data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl) ·
+[summary](../../data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json)
 
 ## 기록되는 숫자
 
@@ -155,9 +192,9 @@ PROVIDER=mock LIMIT=3 PREFIX=/tmp/r3-smoke bash scripts/run_r3_colab.sh
 GPU나 API key 없이 raw log와 manifest만 있으면 된다.
 
 ```bash
-python scripts/eval_selective_resampling.py \
-  reports/r3-selective-resampling-raw.jsonl \
-  --manifest reports/r3-selective-resampling-manifest.json \
+PYTHONPATH=src python scripts/eval_selective_resampling.py \
+  data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl \
+  --manifest data/research/r3_selective_resampling_full/r3-selective-resampling-manifest.json \
   --strict \
-  --out reports/r3-selective-resampling-recheck.json
+  --out /tmp/r3-selective-resampling-recheck.json
 ```

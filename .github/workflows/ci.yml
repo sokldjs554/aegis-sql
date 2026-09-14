@@ -38,8 +38,8 @@ jobs:
         run: ruff check src tests scripts
       - name: Build demo database (small scale)
         run: python scripts/build_demo_db.py --scale 0.25 --force
-      - name: Build & validate benchmark (gold SQL must execute)
-        run: python scripts/build_benchmark.py
+      - name: Validate benchmark SQL without overwriting the frozen full snapshot
+        run: python scripts/build_benchmark.py --out /tmp/korfin-bench-py${{ matrix.python }}.jsonl
       - name: Tests
         run: pytest -q -m "not slow" --maxfail=1
       - name: End-to-end smoke (no API key, no GPU)
@@ -81,7 +81,7 @@ jobs:
       - name: Typecheck
         run: mypy src/aegis_sql --ignore-missing-imports
       - run: python scripts/build_demo_db.py --scale 0.25 --force
-      - run: python scripts/build_benchmark.py
+      - run: python scripts/build_benchmark.py --out /tmp/korfin-bench-ml.jsonl
 
       - name: Flywheel — training data from the schema alone
         run: |
@@ -139,7 +139,7 @@ jobs:
       - name: And the engine must actually run
         run: |
           python scripts/build_demo_db.py --scale 0.25 --force
-          python scripts/build_benchmark.py
+          python scripts/build_benchmark.py --out /tmp/korfin-bench-stale.jsonl
           python -m aegis_sql.cli ask "실효된 계약은 몇 건이야?" --log-level ERROR
 
   docker:

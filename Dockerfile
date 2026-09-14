@@ -33,6 +33,9 @@ COPY scripts ./scripts
 COPY models ./models
 COPY data/demo/schema.sql data/demo/glossary.yaml ./data/demo/
 COPY data/benchmark ./data/benchmark
+# 웹 콘솔의 'LLM 실험' 탭은 이 compact manifest만 읽는다. 원본 리포트는
+# GitHub에 보존하고 런타임에는 모델·API 키·90행 raw bundle을 싣지 않는다.
+COPY data/research/model_experiment_evidence.json ./data/research/model_experiment_evidence.json
 
 # 데모 DB는 결정론적으로 생성되므로 이미지에 굽는다 (리뷰어가 바로 실행 가능).
 RUN python scripts/build_demo_db.py --scale 0.5 \

@@ -35,7 +35,7 @@
 4. AEGIS의 5.3M from-scratch 실패와 pretrained 1.5B 비교에서 무엇을 통제해야 공정한가?
 
 면접용 한 문장:
-> 5.3M scratch 모델의 실패를 단순히 모델 크기 문제로 결론내리지 않고, LitE-SQL을 참고해 동일 데이터·retrieval·평가를 고정한 pretrained Qwen 비교군을 만들었습니다.
+> 5.3M scratch 모델의 실패를 단순히 모델 크기 문제로 결론내리지 않고, LitE-SQL을 참고해 같은 AEGIS snapshot·retrieval·KorFin 평가를 고정한 pretrained Qwen 1.5B 비교군을 T4에서 측정했습니다. base 11.1%에서 QLoRA 12.2%로 순증가는 1문항뿐이어서 큰 개선으로 해석하지 않았고, LitE-SQL의 72.10%도 정답 schema 조건이라 직접 비교하지 않았습니다.
 
 ---
 
@@ -69,7 +69,7 @@
 4. AEGIS에서 resampling trigger를 router confidence, execution-result dispersion과 연결한 이유는 무엇인가?
 
 면접용 한 문장:
-> 기존 캐스케이드의 손실이 후보 선택보다 저비용 tier에 남겨둔 질문에서 컸기 때문에, R³-SQL을 참고해 낮은 confidence와 결과 분산이 있을 때만 다시 생성하는 실험을 설계했습니다.
+> R³-SQL을 참고해 낮은 confidence와 결과 분산이 있을 때만 재생성하는 정책을 90문항에서 실측했지만 EX는 52.2%에서 51.1%로 1문항 하락하고 비용은 9.29% 늘었습니다. 불확실성 trigger와 새 답 acceptance는 다른 문제라고 판단해 기본 승격을 기각했습니다.
 
 ## 2순위 — 구조 이해를 위해 읽기
 
