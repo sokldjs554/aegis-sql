@@ -412,6 +412,45 @@ ensemble이 실제로 맡은 36문항에서는 오히려 **앞섰습니다**(har
 template 구간을 줄이는 것**입니다. 다만 ensemble은 호출 수 5배 → 질의당 비용 2.2배라, 얻은 +1문항이
 그 값을 하는지는 별도 문제입니다.
 
+#### 그 비용 쪽을 파고들다 발견한 구조적 결함 (수정 완료)
+
+위 표의 티어 분포에는 `template 54 · ensemble 36` 만 있고 **단일 호출 `llm` 티어가 0건**입니다.
+사다리가 `template → slm → llm → ensemble` 인데 정작 그 존재 이유인 중간 단은 한 번도
+선택되지 않았습니다. 원인은 두 임계값이 **서로 다른 축** 위에 있었던 것입니다.
+
+- `escalate_threshold = 0.55` → **난이도** 축
+- `ensemble_threshold = 0.35` → **신뢰도** 축이고, `confidence = 1 − difficulty` 이므로 실제로는 `difficulty > 0.65`
+
+즉 `llm` 티어는 두 값 사이에 우연히 남은 **0.10 폭의 틈새**였습니다. 게다가 보정된 라우터는
+saturate 합니다 — KorFin-Bench 106문항의 난이도 중앙값은 **0.789**, 46문항이 **0.9 이상**입니다.
+그래서 에스컬레이션 75문항 중 **9문항만** 그 틈새에 들어오고 **66문항이 곧장 5샘플 앙상블**로
+갔습니다. 비용 초과분 전부가 여기서 나옵니다.
+
+그리고 `confidence` 는 `1 − difficulty` 라 **독립적인 정보가 아닙니다**. 코드는 "신뢰도가 낮으면
+투표한다"로 읽히지만 실제로는 같은 축을 다른 이름으로 한 번 더 비교한 것이었습니다.
+
+고친 내용:
+
+1. 세 경계를 **모두 난이도 축**으로 통일 (`template_max < escalate_threshold < ensemble_threshold`)
+2. 밴드가 붕괴하거나 역전되면 `CascadeRouter` 생성 시점에 **즉시 실패** (`validate_bands`) —
+   이 결함이 조용히 지나갔던 이유가 아무도 검사하지 않았기 때문입니다
+3. 기존 신뢰도 형식 값(0.35)은 **자동 변환**해 기존 설정 파일이 그대로 로드됩니다
+4. `RoutePolicy.from_settings` 가 문서화된 `router.enable_slm` 을 무시하던 것도 함께 수정
+
+같은 라우터·같은 106문항으로 다시 재기만 한 결과 (실제 라우팅 분포):
+
+| | template | **llm (1콜)** | ensemble (5콜) | 예상 API 비용 |
+|---|---:|---:|---:|---:|
+| 이전 | 31 | **9** | 66 | $0.0407 / 문항 |
+| 이후 | 31 | **35** | 40 | $0.0282 / 문항 |
+
+**단일 호출 티어가 8.5% → 33.0% 로 살아났고, 예상 API 비용은 −30.7% 입니다.**
+
+> **정직하게 — 이 수치는 라우팅 분포와 그로부터 계산한 비용이지 EX 재측정이 아닙니다.**
+> 정확도가 어떻게 변하는지는 유료 API로 106문항을 다시 돌려야 확정됩니다. 아직 안 돌렸으므로
+> "정확도가 올랐다"고 쓰지 않습니다. `escalate_threshold` 를 내리는 위의 과제도 그대로 남아
+> 있습니다 — 이번 수정은 **비용 쪽 결함**을 고친 것입니다.
+
 ### 어블레이션 — 무엇이 실제로 값을 하는가
 
 한 번에 **한 구성요소만** 제거하고 같은 벤치마크를 다시 돌린 결과입니다.
@@ -526,7 +565,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | | |
 |---|---|
 | Python | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · 추적 파일 191개 |
-| 테스트 | **286개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 (CI 강제) |
+| 테스트 | **292개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 (CI 강제) |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + [`docs/research/`](docs/research/) — 영문 논문 리뷰 8편 · 국문 논문 완독 기록 2편 · 실험 기록 3편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
@@ -537,7 +576,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 30,000줄, `src/` 함수 1,076개 중 1,057개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 286개 |
+| **Python** | 약 30,000줄, `src/` 함수 1,076개 중 1,057개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 292개 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -583,7 +622,7 @@ aegis-sql/
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
-└── tests/                  286개 테스트 (실제 DB 대상, 목킹 없음)
+└── tests/                  292개 테스트 (실제 DB 대상, 목킹 없음)
 ```
 
 ---
