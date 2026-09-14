@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from aegis_sql.eval.metrics import execution_match
 from aegis_sql.research.spider_ko import (
     SPIDER_KO_DATASET,
     SPIDER_KO_SPLIT,
@@ -26,7 +27,6 @@ from aegis_sql.research.spider_ko import (
 )
 from aegis_sql.training.hf_experiment import file_sha256, git_sha, runtime_metadata
 from aegis_sql.verify.executor import SQLExecutor
-from aegis_sql.eval.metrics import execution_match
 
 DEFAULT_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 SYSTEM_PROMPT = (
