@@ -12,6 +12,8 @@ import asyncio
 from collections.abc import Callable
 from typing import TypeVar
 
+from aegis_sql.observability.metrics import QUERY_RUNTIME_REJECTIONS
+
 _T = TypeVar("_T")
 
 
@@ -42,6 +44,7 @@ class QueryRuntimeGate:
         callback rather than when the HTTP request stops waiting.
         """
         if self._slots.locked():
+            QUERY_RUNTIME_REJECTIONS.labels(reason="capacity").inc()
             raise QueryCapacityExceeded("all query worker slots are occupied")
 
         await self._slots.acquire()
@@ -54,6 +57,7 @@ class QueryRuntimeGate:
         except asyncio.TimeoutError as exc:
             release_deferred = True
             worker.add_done_callback(lambda _future: self._slots.release())
+            QUERY_RUNTIME_REJECTIONS.labels(reason="timeout").inc()
             raise QueryTimedOut(f"query exceeded {self.timeout_s:g}s") from exc
         except asyncio.CancelledError:
             release_deferred = True
