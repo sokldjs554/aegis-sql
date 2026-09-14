@@ -531,6 +531,28 @@
   .source .sn{display:block; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   .source .sh{display:block; font:10px/1.5 var(--mono); color:var(--muted); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis}
+  .replaytabs{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:13px}
+  .replaytab{border:1px solid var(--line); border-radius:999px; background:var(--surface);
+             color:var(--muted); padding:6px 10px; font:600 11px/1 var(--mono); cursor:pointer}
+  .replaytab[aria-selected="true"]{border-color:var(--accent); color:var(--accent-ink);
+                                   background:var(--accent-soft)}
+  .replayq{font-size:15px; font-weight:700; letter-spacing:-.2px; margin:3px 0 12px}
+  .replaycompare{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .replaycandidate{min-width:0; border:1px solid var(--line); border-radius:var(--radius-sm);
+                   overflow:hidden; background:var(--surface-2)}
+  .replaycandidate .rh{display:flex; align-items:center; gap:7px; padding:9px 11px;
+                       border-bottom:1px solid var(--line); font-size:11.5px; font-weight:700}
+  .replaycandidate .rh .meta{margin-left:auto; color:var(--muted); font:10px/1 var(--mono)}
+  .replaycandidate .verdict{font:700 10px/1 var(--mono); border-radius:999px; padding:3px 6px}
+  .replaycandidate .verdict.pass{color:var(--good); background:var(--good-soft)}
+  .replaycandidate .verdict.fail{color:var(--critical); background:var(--critical-soft)}
+  .replaycandidate pre{margin:0; border:0; border-radius:0; max-height:235px}
+  .replayerror{padding:8px 11px; border-top:1px solid var(--line); color:var(--critical);
+               font-size:10.5px; line-height:1.5}
+  .goldpreview{margin-top:11px}
+  .goldpreview .caption{display:flex; gap:8px; align-items:center; margin-bottom:7px;
+                        color:var(--muted); font-size:11px}
+  .goldpreview td,.goldpreview th{padding:6px 9px; font-size:11px}
   .labloading{padding:48px 20px; text-align:center; color:var(--muted); font-size:13px}
   @media (max-width:720px){
     .outcomes{grid-template-columns:1fr; gap:20px; max-width:420px}
@@ -544,6 +566,7 @@
     .labbody{padding:14px 16px 16px}
     .labdecision{margin:0 16px 16px}
     .sources{grid-template-columns:1fr; padding:14px 16px 16px}
+    .replaycompare{grid-template-columns:1fr}
     .comparerow{grid-template-columns:minmax(108px,.8fr) 1fr 1fr}
     .comparerow > div{padding:7px 8px; font-size:10.8px}
     .scope-note button{margin-left:0}
@@ -1934,7 +1957,75 @@ function renderTierEvidence(data) {
   section.appendChild(cards);
   section.appendChild(decision(data.decision_ko));
   section.appendChild(el("div", "labnote",
+    `<span>↔</span><span><b>비교 범위</b> · ${esc(data.comparison_scope_ko)}</span>`));
+  section.appendChild(el("div", "labnote",
     `<span>ⓘ</span><span>${esc(data.cost_scope_ko)}</span>`));
+  return section;
+}
+
+
+function renderReplayEvidence(cases) {
+  const section = el("section", "labsection");
+  section.appendChild(labHeader(
+    "저장된 LLM 사례 재생",
+    "같은 문항의 실패 SQL과 성공 SQL을 나란히 보여줍니다. 재실행이나 API 호출은 없습니다.",
+    [["easy · medium · hard"], [`${cases.length} fixed probes`, "good"]],
+  ));
+  const body = el("div", "labbody");
+  const tabs = el("div", "replaytabs");
+  const detail = el("div");
+  body.appendChild(tabs);
+  body.appendChild(detail);
+  section.appendChild(body);
+
+  function candidateCard(candidate) {
+    const card = el("div", "replaycandidate");
+    card.appendChild(el("div", "rh",
+      `<span>${esc(candidate.label)}</span>` +
+      `<span class="verdict ${candidate.correct ? "pass" : "fail"}">${esc(candidate.outcome_ko)}</span>` +
+      `<span class="meta">${latency(candidate.latency_ms)} · ${money(candidate.cost_usd, 5)}</span>`));
+    const pre = el("pre");
+    pre.innerHTML = highlight(candidate.sql || "");
+    card.appendChild(pre);
+    if (candidate.error) card.appendChild(el("div", "replayerror", esc(candidate.error)));
+    return card;
+  }
+
+  function show(index) {
+    const replay = cases[index];
+    [...tabs.children].forEach((button, i) =>
+      button.setAttribute("aria-selected", String(i === index)));
+    detail.innerHTML = "";
+    detail.appendChild(el("div", "replayq",
+      `<span class="labpill">${esc(replay.difficulty)}</span> ${esc(replay.question)}`));
+    const compare = el("div", "replaycompare");
+    compare.appendChild(candidateCard(replay.template));
+    compare.appendChild(candidateCard(replay.llm));
+    detail.appendChild(compare);
+
+    const preview = el("div", "goldpreview");
+    preview.appendChild(el("div", "caption",
+      `<b>Gold result preview</b><span>${fmt(replay.gold.row_count)}행 · ${fmt(replay.gold.columns.length)}열</span>`));
+    const wrap = el("div", "tablewrap");
+    const table = document.createElement("table");
+    table.innerHTML =
+      `<thead><tr>${replay.gold.columns.map((column) => `<th>${esc(column)}</th>`).join("")}</tr></thead>` +
+      `<tbody>${replay.gold.preview.map((row) =>
+        `<tr>${row.map((value) => `<td>${esc(value === null ? "NULL" : String(value))}</td>`).join("")}</tr>`
+      ).join("")}</tbody>`;
+    wrap.appendChild(table);
+    preview.appendChild(wrap);
+    detail.appendChild(preview);
+  }
+
+  cases.forEach((replay, index) => {
+    const button = el("button", "replaytab", `${esc(replay.difficulty)} · ${esc(replay.id)}`);
+    button.type = "button";
+    button.setAttribute("aria-selected", String(index === 0));
+    button.onclick = () => show(index);
+    tabs.appendChild(button);
+  });
+  if (cases.length) show(0);
   return section;
 }
 
@@ -1998,6 +2089,8 @@ function renderResamplingEvidence(r3) {
   stats.appendChild(stat("paired 변화", `+${r3.transitions.gains} / −${r3.transitions.regressions}`, `${r3.transitions.unchanged} unchanged`));
   body.appendChild(stats);
   section.appendChild(body);
+  section.appendChild(el("div", "labnote",
+    `<span>⌁</span><span><b>실행 범위</b> · ${esc(r3.run_scope_ko)}</span>`));
   section.appendChild(decision(r3.decision_ko, true, "REJECT"));
   return section;
 }
@@ -2027,6 +2120,7 @@ function renderExperimentLab(data) {
   const root = $("#labContent");
   root.innerHTML = "";
   root.appendChild(renderTierEvidence(data.tier_comparison));
+  root.appendChild(renderReplayEvidence(data.tier_comparison.replays || []));
   root.appendChild(renderQwenEvidence(data.qwen));
   root.appendChild(renderResamplingEvidence(data.selective_resampling));
   root.appendChild(renderSources(data.sources));
@@ -2156,7 +2250,8 @@ const OUTCOMES = [
   ["amb", "◆", "되묻기", "기준이 모호하면 그럴듯한 숫자를 지어내지 않고 먼저 되묻습니다."],
 ];
 
-const initial = new URLSearchParams(location.search).get("q");
+const initialParams = new URLSearchParams(location.search);
+const initial = initialParams.get("q");
 if (initial) { $("#q").value = initial; run(); }
 else {
   const intro = el("div", "intro");
@@ -2170,6 +2265,7 @@ else {
     "보험 도메인 샘플 스키마(11개 테이블, SQLite)에서 실제로 SQL을 실행합니다 — 미리 만들어둔 답이 아닙니다."));
   $("#out").appendChild(intro);
 }
+if (["experiments", "lab"].includes(initialParams.get("view"))) setMode("lab");
 </script>
 </body>
 </html>

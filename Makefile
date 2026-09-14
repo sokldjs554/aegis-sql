@@ -123,7 +123,7 @@ flywheel: ## 스키마 → SQL 샘플링 → 역번역 → 증강 → 실행검�
 
 train-slm: ## 자체 구현 PyTorch Transformer 학습 (BPE → SFT → DPO; --lora 로 어댑터 학습)
 	@$(PYTHON) scripts/train_slm.py --data-dir data/generated/flywheel --out data/generated/slm \
-	  --epochs 3 --limit 9000 --d-model 256 --n-layers 4 --n-heads 8 --d-ff 1024 \
+	  --epochs 6 --limit 9000 --d-model 256 --n-layers 4 --n-heads 8 --d-ff 1024 \
 	  --max-seq-len 288 --vocab-size 8000 --batch-size 32 --dpo
 
 train-slm-quick: ## 빠른 학습 스모크 (CPU 2분)

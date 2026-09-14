@@ -252,6 +252,12 @@ def test_experiments_endpoint_serves_recorded_evidence_without_a_model_call(clie
 
     assert body["qwen"]["evidence"]["raw_result_bundle_archived"] is False
     assert body["selective_resampling"]["evidence"]["raw_rows_archived"] == 90
+    assert len(body["tier_comparison"]["replays"]) == 3
+    assert {case["difficulty"] for case in body["tier_comparison"]["replays"]} == {
+        "easy",
+        "medium",
+        "hard",
+    }
 
 
 def test_metrics_endpoint(client):
@@ -274,6 +280,7 @@ def test_console_is_served(client):
     assert "LLM 실험" in r.text
     assert "/v1/experiments" in r.text
     assert "API 키 없는 template 티어" in r.text
+    assert "저장된 LLM 사례 재생" in r.text
 
 
 def test_feedback_endpoint(client, tmp_path):

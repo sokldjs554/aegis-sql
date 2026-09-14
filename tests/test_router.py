@@ -164,3 +164,84 @@ def test_keras_and_numpy_router_agree(tmp_path):
     numpy_preds = np.array([numpy_router.predict_proba(x) for x in X[:64]])
     assert float(np.max(np.abs(keras_preds - numpy_preds))) < 1e-5
     assert 0.0 <= heuristic_difficulty(DifficultyFeatures()) <= 1.0
+
+
+# --------------------------------------------------------------------------- #
+# The band structure itself.
+#
+# These pin the defect that made the single-call LLM tier unreachable: the two
+# boundaries used to live on different axes — `escalate_threshold` on difficulty,
+# `ensemble_threshold` on confidence — so the LLM band was whatever happened to
+# be left between 0.55 and 1-0.35, a 0.10-wide sliver.  On KorFin-Bench the
+# calibrated router put 9 items in it and sent 66 straight to a 5-sample
+# ensemble, so the tier the ladder exists for was never selected once.
+# --------------------------------------------------------------------------- #
+
+
+def test_route_bands_strictly_increase_on_one_axis(settings):
+    from aegis_sql.router.cascade import RoutePolicy
+
+    policy = RoutePolicy.from_settings(settings)
+    template_max, escalate, ensemble = policy.bands
+    assert template_max < escalate < ensemble
+    policy.validate_bands()
+
+
+def test_single_call_llm_band_is_wide_enough_to_be_reachable(settings):
+    """The whole point of a cascade is the cheap middle rung.
+
+    A band narrower than the gap below it means the router skips from free
+    straight to the 5x tier, which is what happened in the published run.
+    """
+    from aegis_sql.router.cascade import RoutePolicy
+
+    policy = RoutePolicy.from_settings(settings)
+    template_max, escalate, ensemble = policy.bands
+    llm_band = ensemble - escalate
+    assert llm_band >= (escalate - template_max), (
+        f"single-call LLM band is {llm_band:.3f} wide but the SLM band below it is "
+        f"{escalate - template_max:.3f} — escalation will mostly skip the cheap rung"
+    )
+
+
+def test_collapsed_bands_are_rejected_rather_than_silently_routed_around():
+    from aegis_sql.router.cascade import RoutePolicy
+
+    collapsed = RoutePolicy(escalate_threshold=0.55, ensemble_threshold=0.55)
+    with pytest.raises(ValueError, match="strictly increase"):
+        collapsed.validate_bands()
+
+
+def test_legacy_confidence_form_threshold_is_converted():
+    """An existing config carrying the old confidence-form value still loads."""
+    from aegis_sql.config import RouterConfig
+
+    cfg = RouterConfig(escalate_threshold=0.55, ensemble_threshold=0.35)
+    assert cfg.ensemble_threshold == pytest.approx(0.65)
+
+    with pytest.raises(ValueError, match="difficulty axis"):
+        RouterConfig(escalate_threshold=0.60, ensemble_threshold=0.50)
+
+
+def test_policy_honours_enable_slm_from_settings(settings):
+    from aegis_sql.router.cascade import RoutePolicy
+
+    policy = RoutePolicy.from_settings(settings)
+    assert policy.allow_slm is settings.router.enable_slm
+    assert policy.permits(Tier.SLM) is settings.router.enable_slm
+
+
+def test_ensemble_is_reserved_for_the_top_of_the_difficulty_axis(settings):
+    """Just below the ensemble boundary must be a single call, not a vote."""
+    from aegis_sql.router.cascade import CascadeRouter, RoutePolicy
+
+    policy = RoutePolicy.from_settings(settings)
+    router = CascadeRouter(settings, router=None, available_tiers={Tier.TEMPLATE, Tier.LLM, Tier.ENSEMBLE})
+
+    just_below = policy.ensemble_threshold - 0.01
+    tier, _ = router._desired_tier(_features(), just_below, 1.0 - just_below, [Tier.TEMPLATE, Tier.LLM, Tier.ENSEMBLE])
+    assert tier is Tier.LLM
+
+    at_top = min(1.0, policy.ensemble_threshold + 0.01)
+    tier, _ = router._desired_tier(_features(), at_top, 1.0 - at_top, [Tier.TEMPLATE, Tier.LLM, Tier.ENSEMBLE])
+    assert tier is Tier.ENSEMBLE

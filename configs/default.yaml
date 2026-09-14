@@ -39,7 +39,12 @@ generation:
 router:
   enabled: true
   escalate_threshold: 0.55
-  ensemble_threshold: 0.35
+  # 난이도 축 기준. 예전에는 신뢰도 축(0.35)이었는데, 그러면 단일 호출 LLM 티어가
+  # 0.55~0.65 의 0.10 폭 틈새가 되어 버린다.  보정된 라우터는 saturate 하므로
+  # (KorFin-Bench 난이도 중앙값 0.789, 106문항 중 46개가 0.9 이상) 그 틈새에는
+  # 9문항만 들어오고 66문항이 곧장 5샘플 앙상블로 갔다 — 캐스케이드가 존재하는
+  # 이유인 단일 호출 티어가 한 번도 선택되지 않았다.
+  ensemble_threshold: 0.95
   budget_usd: 0.05
   heuristic_threshold: 0.5
   # sLLM 티어는 벤치마크에서 아래층(template)을 이긴 뒤에만 캐스케이드에 편입한다.

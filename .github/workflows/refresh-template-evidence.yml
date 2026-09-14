@@ -1,0 +1,64 @@
+name: Refresh full-scale template evidence
+
+on:
+  push:
+    branches:
+      - research/safeql-review
+    paths:
+      - .github/workflows/refresh-template-evidence.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-template-evidence
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[llm,dev]"
+      - name: Build frozen full-scale database
+        env:
+          PYTHONHASHSEED: "0"
+        run: python scripts/build_demo_db.py --scale 1.0 --force
+      - name: Measure template tier
+        env:
+          PYTHONHASHSEED: "0"
+          AEGIS_GENERATION__PROVIDER: template
+        run: >-
+          python -m aegis_sql.cli eval
+          --bench data/benchmark/korfin_bench.jsonl
+          --tier template
+          --report reports/eval_template.md
+          --no-failures
+      - name: Rebuild public evidence manifest
+        run: python scripts/build_experiment_evidence.py
+      - name: Verify evidence and frozen gold snapshot
+        run: >-
+          python -m pytest -q
+          tests/test_demo_data.py
+          tests/test_experiment_evidence.py
+          tests/test_pipeline_api.py
+      - name: Commit measured artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/eval_template.json reports/eval_template.md
+          git add data/research/model_experiment_evidence.json
+          if git diff --cached --quiet; then
+            echo "Artifacts are already current."
+          else
+            git commit -m "chore: refresh full-scale template evidence"
+            git push origin HEAD:research/safeql-review
+          fi
