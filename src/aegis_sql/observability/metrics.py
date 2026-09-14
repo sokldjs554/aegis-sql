@@ -29,6 +29,11 @@ QUERIES = Counter("aegis_queries_total", "Queries processed", ["status", "tier"]
 REPAIRS = Counter("aegis_repairs_total", "Self-repair attempts", ["fixed"])
 GUARD_BLOCKS = Counter("aegis_guard_blocks_total", "Governance blocks", ["code"])
 ESCALATIONS = Counter("aegis_escalations_total", "Cascade escalations", ["from_tier", "to_tier"])
+QUERY_RUNTIME_REJECTIONS = Counter(
+    "aegis_query_runtime_rejections_total",
+    "Query requests rejected by runtime service guardrails",
+    ["reason"],
+)
 LATENCY = Histogram(
     "aegis_query_latency_ms",
     "End-to-end query latency (ms)",
@@ -49,6 +54,6 @@ def metrics_payload() -> tuple[bytes, str]:
 
 
 __all__ = [
-    "QUERIES", "REPAIRS", "GUARD_BLOCKS", "ESCALATIONS", "LATENCY",
-    "STAGE_LATENCY", "TOKENS", "metrics_payload",
+    "QUERIES", "REPAIRS", "GUARD_BLOCKS", "ESCALATIONS", "QUERY_RUNTIME_REJECTIONS",
+    "LATENCY", "STAGE_LATENCY", "TOKENS", "metrics_payload",
 ]
