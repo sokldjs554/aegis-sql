@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Export the external Spider-KO validation split")
     ap.add_argument("--out", default="data/external/spider-ko-validation.jsonl")
     ap.add_argument("--manifest", default="data/external/spider-ko-validation.manifest.json")
-    ap.add_argument("--revision", default="main", help="Hugging Face dataset revision")
+    ap.add_argument("--revision", default="main", help="Hugging Face dataset branch/tag/commit")
     return ap.parse_args()
 
 
@@ -33,10 +33,12 @@ def main() -> int:
     args = parse_args()
     try:
         from datasets import load_dataset
+        from huggingface_hub import HfApi
     except ImportError as exc:
-        raise SystemExit('datasets is missing; run `pip install -e ".[hf]"`') from exc
+        raise SystemExit('datasets/Hugging Face dependencies missing; run `pip install -e ".[hf]"`') from exc
 
-    dataset = load_dataset(DATASET_ID, split=SPLIT, revision=args.revision)
+    resolved_revision = HfApi().dataset_info(DATASET_ID, revision=args.revision).sha
+    dataset = load_dataset(DATASET_ID, split=SPLIT, revision=resolved_revision)
     if len(dataset) != EXPECTED_ITEMS:
         raise SystemExit(
             f"expected {EXPECTED_ITEMS} Spider-KO validation rows, got {len(dataset)}; "
@@ -59,7 +61,8 @@ def main() -> int:
         "dataset": DATASET_ID,
         "split": SPLIT,
         "question_language": "ko",
-        "revision": args.revision,
+        "requested_revision": args.revision,
+        "resolved_revision": resolved_revision,
         "items": len(dataset),
         "export": str(out),
         "export_sha256": sha256(out),
