@@ -25,8 +25,8 @@
           "hard": 0.0
         },
         "executable_rate": 1.0,
-        "p50_latency_ms": 4.0,
-        "p95_latency_ms": 8.1,
+        "p50_latency_ms": 5.8,
+        "p95_latency_ms": 23.8,
         "cost_per_query_usd": 0.0,
         "tier_mix": {
           "template": 90
@@ -75,6 +75,144 @@
       }
     ],
     "decision_ko": "LLM 단독은 template이 도달하지 못한 hard 문항을 30% 해결했지만, 캐스케이드는 LLM 단독보다 5문항 낮아 라우터 임계값 재조정이 필요합니다.",
+    "comparison_scope_ko": "EX는 동일 frozen benchmark와 gold-result snapshot을 검증해 비교합니다. 지연은 서로 다른 실행 환경에서 측정돼 모델 간 속도 우열로 해석하지 않습니다.",
+    "replays": [
+      {
+        "id": "kfb-e08",
+        "difficulty": "easy",
+        "question": "마케팅 수신에 동의한 고객 비율은?",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  CAST(COUNT(*) AS REAL) / NULLIF(COUNT(*), 0) AS \"비율\"\nFROM TB_CTRT AS t1",
+          "latency_ms": 4.7,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 1행 × 1열 vs gold 1행 × 1열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "SELECT\n  CAST(SUM(CASE WHEN c.MKT_AGR_YN = 'Y' THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS MKT_AGR_RATIO\nFROM TB_CUST c",
+          "latency_ms": 5110.5,
+          "cost_usd": 0.011202,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "SELECT CAST(SUM(CASE WHEN MKT_AGR_YN = 'Y' THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*),0) AS ratio FROM TB_CUST",
+          "row_count": 1,
+          "columns": [
+            "ratio"
+          ],
+          "preview": [
+            [
+              0.414615
+            ]
+          ]
+        }
+      },
+      {
+        "id": "kfb-m24",
+        "difficulty": "medium",
+        "question": "계약이 100건 이상인 지점만 보여줘",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  t1.CTRT_NO AS \"계약번호\",\n  t1.CUST_ID AS \"계약자고객ID\",\n  t1.PROD_CD AS \"상품코드\",\n  t1.AGNT_ID AS \"모집설계사ID\",\n  t1.CTRT_DT AS \"계약체결일자\",\n  t1.EXPR_DT AS \"만기일자\"\nFROM TB_CTRT AS t1\nWHERE\n  EXISTS(\n    SELECT\n      1\n    FROM TB_CLM AS x1\n    WHERE\n      x1.CTRT_NO = t1.CTRT_NO AND x1.FRAUD_SCR >= 100\n  )\nLIMIT 200",
+          "latency_ms": 15.0,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 1행 × 6열 vs gold 24행 × 2열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "SELECT\n    b.BRCH_CD,\n    b.BRCH_NM,\n    COUNT(c.CTRT_NO) AS CTRT_CNT\nFROM TB_CTRT c\nJOIN TB_AGNT a ON c.AGNT_ID = a.AGNT_ID\nJOIN TB_BRCH b ON a.BRCH_CD = b.BRCH_CD\nGROUP BY b.BRCH_CD, b.BRCH_NM\nHAVING COUNT(c.CTRT_NO) >= 100\nORDER BY CTRT_CNT DESC",
+          "latency_ms": 6800.7,
+          "cost_usd": 0.015873,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "SELECT b.BRCH_NM, COUNT(*) AS cnt FROM TB_CTRT t JOIN TB_AGNT a ON a.AGNT_ID = t.AGNT_ID JOIN TB_BRCH b ON b.BRCH_CD = a.BRCH_CD GROUP BY b.BRCH_NM HAVING COUNT(*) >= 100 ORDER BY cnt DESC",
+          "row_count": 24,
+          "columns": [
+            "BRCH_NM",
+            "cnt"
+          ],
+          "preview": [
+            [
+              "마포지점",
+              690
+            ],
+            [
+              "일산지점",
+              583
+            ],
+            [
+              "광주상무지점",
+              560
+            ]
+          ]
+        }
+      },
+      {
+        "id": "kfb-h17",
+        "difficulty": "hard",
+        "question": "올해 월별 신계약 건수가 직전 달보다 늘어난 달은?",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  SUBSTRING(t1.CTRT_DT, 1, 6) AS \"월\",\n  COUNT(*) AS \"건수\"\nFROM TB_CTRT AS t1\nWHERE\n  t1.CTRT_DT BETWEEN '20260101' AND '20261231'\nGROUP BY\n  SUBSTRING(t1.CTRT_DT, 1, 6)\nORDER BY\n  SUBSTRING(t1.CTRT_DT, 1, 6) ASC",
+          "latency_ms": 6.3,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 8행 × 2열 vs gold 4행 × 3열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "WITH monthly_new AS (\n    SELECT\n        substr(c.CTRT_DT, 1, 6) AS YM,\n        COUNT(*) AS NEW_CTRT_CNT\n    FROM TB_CTRT c\n    WHERE substr(c.CTRT_DT, 1, 4) = '2026'\n    GROUP BY substr(c.CTRT_DT, 1, 6)\n),\nmonthly_with_prev AS (\n    SELECT\n        m.YM,\n        m.NEW_CTRT_CNT,\n        LAG(m.NEW_CTRT_CNT) OVER (ORDER BY m.YM) AS PREV_CNT\n    FROM monthly_new m\n)\nSELECT\n    mp.YM,\n    mp.NEW_CTRT_CNT,\n    mp.PREV_CNT\nFROM monthly_with_prev mp\nWHERE mp.PREV_CNT IS NOT NULL\n  AND mp.NEW_CTRT_CNT > mp.PREV_CNT\nORDER BY mp.YM",
+          "latency_ms": 9715.5,
+          "cost_usd": 0.018651,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "WITH m AS (SELECT substr(CTRT_DT,1,6) AS ym, COUNT(*) AS cnt FROM TB_CTRT WHERE substr(CTRT_DT,1,4) = '2026' GROUP BY substr(CTRT_DT,1,6)) SELECT a.ym, a.cnt, b.cnt AS prev_cnt FROM m a JOIN m b ON CAST(b.ym AS INTEGER) = CAST(a.ym AS INTEGER) - 1 WHERE a.cnt > b.cnt ORDER BY a.ym",
+          "row_count": 4,
+          "columns": [
+            "ym",
+            "cnt",
+            "prev_cnt"
+          ],
+          "preview": [
+            [
+              "202602",
+              110,
+              107
+            ],
+            [
+              "202605",
+              100,
+              95
+            ],
+            [
+              "202606",
+              102,
+              100
+            ]
+          ]
+        }
+      }
+    ],
     "cost_scope_ko": "Claude 비용은 보관된 당시 리포트의 SQL 생성 호출 기준입니다. 당시 누락된 보조 답변 합성 비용은 포함하지 않으므로 전체 비용으로 해석하지 않습니다."
   },
   "qwen": {
@@ -167,6 +305,7 @@
     },
     "decision": "rejected",
     "decision_ko": "추가 비용과 p95 지연이 늘었지만 gain 0·regression 1이어서 기본 정책 채택을 기각했습니다. 후속 가설은 trigger와 새 후보 acceptance를 분리하는 것입니다.",
+    "run_scope_ko": "Linux-6.6.122+-x86_64-with-glibc2.39 · Python 3.13.15 · answer synthesis OFF · few-shot 0 · 같은 run의 paired 비교",
     "evidence": {
       "portfolio_evidence_ready": true,
       "evidence_errors": [],
@@ -180,7 +319,7 @@
       "label": "Template 평가",
       "path": "reports/eval_template.json",
       "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_template.json",
-      "sha256": "27510715a87c82630e53fb33ef83a5aed0ee19e3e624dbb124a3fe71a25ecfe6"
+      "sha256": "91dad0a57f38586db795288629edfbbb1df12942dd77146394be9d38bcaed167"
     },
     {
       "key": "cascade",
@@ -195,6 +334,13 @@
       "path": "reports/eval_llm_only.json",
       "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_llm_only.json",
       "sha256": "36ec673dd0850ac6611f11ddc52ffaa67edbac5345b2ab17fc1c57ca70f12667"
+    },
+    {
+      "key": "benchmark",
+      "label": "KorFin-Bench frozen gold",
+      "path": "data/benchmark/korfin_bench.jsonl",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/benchmark/korfin_bench.jsonl",
+      "sha256": "6aeeb49e6efc2e466d6225797516404b13ffe1562c04d7a301a0d40fc9e7920e"
     },
     {
       "key": "qwen",

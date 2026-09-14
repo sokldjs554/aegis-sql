@@ -1,6 +1,6 @@
 # AEGIS-SQL 평가 리포트
 
-생성 시각: 2026-09-14 13:37 KST  ·  벤치마크: `korfin_bench.jsonl` (106문항)
+생성 시각: 2026-09-14 15:42 UTC  ·  벤치마크: `korfin_bench.jsonl` (106문항)
 
 ## 요약
 
@@ -10,11 +10,11 @@
 | Exact Set Match | 4.4% | SQL 문자열 구조 일치 (보조 지표) |
 | Skeleton Match | 25.6% | 질의 구조는 맞고 상수/컬럼만 다름 |
 | 실행 성공률 | 100.0% | 오류 없이 실행된 비율 |
-| VES | 0.347 | 정확도 × 상대 실행 효율 (BIRD) |
+| VES | 0.389 | 정확도 × 상대 실행 효율 (BIRD) |
 | 자가교정 발동률 | 0.0% | 실행 실패 후 수리 시도 |
 | 교정 성공률 | 0.0% | 수리된 질의 중 정답 |
 | 에스컬레이션률 | 0.0% | 상위 티어로 재시도 |
-| p50 / p95 지연 | 4 / 8 ms | 종단 지연 |
+| p50 / p95 지연 | 6 / 24 ms | 종단 지연 |
 | 질의당 비용 | $0.000000 | LLM 토큰 비용 |
 
 티어 분포: `{'template': 90}`
@@ -34,9 +34,9 @@
 
 | 난이도 | n | EX | EM | 실행성공 | p50(ms) |
 |---|---:|---:|---:|---:|---:|
-| easy | 30 | 90.0% | 13.3% | 100.0% | 3 |
-| medium | 40 | 32.5% | 0.0% | 100.0% | 5 |
-| hard | 20 | 0.0% | 0.0% | 100.0% | 4 |
+| easy | 30 | 90.0% | 13.3% | 100.0% | 4 |
+| medium | 40 | 32.5% | 0.0% | 100.0% | 9 |
+| hard | 20 | 0.0% | 0.0% | 100.0% | 6 |
 
 ## 질의 유형별 (태그, n≥3)
 
@@ -71,7 +71,7 @@
 | kfb-m02 | medium | ok | result mismatch (pred 5행 × 2열 vs gold 5행 × 3열) |
 | kfb-m04 | medium | ok | result mismatch (pred 7행 × 2열 vs gold 7행 × 2열) |
 | kfb-m08 | medium | ok | result mismatch (pred 8행 × 2열 vs gold 8행 × 2열) |
-| kfb-m09 | medium | ok | result mismatch (pred 2행 × 2열 vs gold 6행 × 3열) |
+| kfb-m09 | medium | ok | result mismatch (pred 3행 × 2열 vs gold 6행 × 3열) |
 | kfb-m10 | medium | ok | result mismatch (pred 4행 × 2열 vs gold 4행 × 2열) |
 | kfb-m12 | medium | ok | result mismatch (pred 10행 × 6열 vs gold 10행 × 2열) |
 | kfb-m13 | medium | ok | result mismatch (pred 5행 × 2열 vs gold 5행 × 2열) |
@@ -82,8 +82,8 @@
 | kfb-m21 | medium | ok | result mismatch (pred 1행 × 1열 vs gold 10행 × 2열) |
 | kfb-m22 | medium | ok | result mismatch (pred 4행 × 2열 vs gold 4행 × 2열) |
 | kfb-m23 | medium | ok | result mismatch (pred 6행 × 2열 vs gold 6행 × 2열) |
-| kfb-m24 | medium | ok | result mismatch (pred 0행 × 6열 vs gold 12행 × 2열) |
-| kfb-m25 | medium | ok | result mismatch (pred 1행 × 1열 vs gold 11행 × 2열) |
+| kfb-m24 | medium | ok | result mismatch (pred 1행 × 6열 vs gold 24행 × 2열) |
+| kfb-m25 | medium | ok | result mismatch (pred 1행 × 1열 vs gold 8행 × 2열) |
 | kfb-m26 | medium | ok | result mismatch (pred 1행 × 1열 vs gold 2행 × 2열) |
 | kfb-m27 | medium | ok | result mismatch (pred 4행 × 2열 vs gold 4행 × 2열) |
 | kfb-m28 | medium | ok | result mismatch (pred 5행 × 2열 vs gold 5행 × 3열) |
@@ -109,14 +109,14 @@
     "paraphrase.user": "paraphrase.user@1.0.0#9ac3af69ed37",
     "selfcheck.user": "selfcheck.user@1.0.0#d015e809041c"
   },
-  "provider": "auto",
+  "provider": "template",
   "model": "claude-sonnet-5",
   "available_tiers": [
     "template"
   ],
   "embedder": "HashingEmbedder",
-  "python": "3.12.14",
-  "wall_s": 0.9
+  "python": "3.13.15",
+  "wall_s": 2.5
 }
 ```
 
