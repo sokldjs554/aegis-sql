@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "experiment": "r3_selective_resampling",
+  "run_kind": "full",
+  "git": {
+    "commit": "73a1a3c4a8e2875660471f01b18bb664ecdb975c",
+    "dirty": false
+  },
+  "benchmark": {
+    "path": "/content/aegis-sql/data/benchmark/korfin_bench.jsonl",
+    "sha256": "6aeeb49e6efc2e466d6225797516404b13ffe1562c04d7a301a0d40fc9e7920e",
+    "items": 90,
+    "selected_ids_sha256": "93d21bbc88e8b0f055780e5d4dfcb19003d98ccf5bb6ed01309d3baf2bf45489"
+  },
+  "database": {
+    "path": "/content/aegis-sql/data/demo/aegis_demo.sqlite",
+    "sha256": "d9c01866902d4f82fbbd41fdbbb4646c6bba6ac9b59fe3ec6e7f38a2dce39701",
+    "schema_fingerprint": "26cee9e1989d6426"
+  },
+  "prompt_manifest": {
+    "nl2sql.system": "nl2sql.system@1.4.0#495f203eb4d1",
+    "nl2sql.user": "nl2sql.user@1.5.0#bdda2aab46db",
+    "repair.user": "repair.user@1.2.0#9bf9b9d32dd9",
+    "decompose.user": "decompose.user@1.1.0#832fb6306c4a",
+    "clarify.user": "clarify.user@1.0.0#24a51d547243",
+    "answer.user": "answer.user@1.2.0#e01b635c0f83",
+    "backtranslate.user": "backtranslate.user@1.1.0#7aa76a6a6f83",
+    "paraphrase.user": "paraphrase.user@1.0.0#9ac3af69ed37",
+    "selfcheck.user": "selfcheck.user@1.0.0#d015e809041c"
+  },
+  "router_artifacts_sha256": {
+    "models/router/README.md": "e1f549555b8783e0321e890eb9ee02b4bc663f7af9827b46e409163157df5b0c",
+    "models/router/calibrator.json": "a69a60a5af9adbd601fcb51d25dde9e00063fabb95d09f62f72ba2aea7c2695f",
+    "models/router/router_meta.json": "f1c1c557c137ce499c346aa7677bcae40157bed075828a4caf520967e6150ba4",
+    "models/router/router_weights.npz": "bd2f155538bf82f3370f78202c0f75051ed526e46f91974e2ca615901086371c"
+  },
+  "provider_requested": "anthropic",
+  "provider_actual": "anthropic",
+  "model_requested": "claude-sonnet-5",
+  "model_actual": "claude-sonnet-5",
+  "thresholds": {
+    "confidence": 0.6,
+    "agreement": 0.6,
+    "min_groups": 2,
+    "min_candidates": 2
+  },
+  "protocol": {
+    "baseline": "normal AEGIS cascade",
+    "resampling": "fresh forced ensemble replaces baseline only on triggered rows",
+    "resample_samples": 5,
+    "answer_synthesis": false,
+    "gold_metric": "execution_match",
+    "answerable_only": true,
+    "few_shot_examples": 0,
+    "provider_seed": null
+  },
+  "settings": {
+    "retrieval": {
+      "embedder": "hashing",
+      "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "embedding_dim": 256,
+      "vector_store": "numpy",
+      "persist_dir": "/content/aegis-sql/data/generated/vectorstore",
+      "top_k_tables": 6,
+      "top_k_columns": 32,
+      "dense_weight": 0.5,
+      "glossary_weight": 0.35,
+      "value_match_weight": 0.25,
+      "fk_expand_hops": 0,
+      "few_shot_k": 0,
+      "min_tables": 2
+    },
+    "generation": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "temperature": 0.0,
+      "max_tokens": 1024,
+      "n_samples": 1,
+      "ensemble_samples": 5,
+      "ensemble_temperature": 0.7,
+      "slm_checkpoint": "/content/aegis-sql/data/generated/slm",
+      "slm_max_new_tokens": 192,
+      "prompt_set": "default",
+      "schema_card_style": "mschema",
+      "request_timeout_s": 60.0
+    },
+    "router": {
+      "enabled": true,
+      "model_dir": "/content/aegis-sql/data/generated/router",
+      "escalate_threshold": 0.55,
+      "ensemble_threshold": 0.35,
+      "budget_usd": 0.05,
+      "heuristic_threshold": 0.5,
+      "enable_slm": false
+    },
+    "verify": {
+      "max_repair_attempts": 3,
+      "self_consistency": true,
+      "force_limit": true,
+      "default_limit": 200,
+      "max_join_tables": 8,
+      "dry_run_first": true
+    },
+    "policy": {
+      "enabled": true,
+      "path": "configs/policy/insurance.yaml",
+      "default_sensitivity": "public",
+      "mask_strategy": "partial"
+    }
+  },
+  "runtime": {
+    "python": "3.13.15",
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+    "pythonhashseed": "0",
+    "packages": {
+      "aegis-sql": "0.1.0",
+      "langchain": "1.3.18",
+      "langchain-core": "1.6.2",
+      "langchain-anthropic": "1.7.2",
+      "langchain-openai": "1.6.2",
+      "sqlglot": "30.18.0"
+    }
+  },
+  "pricing_usd_per_million_tokens": {
+    "aegis-lm-tiny": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "claude-fable-5": {
+      "input": 1.0,
+      "output": 5.0
+    },
+    "claude-haiku-4-5": {
+      "input": 1.0,
+      "output": 5.0
+    },
+    "claude-opus-5": {
+      "input": 5.0,
+      "output": 25.0
+    },
+    "claude-sonnet-5": {
+      "input": 3.0,
+      "output": 15.0
+    },
+    "gpt-4o": {
+      "input": 2.5,
+      "output": 10.0
+    },
+    "gpt-4o-mini": {
+      "input": 0.15,
+      "output": 0.6
+    },
+    "mock": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "template": {
+      "input": 0.0,
+      "output": 0.0
+    }
+  },
+  "created_at_utc": "2026-09-11T04:14:34.991491+00:00",
+  "cost_limit_history": [
+    {
+      "at_utc": "2026-09-11T04:14:34.991491+00:00",
+      "max_cost_usd": 5.0
+    },
+    {
+      "at_utc": "2026-09-11T04:36:47.892505+00:00",
+      "max_cost_usd": 5.0
+    },
+    {
+      "at_utc": "2026-09-11T05:06:52.659406+00:00",
+      "max_cost_usd": 5.0
+    }
+  ],
+  "configuration_sha256": "da8b2c8ef203c50b8deca1536c7b71f5cf5902208b03bd0584ca07707de085d4"
+}

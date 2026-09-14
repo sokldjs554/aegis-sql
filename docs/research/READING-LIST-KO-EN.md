@@ -70,6 +70,7 @@ SQL이 실행됐다는 사실과 SQL이 의미적으로 맞다는 사실을 구�
 - DOI: https://doi.org/10.5626/JOK.2025.52.11.992
 - KCI 서지·초록 및 1쪽 미리보기: https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003264129
 - 원문: https://www.dbpia.co.kr/journal/articleDetail?nodeId=NODE12548332 (구독 필요)
+- 상태: **원문 접근 비용 때문에 보류(2026-09-12)** — 초록·미리보기만으로 완독 처리하지 않음
 - AEGIS 연결: SQL 구조 기반 few-shot, pseudo SQL 생성, candidate generation 비용·품질
 
 **왜 읽는가**
