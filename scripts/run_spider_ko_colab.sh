@@ -5,7 +5,8 @@ set -euo pipefail
 #
 # By default the runner downloads a pinned Spider database archive, verifies its
 # published SHA-256, and extracts it safely.  Set SPIDER_DB_ROOT only when using
-# an already-prepared database directory.
+# an already-prepared database directory; optionally pair it with the matching
+# SPIDER_DB_MANIFEST if that custom database has its own provenance record.
 #
 # Full runs require a persistent archive directory.  In Colab mount Drive first
 # and point ARCHIVE_DIR there so a runtime reset cannot erase row-level evidence.
@@ -21,6 +22,7 @@ ADAPTER="${ADAPTER:-}"
 SMOKE="${SMOKE:-0}"
 SPIDER_DB_ROOT="${SPIDER_DB_ROOT:-}"
 SPIDER_DB_DIR="${SPIDER_DB_DIR:-data/external/spider-db}"
+SPIDER_DB_MANIFEST="${SPIDER_DB_MANIFEST:-}"
 DATASET_FILE="${DATASET_FILE:-data/external/spider-ko-validation.jsonl}"
 DATASET_MANIFEST="${DATASET_MANIFEST:-data/external/spider-ko-validation.manifest.json}"
 ARCHIVE_DIR="${ARCHIVE_DIR:-}"
@@ -53,12 +55,16 @@ python -m pip install -q -e ".[hf]"
 if [[ -z "$SPIDER_DB_ROOT" ]]; then
   python scripts/prepare_spider_databases.py --out "$SPIDER_DB_DIR"
   SPIDER_DB_ROOT="$SPIDER_DB_DIR/spider_data/database"
+  SPIDER_DB_MANIFEST="$SPIDER_DB_DIR/spider-databases.manifest.json"
 fi
 if [[ ! -d "$SPIDER_DB_ROOT" ]]; then
   echo "ERROR: Spider database directory does not exist: $SPIDER_DB_ROOT" >&2
   exit 2
 fi
-SPIDER_DB_MANIFEST="$SPIDER_DB_DIR/spider-databases.manifest.json"
+if [[ -n "$SPIDER_DB_MANIFEST" && ! -f "$SPIDER_DB_MANIFEST" ]]; then
+  echo "ERROR: SPIDER_DB_MANIFEST does not exist: $SPIDER_DB_MANIFEST" >&2
+  exit 2
+fi
 
 if [[ ! -f "$DATASET_FILE" || ! -f "$DATASET_MANIFEST" ]]; then
   python scripts/prepare_spider_ko.py \
@@ -89,10 +95,10 @@ import zipfile
 from pathlib import Path
 
 bundle = Path(sys.argv[1])
-artifacts = [Path(value) for value in sys.argv[2:]]
+artifacts = [Path(value) for value in sys.argv[2:] if value]
 with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
     for artifact in artifacts:
-        if artifact.exists():
+        if artifact.is_file():
             archive.write(artifact, arcname=artifact.name)
 print(f"result bundle: {bundle}")
 PY
@@ -102,7 +108,7 @@ if [[ "$RUN_KIND" == "full" ]]; then
   cp "$REPORT" "$ARCHIVE_DIR/spider-ko-full-$stamp.json"
   cp "$BUNDLE" "$ARCHIVE_DIR/spider-ko-full-$stamp.zip"
   cp "$DATASET_MANIFEST" "$ARCHIVE_DIR/spider-ko-dataset-$stamp.manifest.json"
-  if [[ -f "$SPIDER_DB_MANIFEST" ]]; then
+  if [[ -n "$SPIDER_DB_MANIFEST" && -f "$SPIDER_DB_MANIFEST" ]]; then
     cp "$SPIDER_DB_MANIFEST" "$ARCHIVE_DIR/spider-db-$stamp.manifest.json"
   fi
   echo "persistent archive: $ARCHIVE_DIR"
