@@ -45,6 +45,8 @@ def test_query_timeout_returns_504(settings, monkeypatch):
 
         assert response.status_code == 504
         assert response.json()["detail"]["code"] == "QUERY_TIMEOUT"
+        metrics = client.get("/metrics").text
+        assert 'aegis_query_runtime_rejections_total{reason="timeout"}' in metrics
         # The worker thread is intentionally allowed to finish before app teardown.
         time.sleep(0.1)
 
@@ -89,6 +91,8 @@ def test_query_capacity_returns_429_while_first_request_is_still_running(setting
             assert second.status_code == 429
             assert second.json()["detail"]["code"] == "QUERY_CAPACITY_EXCEEDED"
             assert second.headers["retry-after"] == "1"
+            metrics = client.get("/metrics").text
+            assert 'aegis_query_runtime_rejections_total{reason="capacity"}' in metrics
 
             release.set()
             assert first.result(timeout=2.0).status_code == 200
