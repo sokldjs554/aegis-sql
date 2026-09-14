@@ -595,7 +595,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 |---|---|
 | Python | 약 30,000줄 · 패키지 전체 타입 검사와 lint를 CI에서 강제 |
 | 테스트 | 실제 SQLite DB 기반 pytest + `ruff` + `mypy`를 GitHub Actions에서 강제 |
-| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + [`docs/research/`](docs/research/) — 영문 논문 리뷰 8편 · 국문 논문 완독 기록 2편 · 실험 기록 3편 |
+| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + [`docs/research/`](docs/research/) — 논문 리뷰 8편 · 원문 완독 기록 5편(국문 2 · 영문 3) · 실험 기록 4편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
 
