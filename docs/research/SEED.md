@@ -1,6 +1,6 @@
 # SEED — Automatic Evidence Generation for Practical Text-to-SQL
 
-- 읽은 날짜: 2026-09-08
+- 초기 검토: 2026-09-08 (완독 기록 아님)
 - 논문: Janghyeon Yun, Sang Goo Lee. *ICDE Workshops 2025*
 - 서울대학교 공식 연구 페이지: https://snu.elsevierpure.com/en/publications/seed-enhancing-text-to-sql-performance-and-practical-usability-th/
 - DOI: https://doi.org/10.1109/ICDEW67478.2025.00005

@@ -1,6 +1,6 @@
 # DIN-SQL — Decomposed In-Context Learning of Text-to-SQL with Self-Correction
 
-- 읽은 날짜: 2026-09-08
+- 초기 검토: 2026-09-08 (완독 기록 아님)
 - 논문: Mohammadreza Pourreza, Davood Rafiei. *NeurIPS 2023*
 - 공식 원문: https://papers.neurips.cc/paper_files/paper/2023/hash/72223cc66f63ca1aa59edaec1b3670e6-Abstract-Conference.html
 - DOI: https://doi.org/10.52202/075280-1577

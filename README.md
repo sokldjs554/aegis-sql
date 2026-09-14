@@ -91,7 +91,7 @@ AEGIS-SQL은 이 여섯 가지를 **각각 다른 층에서** 해결합니다.
 | **보안 (요청)** | 해당 없음 | "테이블 지워줘"에 조용히 SELECT를 돌려주지 않고 **요청 자체를 거부**. 변경 요청 10/10 차단, 조회 질문 오탐 0/17 (테스트로 강제) |
 | **평가** | 예시 몇 개 | **KorFin-Bench 106문항** + 어블레이션 + **거버넌스 10 / 모호성 6 프로브를 점수에 포함** |
 | **프롬프트** | 코드에 하드코딩 | 버전·해시 관리 레지스트리 + **실행 정확도로 채점하는 자동 최적화 탐색** |
-| **논문** | 언급 없음 | [`docs/PAPERS.md`](docs/PAPERS.md) — 34편을 **적용/변형/기각**으로 분류하고 각각 모듈에 매핑 |
+| **논문** | 언급 없음 | [`docs/PAPERS.md`](docs/PAPERS.md)의 참고문헌 34편을 모듈에 매핑하고, 원문 독해 완료 5편은 [`READING-LOG`](docs/research/READING-LOG.md)에 **적용/변형/기각** 판단까지 별도 기록 |
 
 ---
 
@@ -526,10 +526,51 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | | |
 |---|---|
 | Python | 27,482줄 (src 22,229 / tests 2,617 / scripts 2,636) · 추적 파일 168개 |
-| 테스트 | **273개 통과** (실제 DB 대상, 목킹 없음) · `ruff` + `mypy` 클린 (CI 강제) |
-| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 논문 리뷰 [`docs/research/`](docs/research/) 10편 |
+| 테스트 | **278개 통과, 2개 skip** (실제 DB 대상) · `ruff` + `mypy` 클린 (CI 강제) |
+| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 원문 독해 완료 [`READING-LOG`](docs/research/READING-LOG.md) 5편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
+
+---
+
+## 논문 → 판단 → 구현 → 실험
+
+`docs/PAPERS.md`의 34편은 설계 근거를 찾기 위한 **참고문헌 매핑 수**이지, 원문
+독해 완료 수가 아닙니다. 방법·실험·한계까지 확인하고 네 줄 판단을 남긴 논문은
+현재 [5편](docs/research/READING-LOG.md)이며, 읽을 목록과 분리했습니다.
+
+| 논문에서 얻은 문제 | AEGIS에서 내린 판단과 구현 | 실제 확인 |
+|---|---|---|
+| EHRSQL의 clear-but-unanswerable | 스키마에 답할 근거가 없는 질문을 생성 전에 기권하는 `CapabilityAwareEngine`과 30개 고정 probe 추가 | unanswerable recall **15/15**, answerable false abstention **0/15**. 단, 직접 구성한 30문항 범위 |
+| LitE-SQL의 lightweight pretrained generator | 5.3M scratch 실패를 모델 크기 하나로 단정하지 않고, 같은 AEGIS snapshot·retrieval·평가로 Qwen2.5-Coder 1.5B base/QLoRA 비교 | Tesla T4·KorFin 90문항에서 **11.1%→12.2%(+1.11%p)**. 큰 개선 주장은 기각 |
+| R³-SQL의 selective resampling | 낮은 router confidence와 실행 결과 분산이 동시에 나타날 때만 새 5-sample ensemble을 호출하는 paired runner 구현 | 4/90 trigger, **52.2%→51.1%(−1.11%p)**, 비용 +9.29%, p95 37.58s→43.17s. 기본 승격 기각 |
+| SafeQL·EXPO-SQL의 부분 오류 신호 | 첫 실행 성공 repair와 query-level DPO의 한계를 확인하고 component ranking·clause-aware preference를 후속 가설로 분리 | 아직 미구현·미측정이므로 성능 주장 없음 |
+
+### Qwen2.5-Coder 1.5B 실제 GPU full run
+
+2026-09-10, Tesla T4에서 frozen train 9,000 / dev 1,153 snapshot과 KorFin
+answerable 90문항을 사용했습니다.
+
+| 지표 | Qwen base | QLoRA 이후 | 변화 |
+|---|---:|---:|---:|
+| EX | 10/90 = 11.1% | 11/90 = 12.2% | **+1문항 / +1.11%p** |
+| easy / medium / hard | 33.3% / 0% / 0% | 30.0% / 5.0% / 0% | easy −1, medium +2, hard ±0문항 |
+| p50 / p95 latency | 3.78s / 7.69s | 5.39s / 10.20s | +42.67% / +32.59% |
+| inference peak CUDA | 1.134 GiB | 1.150 GiB | +0.016 GiB |
+
+QLoRA 학습은 **9,788.2초(2시간 43분 8.2초)**, peak CUDA **3.085 GiB**였다.
+base 실패를 5건 복구했지만 성공 4건이 회귀해 순증가는 1건이다. runtime reset으로
+원본 row-level JSON/ZIP은 잃었고 notebook console 180개 판정과 strict-summary 출력만
+[기계 판독 기록](data/research/qwen_t4_full_console_evidence.json)으로 복구했으므로,
+aggregate 실측에는 쓰되 완전한 row-level audit라고 부르지 않는다.
+
+### R³-SQL-inspired selective resampling 실제 측정
+
+2026-09-11, `claude-sonnet-5`로 동일 run의 baseline과 trigger된 새 ensemble을
+paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, evidence error
+0건이었다. 추가 $0.331545를 쓰고도 gain 0·regression 1이어서, 불확실성 trigger와
+새 답 acceptance를 분리해야 한다는 결론을 얻었다. [조건·해석](docs/research/R3-SQL-EXPERIMENT.md) ·
+[원본 summary](data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json)
 
 ---
 
@@ -537,7 +578,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 약 27,500줄, `src/` 함수 1,047개 중 1,028개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 273개 |
+| **Python** | 약 27,500줄, `src/` 함수 1,047개 중 1,028개(98%) 타입힌트 · `py.typed` 배포, `ruff` + `mypy` 클린, pytest 278 passed / 2 skipped |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -548,7 +589,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 | **sLLM 연구/개발** | [`docs/SLM.md`](docs/SLM.md) — 왜 직접 구현했는지, LoRA `B=0` 보증, DPO 선호쌍 자동 생성 |
 | **데이터 증강 / 구축** | [`docs/FLYWHEEL.md`](docs/FLYWHEEL.md) — 스키마 → SQL 샘플링 → 역번역 → 한국어 증강 → 실행검증 → 누수 없는 분할 |
 | **AI 모델 설계** | AegisLM 아키텍처 + 라우터 특징 설계 + 보정(calibration) |
-| **NLP 논문 조사** | [`docs/PAPERS.md`](docs/PAPERS.md) — 34편을 **적용/변형/기각** 3분류로 모듈에 매핑, 기각 사유까지 명시 |
+| **NLP 논문 조사** | [`docs/PAPERS.md`](docs/PAPERS.md) — 참고문헌 34편의 모듈 매핑; [`READING-LOG`](docs/research/READING-LOG.md) — 원문 독해 5편의 문제·방법·AEGIS 비교·판단 |
 | **git 협업** | 의미 단위 커밋, CI 6잡(3 Python 버전 × lint/test/e2e + ML 스택 + 낡은 의존성 재현 + Docker) |
 
 ---
@@ -583,7 +624,7 @@ aegis-sql/
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
-└── tests/                  273개 테스트 (실제 DB 대상, 목킹 없음)
+└── tests/                  278 passed / 2 skipped (실제 DB 대상)
 ```
 
 ---
@@ -594,6 +635,7 @@ aegis-sql/
 |---|---|
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | 전체 흐름, 설계 원칙, 요청 하나가 지나가는 길 |
 | [PAPERS](docs/PAPERS.md) | 논문 34편 → 모듈 매핑. **적용/변형/기각**과 그 사유 |
+| [RESEARCH LOG](docs/research/READING-LOG.md) | 원문 독해 완료 5편 → 문제·핵심 방법·AEGIS 비교·판단 네 줄 |
 | [GOVERNANCE](docs/GOVERNANCE.md) | 위협 모델, 컬럼 4등급, 왜 프롬프트가 아니라 AST인가, 알려진 한계 |
 | [FLYWHEEL](docs/FLYWHEEL.md) | 스키마만으로 학습 데이터를 만드는 법, 누수 없는 분할 |
 | [SLM](docs/SLM.md) | 직접 구현한 Transformer·LoRA·DPO의 세부와 근거 |

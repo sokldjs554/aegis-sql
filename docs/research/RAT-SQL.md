@@ -1,6 +1,6 @@
 # RAT-SQL — Relation-Aware Schema Encoding and Linking for Text-to-SQL Parsers
 
-- 읽은 날짜: 2026-09-08
+- 초기 검토: 2026-09-08 (완독 기록 아님)
 - 논문: Bailin Wang, Richard Shin, Xiaodong Liu, Oleksandr Polozov, Matthew Richardson. *ACL 2020*
 - 공식 원문: https://aclanthology.org/2020.acl-main.677/
 - 공식 코드: https://github.com/microsoft/rat-sql
