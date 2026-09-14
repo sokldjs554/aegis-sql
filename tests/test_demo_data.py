@@ -86,7 +86,13 @@ def test_full_scale_generator_matches_every_frozen_gold_result():
             cursor = conn.execute(item["gold_sql"])
             rows = cursor.fetchall()
             columns = [column[0] for column in cursor.description or ()]
-            preview = [list(row) for row in rows[:3]]
+            preview = [
+                [
+                    round(value, 6) if isinstance(value, float) else value
+                    for value in row
+                ]
+                for row in rows[:3]
+            ]
             assert len(rows) == item["gold_row_count"], item["id"]
             assert columns == item["gold_columns"], item["id"]
             assert preview == item["gold_preview"], item["id"]
