@@ -1,10 +1,10 @@
 # R³-SQL — Ranking Reward and Resampling for Text-to-SQL
 
-- 읽은 날짜: 2026-09-08
+- 초기 검토: 2026-09-08 (완독 기록 아님)
 - 논문: Hojae Han, Yeonseok Jeong, Seung-won Hwang, Zhewei Yao, Yuxiong He. *Findings of ACL 2026*
 - 공식 원문: https://aclanthology.org/2026.findings-acl.2146/
 - DOI: https://doi.org/10.18653/v1/2026.findings-acl.2146
-- 상태: **[검토 · 후속실험 후보]**
+- 상태: **[검토 · heuristic 변형 구현 및 실제 full run 완료 · 기본 승격 기각]**
 
 ## 1. 논문이 푸는 문제
 
@@ -23,30 +23,27 @@ R³-SQL은 후보를 **실행 결과 기준으로 그룹화**한 뒤 그룹을 r
 
 AEGIS-SQL의 `verify/selfconsistency.py`도 문자열 다수결이 아니라 `ExecutionResult.result_signature()`를 이용해 **실행 결과 단위로 후보를 묶어 투표**한다. 따라서 R³-SQL의 첫 번째 문제의식과 이미 직접 겹친다.
 
-다만 현재 AEGIS의 캐스케이드는 후보 풀이 부족한지 판단해 **선택적으로 재생성하는 단계는 없다.** 현재 측정에서 캐스케이드 52.2%가 LLM 단독 57.8%보다 낮았고, 문항 단위 재분석 결과 ensemble 자체보다 `escalate_threshold`가 template에 너무 많은 문항을 남긴 것이 주원인이었다. 즉 지금 문제는 무조건 sample 수를 늘리는 것보다 **언제 상위 생성기를 다시 호출해야 하는지**가 더 중요하다.
+AEGIS에는 이 분석을 바탕으로 router confidence와 execution-result group 분산이 모두 낮을 때만 새 ensemble을 호출하는 selective-resampling runner를 추가했다. 다만 이는 R³-SQL의 learned ranking/agentic judge가 아니라 관측 가능한 신호만 쓴 heuristic approximation이다.
 
 ## 4. 그대로 적용하지 않는 이유
 
 R³-SQL을 그대로 복제하면 AEGIS가 이미 가진 cost-aware router와 역할이 겹칠 수 있다. AEGIS의 목표는 최고 정확도만이 아니라 비용·지연·거버넌스를 함께 관리하는 것이므로, resampling은 항상 실행할 기능이 아니라 **불확실성이 높은 경우에만 발동하는 선택적 단계**여야 한다.
 
-## 5. 후속 실험 가설
+## 5. 실제 실험과 후속 판단
 
 **가설:** 현재 ensemble 결과에서 실행 결과 그룹의 분포가 분산되어 있고 router confidence도 낮은 경우에만 resampling하면, 전체 LLM 호출 수를 크게 늘리지 않고 hard/medium EX를 개선할 수 있다.
 
-측정해야 할 것:
+`claude-sonnet-5` 실제 호출로 KorFin answerable 90문항을 paired 측정한 결과,
+trigger는 4/90(4.4%)였고 EX는 47/90(52.2%)에서 46/90(51.1%)로
+**1문항·1.11%p 하락**했다. gain 0, regression 1이었으며 추가 비용은
+$0.331545(+9.29%), p95는 37.58초에서 43.17초로 증가했다.
 
-- candidate pool별 unique execution-result group 수
-- top group 비중
-- router confidence와 candidate disagreement의 상관
-- resampling 전/후 EX
-- 추가 호출 수, 질의당 비용, p95 지연
-
-실제 후보를 재생성하는 paired runner, 문항별 checkpoint/resume, 비용·지연·EX
-summary와 strict evidence gate까지 구현했다. 고정 프로토콜은
-[R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 기록했다. hosted provider
-90문항 full run은 아직 실행하지 않았으므로 결과가 나오기 전까지는
-`PAPERS.md`에서 **후속실험 후보**로만 표기한다.
+따라서 이 heuristic은 기본 파이프라인에 승격하지 않는다. 실패 원인은 불확실한
+문항을 찾는 trigger와 새 후보가 더 낫다고 판정하는 acceptance/ranking을 같은 것으로
+취급한 데 있다. 저장된 기존·신규 후보로 수용 gate를 먼저 오프라인 설계하고, 추가
+유료 full run은 보류한다. 원본·조건·행별 전이는
+[R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 기록했다.
 
 ## 6. 면접에서 30초 설명
 
-> R³-SQL은 후보 SQL을 개별 문자열로 보지 않고 실행 결과가 같은 후보끼리 그룹화해 ranking하고, 정답 후보가 없다고 판단되면 선택적으로 다시 생성합니다. AEGIS도 이미 실행 결과 해시로 self-consistency를 하고 있어서 첫 아이디어는 유사하지만, resampling은 아직 없습니다. 현재 AEGIS의 병목이 router threshold로 확인된 만큼, 후보 불일치와 router confidence를 함께 써서 선택적 resampling을 거는 실험이 다음 단계라고 봤습니다.
+> R³-SQL을 참고해 낮은 router confidence와 실행 결과 분산이 동시에 나타날 때만 새 후보를 생성하는 정책을 실제 90문항에서 검증했습니다. 4문항에 발동했지만 EX가 52.2%에서 51.1%로 1문항 하락하고 비용은 9.29% 늘었습니다. 불확실성 탐지와 새 답 수용 판단은 다른 문제라는 결론을 얻어 현재 정책은 승격하지 않았고, 다음에는 저장된 후보로 acceptance gate부터 오프라인 검증합니다.

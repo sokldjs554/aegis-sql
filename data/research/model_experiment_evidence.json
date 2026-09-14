@@ -1,0 +1,367 @@
+{
+  "schema_version": 1,
+  "public_demo": {
+    "live_tier": "template",
+    "live_cost_usd": 0.0,
+    "recorded_results_are_live": false,
+    "description_ko": "질의 탭은 API 키 없는 template 티어를 실시간 실행합니다. 이 화면의 Claude·Qwen·R³ 수치는 저장된 실측 결과이며 라이브 추론이 아닙니다."
+  },
+  "tier_comparison": {
+    "benchmark": "KorFin-Bench",
+    "total_items": 106,
+    "answerable_items": 90,
+    "hosted_model": "claude-sonnet-5",
+    "runs": [
+      {
+        "key": "template",
+        "label": "Template",
+        "model": "template/v1",
+        "correct": 40,
+        "total": 90,
+        "execution_accuracy": 0.4444,
+        "by_difficulty": {
+          "easy": 0.9,
+          "medium": 0.325,
+          "hard": 0.0
+        },
+        "executable_rate": 1.0,
+        "p50_latency_ms": 5.8,
+        "p95_latency_ms": 23.8,
+        "cost_per_query_usd": 0.0,
+        "tier_mix": {
+          "template": 90
+        }
+      },
+      {
+        "key": "cascade",
+        "label": "캐스케이드",
+        "model": "template + claude-sonnet-5",
+        "correct": 47,
+        "total": 90,
+        "execution_accuracy": 0.5222,
+        "by_difficulty": {
+          "easy": 0.9667,
+          "medium": 0.35,
+          "hard": 0.2
+        },
+        "executable_rate": 1.0,
+        "p50_latency_ms": 4455.9,
+        "p95_latency_ms": 39227.5,
+        "cost_per_query_usd": 0.027945,
+        "tier_mix": {
+          "template": 54,
+          "ensemble": 36
+        }
+      },
+      {
+        "key": "llm_only",
+        "label": "LLM 단독",
+        "model": "claude-sonnet-5",
+        "correct": 52,
+        "total": 90,
+        "execution_accuracy": 0.5778,
+        "by_difficulty": {
+          "easy": 1.0,
+          "medium": 0.4,
+          "hard": 0.3
+        },
+        "executable_rate": 0.9556,
+        "p50_latency_ms": 5824.2,
+        "p95_latency_ms": 10291.6,
+        "cost_per_query_usd": 0.012719,
+        "tier_mix": {
+          "llm": 90
+        }
+      }
+    ],
+    "decision_ko": "LLM 단독은 template이 도달하지 못한 hard 문항을 30% 해결했지만, 캐스케이드는 LLM 단독보다 5문항 낮아 라우터 임계값 재조정이 필요합니다.",
+    "comparison_scope_ko": "EX는 동일 frozen benchmark와 gold-result snapshot을 검증해 비교합니다. 지연은 서로 다른 실행 환경에서 측정돼 모델 간 속도 우열로 해석하지 않습니다.",
+    "replays": [
+      {
+        "id": "kfb-e08",
+        "difficulty": "easy",
+        "question": "마케팅 수신에 동의한 고객 비율은?",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  CAST(COUNT(*) AS REAL) / NULLIF(COUNT(*), 0) AS \"비율\"\nFROM TB_CTRT AS t1",
+          "latency_ms": 4.7,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 1행 × 1열 vs gold 1행 × 1열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "SELECT\n  CAST(SUM(CASE WHEN c.MKT_AGR_YN = 'Y' THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) AS MKT_AGR_RATIO\nFROM TB_CUST c",
+          "latency_ms": 5110.5,
+          "cost_usd": 0.011202,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "SELECT CAST(SUM(CASE WHEN MKT_AGR_YN = 'Y' THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*),0) AS ratio FROM TB_CUST",
+          "row_count": 1,
+          "columns": [
+            "ratio"
+          ],
+          "preview": [
+            [
+              0.414615
+            ]
+          ]
+        }
+      },
+      {
+        "id": "kfb-m24",
+        "difficulty": "medium",
+        "question": "계약이 100건 이상인 지점만 보여줘",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  t1.CTRT_NO AS \"계약번호\",\n  t1.CUST_ID AS \"계약자고객ID\",\n  t1.PROD_CD AS \"상품코드\",\n  t1.AGNT_ID AS \"모집설계사ID\",\n  t1.CTRT_DT AS \"계약체결일자\",\n  t1.EXPR_DT AS \"만기일자\"\nFROM TB_CTRT AS t1\nWHERE\n  EXISTS(\n    SELECT\n      1\n    FROM TB_CLM AS x1\n    WHERE\n      x1.CTRT_NO = t1.CTRT_NO AND x1.FRAUD_SCR >= 100\n  )\nLIMIT 200",
+          "latency_ms": 15.0,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 1행 × 6열 vs gold 24행 × 2열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "SELECT\n    b.BRCH_CD,\n    b.BRCH_NM,\n    COUNT(c.CTRT_NO) AS CTRT_CNT\nFROM TB_CTRT c\nJOIN TB_AGNT a ON c.AGNT_ID = a.AGNT_ID\nJOIN TB_BRCH b ON a.BRCH_CD = b.BRCH_CD\nGROUP BY b.BRCH_CD, b.BRCH_NM\nHAVING COUNT(c.CTRT_NO) >= 100\nORDER BY CTRT_CNT DESC",
+          "latency_ms": 6800.7,
+          "cost_usd": 0.015873,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "SELECT b.BRCH_NM, COUNT(*) AS cnt FROM TB_CTRT t JOIN TB_AGNT a ON a.AGNT_ID = t.AGNT_ID JOIN TB_BRCH b ON b.BRCH_CD = a.BRCH_CD GROUP BY b.BRCH_NM HAVING COUNT(*) >= 100 ORDER BY cnt DESC",
+          "row_count": 24,
+          "columns": [
+            "BRCH_NM",
+            "cnt"
+          ],
+          "preview": [
+            [
+              "마포지점",
+              690
+            ],
+            [
+              "일산지점",
+              583
+            ],
+            [
+              "광주상무지점",
+              560
+            ]
+          ]
+        }
+      },
+      {
+        "id": "kfb-h17",
+        "difficulty": "hard",
+        "question": "올해 월별 신계약 건수가 직전 달보다 늘어난 달은?",
+        "template": {
+          "label": "Template",
+          "correct": false,
+          "status": "ok",
+          "sql": "SELECT\n  SUBSTRING(t1.CTRT_DT, 1, 6) AS \"월\",\n  COUNT(*) AS \"건수\"\nFROM TB_CTRT AS t1\nWHERE\n  t1.CTRT_DT BETWEEN '20260101' AND '20261231'\nGROUP BY\n  SUBSTRING(t1.CTRT_DT, 1, 6)\nORDER BY\n  SUBSTRING(t1.CTRT_DT, 1, 6) ASC",
+          "latency_ms": 6.3,
+          "cost_usd": 0.0,
+          "outcome_ko": "EX FAIL",
+          "error": "result mismatch (pred 8행 × 2열 vs gold 4행 × 3열)"
+        },
+        "llm": {
+          "label": "Claude 단독",
+          "correct": true,
+          "status": "ok",
+          "sql": "WITH monthly_new AS (\n    SELECT\n        substr(c.CTRT_DT, 1, 6) AS YM,\n        COUNT(*) AS NEW_CTRT_CNT\n    FROM TB_CTRT c\n    WHERE substr(c.CTRT_DT, 1, 4) = '2026'\n    GROUP BY substr(c.CTRT_DT, 1, 6)\n),\nmonthly_with_prev AS (\n    SELECT\n        m.YM,\n        m.NEW_CTRT_CNT,\n        LAG(m.NEW_CTRT_CNT) OVER (ORDER BY m.YM) AS PREV_CNT\n    FROM monthly_new m\n)\nSELECT\n    mp.YM,\n    mp.NEW_CTRT_CNT,\n    mp.PREV_CNT\nFROM monthly_with_prev mp\nWHERE mp.PREV_CNT IS NOT NULL\n  AND mp.NEW_CTRT_CNT > mp.PREV_CNT\nORDER BY mp.YM",
+          "latency_ms": 9715.5,
+          "cost_usd": 0.018651,
+          "outcome_ko": "EX PASS",
+          "error": ""
+        },
+        "gold": {
+          "sql": "WITH m AS (SELECT substr(CTRT_DT,1,6) AS ym, COUNT(*) AS cnt FROM TB_CTRT WHERE substr(CTRT_DT,1,4) = '2026' GROUP BY substr(CTRT_DT,1,6)) SELECT a.ym, a.cnt, b.cnt AS prev_cnt FROM m a JOIN m b ON CAST(b.ym AS INTEGER) = CAST(a.ym AS INTEGER) - 1 WHERE a.cnt > b.cnt ORDER BY a.ym",
+          "row_count": 4,
+          "columns": [
+            "ym",
+            "cnt",
+            "prev_cnt"
+          ],
+          "preview": [
+            [
+              "202602",
+              110,
+              107
+            ],
+            [
+              "202605",
+              100,
+              95
+            ],
+            [
+              "202606",
+              102,
+              100
+            ]
+          ]
+        }
+      }
+    ],
+    "cost_scope_ko": "Claude 비용은 보관된 당시 리포트의 SQL 생성 호출 기준입니다. 당시 누락된 보조 답변 합성 비용은 포함하지 않으므로 전체 비용으로 해석하지 않습니다."
+  },
+  "qwen": {
+    "model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "gpu": "Tesla T4",
+    "items": 90,
+    "dataset_snapshot": "aegis-qwen-flywheel-v1",
+    "base": {
+      "correct": 10,
+      "total": 90,
+      "execution_accuracy": 0.1111111111,
+      "by_difficulty": {
+        "easy": 0.3333333333,
+        "medium": 0.0,
+        "hard": 0.0
+      },
+      "latency_ms": {
+        "p50": 3776.95,
+        "p95": 7692.91
+      },
+      "peak_cuda_memory_gib": 1.134
+    },
+    "adapted": {
+      "correct": 11,
+      "total": 90,
+      "execution_accuracy": 0.1222222222,
+      "by_difficulty": {
+        "easy": 0.3,
+        "medium": 0.05,
+        "hard": 0.0
+      },
+      "latency_ms": {
+        "p50": 5388.4,
+        "p95": 10199.67
+      },
+      "peak_cuda_memory_gib": 1.15
+    },
+    "training": {
+      "wall_clock_seconds": 9788.2,
+      "wall_clock_hms": "02:43:08.2",
+      "peak_cuda_memory_gib": 3.085,
+      "trainable_parameters": 4358144,
+      "trainable_percent": 0.2815
+    },
+    "paired": {
+      "delta_ex_percentage_points": 1.1111,
+      "gained": 5,
+      "regressed": 4,
+      "unchanged": 81
+    },
+    "decision": "not_promoted",
+    "decision_ko": "순증가는 1문항이었고 p50·p95 지연도 증가해 서비스 기본 티어로 승격하지 않았습니다.",
+    "evidence": {
+      "status": "console_recovered_after_colab_runtime_reset",
+      "aggregate_measured": true,
+      "raw_result_bundle_archived": false,
+      "per_item_statuses_preserved": 180,
+      "predicted_sql_archived": false,
+      "limitation_ko": "Colab 초기화 뒤 노트북 콘솔에서 집계와 180개 OK/MISS 판정을 복구했습니다. 예측 SQL·문항별 지연 원본은 없어 완전한 행 단위 감사 자료로 부르지 않습니다."
+    }
+  },
+  "selective_resampling": {
+    "method": "R³-SQL-inspired selective resampling",
+    "model": "claude-sonnet-5",
+    "items": 90,
+    "eligible_items": 50,
+    "triggered": 4,
+    "trigger_rate": 0.044444444444444446,
+    "baseline": {
+      "correct": 47,
+      "execution_accuracy": 0.5222222222222223,
+      "cost_usd": 3.567036,
+      "p50_latency_ms": 9978.2,
+      "p95_latency_ms": 37578.92
+    },
+    "policy": {
+      "correct": 46,
+      "execution_accuracy": 0.5111111111111111,
+      "cost_usd": 3.898581,
+      "p50_latency_ms": 9978.2,
+      "p95_latency_ms": 43171.68
+    },
+    "delta_ex_percentage_points": -1.1111111111111183,
+    "extra_cost_usd": 0.331545,
+    "cost_increase_ratio": 0.09294691727249178,
+    "transitions": {
+      "gains": 0,
+      "regressions": 1,
+      "unchanged": 89
+    },
+    "decision": "rejected",
+    "decision_ko": "추가 비용과 p95 지연이 늘었지만 gain 0·regression 1이어서 기본 정책 채택을 기각했습니다. 후속 가설은 trigger와 새 후보 acceptance를 분리하는 것입니다.",
+    "run_scope_ko": "Linux-6.6.122+-x86_64-with-glibc2.39 · Python 3.13.15 · answer synthesis OFF · few-shot 0 · 같은 run의 paired 비교",
+    "evidence": {
+      "portfolio_evidence_ready": true,
+      "evidence_errors": [],
+      "raw_rows_archived": 90,
+      "row_level_bundle_archived": true
+    }
+  },
+  "sources": [
+    {
+      "key": "template",
+      "label": "Template 평가",
+      "path": "reports/eval_template.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_template.json",
+      "sha256": "91dad0a57f38586db795288629edfbbb1df12942dd77146394be9d38bcaed167"
+    },
+    {
+      "key": "cascade",
+      "label": "Claude 캐스케이드 평가",
+      "path": "reports/eval_llm.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_llm.json",
+      "sha256": "9ae71c99f770eae1ba8b7ab8155d3ebc3b9ae5e7b7df535738ffdc86da0deb17"
+    },
+    {
+      "key": "llm_only",
+      "label": "Claude LLM 단독 평가",
+      "path": "reports/eval_llm_only.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_llm_only.json",
+      "sha256": "36ec673dd0850ac6611f11ddc52ffaa67edbac5345b2ab17fc1c57ca70f12667"
+    },
+    {
+      "key": "benchmark",
+      "label": "KorFin-Bench frozen gold",
+      "path": "data/benchmark/korfin_bench.jsonl",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/benchmark/korfin_bench.jsonl",
+      "sha256": "6aeeb49e6efc2e466d6225797516404b13ffe1562c04d7a301a0d40fc9e7920e"
+    },
+    {
+      "key": "qwen",
+      "label": "Qwen T4 복구 증거",
+      "path": "data/research/qwen_t4_full_console_evidence.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/qwen_t4_full_console_evidence.json",
+      "sha256": "49b1f840c0f86aa3440b3a1408a20f55882d2f1e8c1b4f433f9d4b40d732aeaf"
+    },
+    {
+      "key": "r3_summary",
+      "label": "R³ paired-run 요약",
+      "path": "data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json",
+      "sha256": "64d58192cfc1a1c99dd4ed4ded7b5d0e630b8ec01079265a563336c47c653b48"
+    },
+    {
+      "key": "r3_raw",
+      "label": "R³ 90문항 원본",
+      "path": "data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl",
+      "sha256": "40c9b6735d9190cefd8ddcfa2539450b56da4ea59e246e2f79e1c9ba5c26bffe"
+    }
+  ]
+}

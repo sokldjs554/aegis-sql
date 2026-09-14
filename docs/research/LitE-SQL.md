@@ -1,11 +1,11 @@
 # LitE-SQL — Lightweight Text-to-SQL with Vector Schema Linking and Execution-Guided Self-Correction
 
-- 읽은 날짜: 2026-09-08
+- 원문 검토: 2026-09-12
 - 논문: Shengmin Piao, Jieun Lee, Sanghyun Park. *Findings of EACL 2026*
 - 공식 원문: https://aclanthology.org/2026.findings-eacl.186/
 - 공식 코드: https://github.com/shengminp/LitE-SQL
 - DOI: https://doi.org/10.18653/v1/2026.findings-eacl.186
-- 상태: **[검토 · sLLM 후속실험의 핵심 비교군]**
+- 상태: **[원문 독해 완료 · Qwen 1.5B 변형 실측 완료]**
 
 ## 1. 논문이 푸는 문제
 
@@ -20,10 +20,14 @@
    - hard-negative supervised contrastive objective로, 의미는 비슷하지만 실제 SQL에는 불필요한 column을 구분
 2. **SQL Generator**
    - supervised fine-tuning(SFT)
-   - execution-guided reinforcement를 이어서 적용
-   - multi-candidate sampling에 의존하지 않고 execution feedback으로 self-correction
+   - 여러 생성 후보와 gold로 preference를 만든 뒤 DPO+NLL reinforcement fine-tuning(RFT)을 적용
+   - 추론에서는 multi-candidate voting 대신 실패 SQL과 오류 메시지를 넣어 반복 self-correction
 
-논문은 **BIRD 72.10% EX, Spider 1.0 88.45%**를 보고하고, 비교 대상의 대형 LLM보다 **2~30배 적은 parameter**로 경쟁력 있는 결과를 제시한다.
+논문의 대표 **BIRD 72.10% EX, Spider 1.0 88.45%**는 Table 1 캡션상
+`correct schema`를 제공한 7B 조건이다. 자체 retriever의 top-25 schema를 실제로
+사용한 end-to-end 7B 결과는 Table 2/12에서 **BIRD 60.56%, Spider 84.35%**이며,
+RFT의 순증가는 SFT 58.21%→60.56%, 83.56%→84.35%다. 따라서 72.10%를
+retriever 포함 전체 파이프라인 수치로 쓰지 않는다.
 
 ## 3. AEGIS-SQL과 겹치는 지점
 
@@ -44,17 +48,22 @@ AEGIS에도 이미 다음 구성요소가 있다.
 
 즉 다음 sLLM 실험은 단순 scale-up이 아니라 **pretraining의 효과를 분리해 보는 비교실험**이어야 한다.
 
-## 5. 후속 실험 가설
+## 5. AEGIS 변형 실험
 
-후속 후보:
+실험 조건:
 
-- Qwen 계열 1.5B 또는 3B + HuggingFace + LoRA/SFT
-- 동일한 AEGIS flywheel train/dev/test split 사용
-- 동일 KorFin-Bench에서 EX / execution success / latency / model memory 비교
-- glossary/schema-linking on/off를 같이 측정해 모델 크기와 domain retrieval 효과를 분리
+- `Qwen/Qwen2.5-Coder-1.5B-Instruct` base와 같은 모델의 QLoRA 이후를 비교
+- 고정 AEGIS snapshot train 9,000 / dev 1,153 사용
+- 같은 schema card·retrieval·guard·KorFin answerable 90문항 사용
+- EX / easy·medium·hard / latency / GPU memory / 학습 시간을 함께 측정
 
-이 실험은 아직 측정하지 않았다. 실제 결과가 없으므로 현재는 기술스택에 Qwen/HuggingFace를 추가하지 않는다.
+Tesla T4 full run에서 base EX **11.1%(10/90)**, QLoRA 이후
+**12.2%(11/90)**로 +1문항/+1.11%p였다. easy는 33.3%→30.0%, medium은
+0%→5.0%, hard는 0%로 유지됐다. p50은 3,776.95ms→5,388.40ms,
+p95는 7,692.91ms→10,199.67ms였고 학습은 9,788.2초, peak 3.085GiB였다.
+base 실패 복구 5건과 회귀 4건이 함께 있어 “QLoRA가 크게 개선했다”는 주장은
+기각한다. 자세한 증거 한계는 [Qwen 실험 문서](LitE-SQL-QWEN-EXPERIMENT.md)에 있다.
 
 ## 6. 면접에서 30초 설명
 
-> LitE-SQL은 vector schema retrieval과 lightweight pretrained generator를 결합하고 SFT 뒤 execution-guided training을 해서 BIRD 72.10%를 냈습니다. 제 5.3M from-scratch 모델은 학습 신호는 개선됐지만 downstream EX가 0%였기 때문에, 이 논문을 보고 다음 실험은 단순히 scratch 모델을 키우는 게 아니라 pretrained 1.5B/3B adaptation과 동일 데이터·동일 benchmark에서 비교해야 한다고 판단했습니다.
+> LitE-SQL을 읽고 5.3M scratch 모델의 0%를 ‘작은 모델은 안 된다’로 결론내리지 않고 pretrained Qwen 1.5B 비교군을 만들었습니다. 같은 AEGIS snapshot과 KorFin 90문항에서 T4로 측정하니 base 11.1%에서 QLoRA 12.2%로 순증가는 1문항뿐이었고 지연도 늘었습니다. 그래서 pretrained adaptation의 가능성은 확인했지만 큰 개선으로 포장하지 않았습니다. 논문의 72.10%도 정답 schema 조건이라 제 점수와 직접 비교하지 않습니다.

@@ -141,7 +141,7 @@ router confidence가 낮고 후보의 execution-result group이 분산된 경우
 
 이 policy는 R³-SQL의 learned/agentic judge를 재현한 것이 아니다. 현재 AEGIS가 이미 보유한 observable signal로 만든 **보수적인 heuristic approximation**이다.
 
-또한 현재 저장된 `reports/eval_llm.json`은 최종 EX/tier mix는 있지만 candidate별 execution group/agreement와 실제 resampled outcome을 저장하지 않는다. 따라서 지금 숫자를 만들어 `EX가 개선됐다`고 주장하지 않는다.
+과거 `reports/eval_llm.json`을 재사용하지 않고, 새 full run 안에서 baseline과 resampling을 paired 측정했다.
 
 ### 고정한 실제 측정 조건
 
@@ -157,7 +157,25 @@ LLM/ensemble을 다시 실행할 때 candidate pool마다 다음을 기록한다
 
 실행 프로토콜과 Colab/재개 절차는 [R3-SQL-EXPERIMENT.md](R3-SQL-EXPERIMENT.md)에 고정했다.
 
-**현재 상태:** trigger policy + live runner + resume + strict summary + tests **완료** / hosted provider 90문항 full run 수치 측정 대기
+### 실제 측정 결과
+
+Git revision `73a1a3c4a8e2875660471f01b18bb664ecdb975c`에서
+`claude-sonnet-5`로 answerable 90문항을 full run했다. strict recheck도
+`portfolio_evidence_ready=true`, evidence error 0건으로 통과했다.
+
+- trigger: **4/90 = 4.4%** (multi-candidate eligible 4/50 = 8.0%)
+- baseline EX: **47/90 = 52.2%**
+- resampling 후 EX: **46/90 = 51.1%**
+- ΔEX: **−1문항 / −1.11%p** (gain 0 / regression 1 / unchanged 89)
+- 추가 비용: **$0.331545**, baseline 대비 **+9.29%**
+- p95 latency: **37,578.92 ms → 43,171.68 ms**
+
+낮은 confidence와 후보 분산은 불확실성은 찾았지만 재생성 성공 가능성을 구분하지
+못했다. 특히 맞았던 hard 1문항을 새 오답으로 교체했으므로, 현재 heuristic은
+기본 파이프라인에 승격하지 않는다. 다음 가설은 “재생성 여부”와 “새 후보 수용 여부”를
+분리하는 acceptance gate이며 추가 유료 run 전에 저장된 후보로 오프라인 검증한다.
+
+**현재 상태:** 구현·Anthropic 90문항 full run·strict 재검증·원본 보존 **완료** / 현재 heuristic의 기본 승격 **기각** / 추가 유료 run 보류
 
 ---
 

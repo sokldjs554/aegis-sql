@@ -240,6 +240,26 @@ def test_prompts_endpoint(client):
     assert body["manifest"] and any(p["id"] == "nl2sql.system" for p in body["prompts"])
 
 
+def test_experiments_endpoint_serves_recorded_evidence_without_a_model_call(client):
+    body = client.get("/v1/experiments").json()
+    assert body["public_demo"]["live_tier"] == "template"
+    assert body["public_demo"]["recorded_results_are_live"] is False
+
+    tiers = {run["key"]: run for run in body["tier_comparison"]["runs"]}
+    assert tiers["template"]["correct"] == 40
+    assert tiers["cascade"]["correct"] == 47
+    assert tiers["llm_only"]["correct"] == 52
+
+    assert body["qwen"]["evidence"]["raw_result_bundle_archived"] is False
+    assert body["selective_resampling"]["evidence"]["raw_rows_archived"] == 90
+    assert len(body["tier_comparison"]["replays"]) == 3
+    assert {case["difficulty"] for case in body["tier_comparison"]["replays"]} == {
+        "easy",
+        "medium",
+        "hard",
+    }
+
+
 def test_metrics_endpoint(client):
     client.post("/v1/query", json={"question": "전체 계약 건수"})
     text = client.get("/metrics").text
@@ -257,6 +277,10 @@ def test_stream_endpoint_emits_stages(client):
 def test_console_is_served(client):
     r = client.get("/")
     assert r.status_code == 200 and "AEGIS" in r.text
+    assert "LLM 실험" in r.text
+    assert "/v1/experiments" in r.text
+    assert "API 키 없는 template 티어" in r.text
+    assert "저장된 LLM 사례 재생" in r.text
 
 
 def test_feedback_endpoint(client, tmp_path):
