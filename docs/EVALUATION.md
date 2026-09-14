@@ -7,6 +7,8 @@
 ```bash
 make setup && make eval          # reports/eval.md + reports/eval.json
 make eval-quick                  # 20문항 빠른 확인
+
+source .venv/bin/activate        # `aegis` 는 make 가 만든 venv 안에 설치된다
 aegis eval --ablation            # 어블레이션 매트릭스
 ```
 
