@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
@@ -79,8 +79,25 @@ class RouterConfig(BaseModel):
     model_dir: str = str(DATA_DIR / "generated" / "router")
     #: P(hard) above which we escalate from SLM to LLM.
     escalate_threshold: float = 0.55
-    #: Calibrated confidence below which we sample an ensemble.
-    ensemble_threshold: float = 0.35
+    #: Calibrated P(hard) at or above which we sample an ensemble instead of
+    #: making one LLM call.
+    #:
+    #: This is on the **difficulty** scale, like every other boundary here.  It
+    #: used to be a *confidence* threshold (0.35), which silently made the
+    #: single-call LLM tier a 0.10-wide sliver between 0.55 and 1-0.35=0.65.
+    #: The calibrated router saturates — on KorFin-Bench the median difficulty
+    #: is 0.789 and 46 of 106 items sit at >=0.9 — so that sliver caught 9 items
+    #: while 66 jumped straight to a 5-sample ensemble, and the single-call tier
+    #: the ladder is built around was never selected once.
+    #:
+    #: 0.95 keeps the ensemble for the genuine top of the distribution.  The
+    #: measured justification for not simply disabling it: on the 36 items it
+    #: did handle, the ensemble scored +1 over a single LLM call — poor value at
+    #: 5x the cost, but not an accuracy loss, so it is narrowed rather than cut.
+    #:
+    #: A legacy confidence-form value is still accepted; see
+    #: :meth:`RouterConfig.normalise_thresholds`.
+    ensemble_threshold: float = 0.95
     #: Cost ceiling per query in USD; the router downgrades tiers to respect it.
     budget_usd: float = 0.05
     #: Fallback difficulty threshold used when no trained router is present.
@@ -94,6 +111,32 @@ class RouterConfig(BaseModel):
     #: the tier below it on the benchmark** — until then it is reachable with
     #: `--tier slm` for evaluation, and nothing else changes.
     enable_slm: bool = False
+
+    @model_validator(mode="after")
+    def normalise_thresholds(self) -> RouterConfig:
+        """Accept the legacy confidence-form ``ensemble_threshold`` and order the bands.
+
+        Before this key moved onto the difficulty axis it held a *confidence*
+        threshold, so an existing config carries something like ``0.35`` meaning
+        "ensemble when difficulty > 0.65".  Such a value is now below
+        ``escalate_threshold``, which on the difficulty axis would put the
+        ensemble boundary *under* the escalation boundary and delete the
+        single-call LLM tier entirely.  That is unambiguous enough to convert
+        rather than reject.
+        """
+        if self.ensemble_threshold <= self.escalate_threshold:
+            converted = 1.0 - self.ensemble_threshold
+            if converted > self.escalate_threshold:
+                object.__setattr__(self, "ensemble_threshold", converted)
+            else:
+                raise ValueError(
+                    "router.ensemble_threshold "
+                    f"({self.ensemble_threshold}) must sit above "
+                    f"router.escalate_threshold ({self.escalate_threshold}) on the "
+                    "difficulty axis; otherwise the single-call LLM tier can never "
+                    "be selected."
+                )
+        return self
 
 
 class VerifyConfig(BaseModel):
