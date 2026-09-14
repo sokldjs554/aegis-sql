@@ -148,7 +148,7 @@ POST /v1/query {"question": "..."}
   │
   ├─ span: normalize        (~1ms)   KoreanNormalizer
   ├─ span: intent_guard     (~1ms)   **SQL 을 만들기 전에** 파괴적·PII 요청을 여기서 차단
-  ├─ span: link             (~15ms)  하이브리드 스키마 링킹 (전체 스키마 2,554토큰 → 400~850토큰)
+  ├─ span: link             (~15ms)  하이브리드 스키마 링킹 (전체 스키마 약 2,600토큰 → 400~850토큰)
   ├─ span: ambiguity        (~1ms)   링킹 결과를 받아 판정 — 모호하면 status=clarify 로 종료
   ├─ span: route            (~0.3ms) numpy 라우터 → tier + confidence
   ├─ span: fewshot          (~5ms)   마스킹 유사도 + MMR — **라우팅 뒤**, 프롬프트를

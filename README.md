@@ -120,9 +120,12 @@ make demo           # 대표 질의 5개 (거버넌스 차단·되묻기 사례 
 
 ```bash
 make ask Q="실효된 계약의 채널별 비중은?"     # 임의 질문
-aegis ask "..." --explain                      # 링킹 근거 + 라우팅 사유 + 스팬 트레이스
 make serve                                     # http://localhost:8000 웹 콘솔 + /docs
 make eval                                      # 재현 가능한 평가 리포트
+
+# `aegis` 명령을 직접 쓰려면 make 가 만든 venv 를 켜십시오
+source .venv/bin/activate
+aegis ask "실효된 계약의 채널별 비중은?" --explain   # 링킹 근거 + 라우팅 사유 + 스팬 트레이스
 ```
 
 ### 컨테이너로 띄우기
@@ -488,7 +491,7 @@ saturate 합니다 — KorFin-Bench 106문항의 난이도 중앙값은 **0.789*
 |---|---:|---:|---:|
 | `full` (기준선) | 44.4% | — | 32.5% |
 | `no-glossary` — 사내 용어사전 제거 | 34.4% | **−10.0%p** | 20.0% |
-| `dense-only` — BM25 제거 | 41.1% | −3.3%p | 27.5% |
+| `dense-only` — BM25 제거 | 41.1% | −3.3%p | 30.0% |
 | `no-schema-linking` — 전체 스키마 투입 | 43.3% | −1.1%p | 30.0% |
 | `no-value-link` / `lexical-only` / `no-repair` | 44.4% | ±0.0%p | 32.5% |
 | `no-fk-expand` — 기준선이 이미 `fk_expand_hops: 0` 이라 끌 것이 없는 동일 구성 (어블레이션이 아닙니다) | 44.4% | — | 32.5% |
@@ -537,19 +540,19 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 > 기울어 있습니다. 재학습은 `aegis eval --routing-log ...` 로 원하는 분포에서 라벨을 다시 모으면
 > 되고, **라벨이 관측값이라는 점이 이 설계의 핵심**이라 재학습이 명령 두 줄로 끝납니다.
 
-### 데이터 플라이휠 — 스키마만으로 12,540쌍
+### 데이터 플라이휠 — 스키마만으로 12,416쌍
 
 ```
 스키마 11테이블 → SQL 프로그램 4,000개 (22 템플릿) → 한국어 역번역 → 증강 ×3
-  → 16,000쌍 → 실행 검증 −460 → 퇴화 제거 −916 → 중복 제거 −1,585 → 난이도 균형 −499
-  → 12,540쌍  (train 9,998 / dev 1,212 / test 1,330)
+  → 16,000쌍 → 실행 검증 −460 → 퇴화 제거 −944 → 중복 제거 −1,702 → 난이도 균형 −478
+  → 12,416쌍  (train 9,914 / dev 1,192 / test 1,310)
 ```
 
 | 항목 | 값 |
 |---|---|
 | **train↔test 스켈레톤 누수** | **0건** (클러스터 단위 분할) |
-| 난이도 교차검증 일치도 | 0.835 (독립 분류기와 대조) |
-| 소요 시간 | 138초 (CPU) |
+| 난이도 교차검증 일치도 | 0.833 (독립 분류기와 대조) |
+| 소요 시간 | 113초 (CPU) |
 | 재현성 | 시드 고정 — 같은 시드면 같은 코퍼스 |
 
 ### 자체 구현 sLLM (PyTorch, 다운로드 0)
@@ -717,7 +720,7 @@ aegis-sql/
 make install-all      # PyTorch / TensorFlow / VectorDB 포함
 make check            # ruff + pytest
 make test             # 전체 테스트 (학습 포함)
-make flywheel         # 스키마 → 학습 데이터 12,540쌍
+make flywheel         # 스키마 → 학습 데이터 12,416쌍
 make routing-data     # 평가를 돌려 라우터 라벨(관측값) 수집
 make train-router     # TensorFlow 학습 → numpy 가중치 export
 make train-slm        # 자체 sLLM 학습 (BPE → SFT → DPO, CPU 약 1시간; LoRA는 --lora 옵션)
