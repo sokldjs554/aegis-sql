@@ -17,6 +17,7 @@
 | `changelog` | **관측된 실패 모드 → 그것을 겨냥한 변경** |
 
 ```bash
+source .venv/bin/activate   # `aegis` 는 make 가 만든 venv 안에 설치된다
 aegis prompt list           # id / version / hash / 설명
 aegis prompt show nl2sql.user
 curl localhost:8000/v1/prompts
