@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "public_demo": {
+    "live_tier": "template",
+    "live_cost_usd": 0.0,
+    "recorded_results_are_live": false,
+    "description_ko": "질의 탭은 API 키 없는 template 티어를 실시간 실행합니다. 이 화면의 Claude·Qwen·R³ 수치는 저장된 실측 결과이며 라이브 추론이 아닙니다."
+  },
+  "tier_comparison": {
+    "benchmark": "KorFin-Bench",
+    "total_items": 106,
+    "answerable_items": 90,
+    "hosted_model": "claude-sonnet-5",
+    "runs": [
+      {
+        "key": "template",
+        "label": "Template",
+        "model": "template/v1",
+        "correct": 40,
+        "total": 90,
+        "execution_accuracy": 0.4444,
+        "by_difficulty": {
+          "easy": 0.9,
+          "medium": 0.325,
+          "hard": 0.0
+        },
+        "executable_rate": 1.0,
+        "p50_latency_ms": 4.0,
+        "p95_latency_ms": 8.1,
+        "cost_per_query_usd": 0.0,
+        "tier_mix": {
+          "template": 90
+        }
+      },
+      {
+        "key": "cascade",
+        "label": "캐스케이드",
+        "model": "template + claude-sonnet-5",
+        "correct": 47,
+        "total": 90,
+        "execution_accuracy": 0.5222,
+        "by_difficulty": {
+          "easy": 0.9667,
+          "medium": 0.35,
+          "hard": 0.2
+        },
+        "executable_rate": 1.0,
+        "p50_latency_ms": 4455.9,
+        "p95_latency_ms": 39227.5,
+        "cost_per_query_usd": 0.027945,
+        "tier_mix": {
+          "template": 54,
+          "ensemble": 36
+        }
+      },
+      {
+        "key": "llm_only",
+        "label": "LLM 단독",
+        "model": "claude-sonnet-5",
+        "correct": 52,
+        "total": 90,
+        "execution_accuracy": 0.5778,
+        "by_difficulty": {
+          "easy": 1.0,
+          "medium": 0.4,
+          "hard": 0.3
+        },
+        "executable_rate": 0.9556,
+        "p50_latency_ms": 5824.2,
+        "p95_latency_ms": 10291.6,
+        "cost_per_query_usd": 0.012719,
+        "tier_mix": {
+          "llm": 90
+        }
+      }
+    ],
+    "decision_ko": "LLM 단독은 template이 도달하지 못한 hard 문항을 30% 해결했지만, 캐스케이드는 LLM 단독보다 5문항 낮아 라우터 임계값 재조정이 필요합니다.",
+    "cost_scope_ko": "Claude 비용은 보관된 당시 리포트의 SQL 생성 호출 기준입니다. 당시 누락된 보조 답변 합성 비용은 포함하지 않으므로 전체 비용으로 해석하지 않습니다."
+  },
+  "qwen": {
+    "model": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "gpu": "Tesla T4",
+    "items": 90,
+    "dataset_snapshot": "aegis-qwen-flywheel-v1",
+    "base": {
+      "correct": 10,
+      "total": 90,
+      "execution_accuracy": 0.1111111111,
+      "by_difficulty": {
+        "easy": 0.3333333333,
+        "medium": 0.0,
+        "hard": 0.0
+      },
+      "latency_ms": {
+        "p50": 3776.95,
+        "p95": 7692.91
+      },
+      "peak_cuda_memory_gib": 1.134
+    },
+    "adapted": {
+      "correct": 11,
+      "total": 90,
+      "execution_accuracy": 0.1222222222,
+      "by_difficulty": {
+        "easy": 0.3,
+        "medium": 0.05,
+        "hard": 0.0
+      },
+      "latency_ms": {
+        "p50": 5388.4,
+        "p95": 10199.67
+      },
+      "peak_cuda_memory_gib": 1.15
+    },
+    "training": {
+      "wall_clock_seconds": 9788.2,
+      "wall_clock_hms": "02:43:08.2",
+      "peak_cuda_memory_gib": 3.085,
+      "trainable_parameters": 4358144,
+      "trainable_percent": 0.2815
+    },
+    "paired": {
+      "delta_ex_percentage_points": 1.1111,
+      "gained": 5,
+      "regressed": 4,
+      "unchanged": 81
+    },
+    "decision": "not_promoted",
+    "decision_ko": "순증가는 1문항이었고 p50·p95 지연도 증가해 서비스 기본 티어로 승격하지 않았습니다.",
+    "evidence": {
+      "status": "console_recovered_after_colab_runtime_reset",
+      "aggregate_measured": true,
+      "raw_result_bundle_archived": false,
+      "per_item_statuses_preserved": 180,
+      "predicted_sql_archived": false,
+      "limitation_ko": "Colab 초기화 뒤 노트북 콘솔에서 집계와 180개 OK/MISS 판정을 복구했습니다. 예측 SQL·문항별 지연 원본은 없어 완전한 행 단위 감사 자료로 부르지 않습니다."
+    }
+  },
+  "selective_resampling": {
+    "method": "R³-SQL-inspired selective resampling",
+    "model": "claude-sonnet-5",
+    "items": 90,
+    "eligible_items": 50,
+    "triggered": 4,
+    "trigger_rate": 0.044444444444444446,
+    "baseline": {
+      "correct": 47,
+      "execution_accuracy": 0.5222222222222223,
+      "cost_usd": 3.567036,
+      "p50_latency_ms": 9978.2,
+      "p95_latency_ms": 37578.92
+    },
+    "policy": {
+      "correct": 46,
+      "execution_accuracy": 0.5111111111111111,
+      "cost_usd": 3.898581,
+      "p50_latency_ms": 9978.2,
+      "p95_latency_ms": 43171.68
+    },
+    "delta_ex_percentage_points": -1.1111111111111183,
+    "extra_cost_usd": 0.331545,
+    "cost_increase_ratio": 0.09294691727249178,
+    "transitions": {
+      "gains": 0,
+      "regressions": 1,
+      "unchanged": 89
+    },
+    "decision": "rejected",
+    "decision_ko": "추가 비용과 p95 지연이 늘었지만 gain 0·regression 1이어서 기본 정책 채택을 기각했습니다. 후속 가설은 trigger와 새 후보 acceptance를 분리하는 것입니다.",
+    "evidence": {
+      "portfolio_evidence_ready": true,
+      "evidence_errors": [],
+      "raw_rows_archived": 90,
+      "row_level_bundle_archived": true
+    }
+  },
+  "sources": [
+    {
+      "key": "template",
+      "label": "Template 평가",
+      "path": "reports/eval_template.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_template.json",
+      "sha256": "27510715a87c82630e53fb33ef83a5aed0ee19e3e624dbb124a3fe71a25ecfe6"
+    },
+    {
+      "key": "cascade",
+      "label": "Claude 캐스케이드 평가",
+      "path": "reports/eval_llm.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_llm.json",
+      "sha256": "9ae71c99f770eae1ba8b7ab8155d3ebc3b9ae5e7b7df535738ffdc86da0deb17"
+    },
+    {
+      "key": "llm_only",
+      "label": "Claude LLM 단독 평가",
+      "path": "reports/eval_llm_only.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/reports/eval_llm_only.json",
+      "sha256": "36ec673dd0850ac6611f11ddc52ffaa67edbac5345b2ab17fc1c57ca70f12667"
+    },
+    {
+      "key": "qwen",
+      "label": "Qwen T4 복구 증거",
+      "path": "data/research/qwen_t4_full_console_evidence.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/qwen_t4_full_console_evidence.json",
+      "sha256": "49b1f840c0f86aa3440b3a1408a20f55882d2f1e8c1b4f433f9d4b40d732aeaf"
+    },
+    {
+      "key": "r3_summary",
+      "label": "R³ paired-run 요약",
+      "path": "data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json",
+      "sha256": "64d58192cfc1a1c99dd4ed4ded7b5d0e630b8ec01079265a563336c47c653b48"
+    },
+    {
+      "key": "r3_raw",
+      "label": "R³ 90문항 원본",
+      "path": "data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl",
+      "url": "https://github.com/sokldjs554/aegis-sql/blob/main/data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl",
+      "sha256": "40c9b6735d9190cefd8ddcfa2539450b56da4ea59e246e2f79e1c9ba5c26bffe"
+    }
+  ]
+}

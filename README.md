@@ -18,6 +18,7 @@ Adaptive · Execution-Guided · Intelligent SQL —<br/>
 <sub><b>웹 콘솔을 바로 열어 보세요</b> — <a href="https://aegis-sql.onrender.com">aegis-sql.onrender.com</a><br/>
 무료 인스턴스라 접속이 없으면 잠들어 있습니다. <b>첫 접속은 1~2분 걸릴 수 있습니다.</b><br/>
 API 키 없이 도는 구성이라 화면의 비용은 실제로 $0 입니다.<br/>
+질의 탭은 <code>template</code>을 실시간 실행하고, <b>LLM 실험</b> 탭은 보관된 Claude·Qwen·R³ 실측과 채택/기각 판단을 API 호출 없이 보여줍니다.<br/>
 무료 배포는 기동 시간을 줄이기 위해 0.5배 DB(계약 6,500건)를 사용하며, 아래 영상·Colab은 전체 규모(13,000건)입니다.</sub>
 
 <sub><b>숫자까지 직접 재현하려면</b> — Colab 배지를 누르면 클론·설치부터<br/>
@@ -360,10 +361,13 @@ flowchart LR
 <!-- RESULTS:BEGIN -->
 ## 측정 결과
 
-> 전부 `make setup && make eval` 로 재현됩니다. 표는 리포트 산출물을 옮긴 것이고, 리포트
-> 하단에는 사용된 **프롬프트 해시·스키마 지문·활성 티어**가 함께 기록됩니다.
-> template 열은 **API 키 없이** 측정(`reports/eval.md`), LLM 열은 **claude-sonnet-5 실측**
-> (`reports/eval_llm_only.md` 단독 / `reports/eval_llm.md` 캐스케이드)입니다.
+> template 열은 `make setup && make eval`로 **API 키 없이** 재현할 수 있고
+> ([`reports/eval_template.md`](reports/eval_template.md)), LLM 열은 비용을 들여 보관한
+> **claude-sonnet-5 실측**입니다
+> ([`reports/eval_llm_only.md`](reports/eval_llm_only.md) 단독 /
+> [`reports/eval_llm.md`](reports/eval_llm.md) 캐스케이드). 각 리포트에는 프롬프트 해시·
+> 스키마 지문·활성 티어가 남습니다. `make experiment-evidence`는 이 원본들에서 웹 콘솔용
+> 공개 manifest를 다시 만듭니다.
 
 ### 요약 — KorFin-Bench 106문항, 티어 구성별
 
@@ -374,8 +378,8 @@ flowchart LR
 | — medium (40) | 32.5% | 35.0% | 40.0% |
 | — hard (20) | 0.0% | 20.0% | **30.0%** |
 | 실행 성공률 | **100.0%** | **100.0%** | 95.6% |
-| VES (BIRD) | 0.357 | 0.409 | 0.420 |
-| p50 / p95 지연 | **6 ms / 21 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
+| VES (BIRD) | 0.347 | 0.409 | 0.420 |
+| p50 / p95 지연 | **4 ms / 8 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
 | 질의당 비용 | **$0** | $0.0279 | $0.0127 |
 | 티어 분포 (ok 90) | template 90 | template 54 · ensemble 36 | llm 90 |
 | **거버넌스 (10) / 모호성 (6)** | 100% / 100% | 100% / 100% | 100% / 100% |
@@ -499,7 +503,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 티어 | EX | 실행 성공률 | p50 | 결과 |
 |---|---:|---:|---:|---|
-| `template` | **44.4%** | 100.0% | 6 ms | ok 90 |
+| `template` | **44.4%** | 100.0% | 4 ms | ok 90 |
 | `slm` (5.3M) | **0.0%** | 5.6% | 290 ms | **차단 80** / 실패 5 / ok 5 |
 | `llm` (claude-sonnet-5) | **57.8%** | 95.6% | 5.8 s | hard **30%** — template 0%의 영역을 실측으로 채움 |
 | 캐스케이드 (template+ensemble) | **52.2%** | 100.0% | 4.5 s | LLM 단독에 −5.6%p — 원인은 ensemble이 아니라 **라우터 임계값**(위 참조) |
@@ -525,8 +529,8 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | | |
 |---|---|
-| Python | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · 추적 파일 194개 |
-| 테스트 | **278개 통과, 2개 skip** (실제 DB 대상) · `ruff` + `mypy` 클린 (CI 강제) |
+| Python | 30,362줄 (src 23,506 / tests 3,046 / scripts 3,810) · 추적 파일 200개 |
+| 테스트 | **282개 통과, 2개 skip** (실제 DB 대상) · `ruff` + `mypy` 클린 (CI 강제) |
 | 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 원문 독해 완료 [`READING-LOG`](docs/research/READING-LOG.md) 5편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
@@ -578,11 +582,11 @@ paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, eviden
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 29,969줄 (src 23,210 / tests 2,980 / scripts 3,779) · `py.typed` 배포 · `ruff` + `mypy` CI · pytest 278 passed / 2 skipped |
+| **Python** | 30,362줄 (src 23,506 / tests 3,046 / scripts 3,810) · `py.typed` 배포 · `ruff` + `mypy` CI · pytest 282 passed / 2 skipped |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
-| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy`, `/v1/policy/check`, `/v1/schema`, `/v1/feedback`, `/metrics`, 단일 파일 웹 콘솔 |
+| **FastAPI** | [`api/`](src/aegis_sql/api/) — `/v1/query`, **SSE 스트리밍**, `/v1/link`, `/v1/policy`, `/v1/policy/check`, `/v1/schema`, `/v1/experiments`, `/v1/feedback`, `/metrics`, 단일 파일 웹 콘솔 |
 | **VectorDB** | [`retrieval/vectorstore.py`](src/aegis_sql/retrieval/vectorstore.py) — Chroma / FAISS / 무의존 numpy 스토어를 **동일 인터페이스**로 |
 | **RAG 파이프라인** | [`retrieval/schema_linker.py`](src/aegis_sql/retrieval/schema_linker.py) — 하이브리드 검색 + FK 그래프 확장 + 근거(evidence) 기록 |
 | **Prompt Engineering** | [`prompts/`](src/aegis_sql/prompts/) — 버전·해시 레지스트리 + **실행 정확도로 채점하는 자동 최적화**. 방법론: [`docs/PROMPT_ENGINEERING.md`](docs/PROMPT_ENGINEERING.md) |

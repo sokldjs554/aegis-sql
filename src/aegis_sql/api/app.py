@@ -348,6 +348,20 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
         )
 
     # ------------------------------------------------------------------ #
+    @app.get("/v1/experiments", tags=["research"])
+    async def experiments() -> JSONResponse:
+        """Archived model measurements used by the public experiment view.
+
+        This endpoint serves a compact, checked-in manifest.  It never calls a
+        model and deliberately labels every Claude/Qwen/R³ result as recorded
+        evidence rather than making the API-key-free demo look like live LLM
+        inference.
+        """
+        from aegis_sql.research.evidence import load_published_model_experiment_evidence
+
+        return JSONResponse(load_published_model_experiment_evidence())
+
+    # ------------------------------------------------------------------ #
     @app.post("/v1/feedback", tags=["flywheel"])
     async def feedback(req: FeedbackRequest) -> JSONResponse:
         """사용자 피드백을 적재한다 — DPO 선호쌍의 원천이 된다.

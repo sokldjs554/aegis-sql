@@ -28,7 +28,7 @@ Q          ?= 작년 하반기에 체결된 계약 중 월납보험료가 20만�
 .DEFAULT_GOAL := help
 .PHONY: help setup venv install install-all demo-db benchmark profile demo ask serve \
         preflight flywheel train-slm train-slm-quick routing-data train-router eval eval-quick \
-        test test-fast lint fmt typecheck \
+        experiment-evidence test test-fast lint fmt typecheck \
         check docker-build docker-up docker-down clean distclean tree
 
 help: ## 사용 가능한 타깃 목록
@@ -145,6 +145,9 @@ eval: ## 전체 벤치마크 평가 + 어블레이션 리포트 (reports/)
 
 eval-quick: ## 빠른 평가 (easy+medium 20문항)
 	@$(PYTHON) -m aegis_sql.cli eval --bench $(BENCH) --limit 20
+
+experiment-evidence: ## 보관된 실측 리포트 → 공개 데모용 근거 manifest
+	@$(PYTHON) scripts/build_experiment_evidence.py
 
 # --------------------------------------------------------------------- 품질
 # TensorFlow(라우터 학습)와 PyTorch(sLLM 학습)를 한 프로세스에 함께 적재하면
