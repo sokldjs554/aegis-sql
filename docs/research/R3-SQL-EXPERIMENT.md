@@ -1,4 +1,4 @@
-# R³-SQL-inspired Selective Resampling — Live Experiment
+# R³-SQL-inspired Selective Resampling — Measured Experiment
 
 이 문서는 `EXP-03`의 **실제 후보 재생성 실험**과 재현 절차를 기록한다.
 2026-09-11 Anthropic full run과 2026-09-13 독립 재검증에서
@@ -18,6 +18,7 @@
 | 비용 | provider usage token과 저장소 내 고정 price table로 계산한 USD 추정치 |
 | 지연시간 | end-to-end wall latency; 자연어 답변 합성은 양쪽 모두 제외 |
 | retrieval | hashing embedder + numpy store, few-shot 0개 |
+| runtime | Linux 6.6 · Python 3.13.15 · answer synthesis OFF |
 | seed | DB/로컬 구성은 `PYTHONHASHSEED=0`; hosted sampling seed는 지원되지 않아 `null`로 기록 |
 
 여기서 resampling은 기존 후보와 새 후보를 합쳐 learned ranker로 재평가하는
@@ -27,7 +28,8 @@ ensemble 결과로 교체하는 heuristic approximation이다. 따라서 결과�
 
 과거 `reports/eval_llm.json`의 52.2%는 candidate-level log가 없어 이 실험의
 baseline으로 재사용하지 않는다. 이번 full run 안에서 새로 얻은 paired
-baseline만 비교 기준이다.
+baseline만 비교 기준이다. 또한 이 paired run의 지연·비용은 위 조건에서만 해석하며,
+다른 시점·하드웨어에서 측정한 README 티어 카드와 직접 속도 비교하지 않는다.
 
 ## 실제 full run — 2026-09-11
 

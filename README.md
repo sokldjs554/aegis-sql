@@ -27,6 +27,11 @@ GPU도 필요 없습니다.</sub>
 
 <br/>
 
+<sub><b>면접관 60초 동선</b> — <a href="https://aegis-sql.onrender.com/?view=experiments">저장된 LLM 실험 근거 바로 열기</a><br/>
+세 가지 고정 사례에서 template 실패 SQL과 Claude 성공 SQL을 나란히 확인한 뒤 Qwen·R³ 승격 판단까지 볼 수 있습니다.</sub>
+
+<br/>
+
 <img src="docs/images/console-demo.gif" width="820"
      alt="웹 콘솔 데모: 한국어 질문을 SQL로 실행하고 표를 차트로 전환하며, 주민등록번호 요청을 SQL 생성 전에 차단하고, 모호한 채널별 실적 질문은 계약 건수 기준을 선택해 다시 실행한 뒤 지점·마케팅 행 정책 적용 전후를 비교한다."/>
 
@@ -92,7 +97,7 @@ AEGIS-SQL은 이 여섯 가지를 **각각 다른 층에서** 해결합니다.
 | **보안 (요청)** | 해당 없음 | "테이블 지워줘"에 조용히 SELECT를 돌려주지 않고 **요청 자체를 거부**. 변경 요청 10/10 차단, 조회 질문 오탐 0/17 (테스트로 강제) |
 | **평가** | 예시 몇 개 | **KorFin-Bench 106문항** + 어블레이션 + **거버넌스 10 / 모호성 6 프로브를 점수에 포함** |
 | **프롬프트** | 코드에 하드코딩 | 버전·해시 관리 레지스트리 + **실행 정확도로 채점하는 자동 최적화 탐색** |
-| **논문** | 언급 없음 | [`docs/PAPERS.md`](docs/PAPERS.md)의 참고문헌 34편을 모듈에 매핑하고, 원문 독해 완료 5편은 [`READING-LOG`](docs/research/READING-LOG.md)에 **적용/변형/기각** 판단까지 별도 기록 |
+| **논문** | 언급 없음 | [`docs/PAPERS.md`](docs/PAPERS.md) — 34편을 **적용/변형/기각**으로 분류하고 각각 모듈에 매핑 |
 
 ---
 
@@ -173,6 +178,19 @@ docker build -t aegis-sql . && docker run --rm -p 8000:8000 aegis-sql
   결과 표의 열을 이름으로 맞춰 표시하므로, 값이 `황**` 인 이유가 화면에서 바로 보입니다.
 - 라이트/다크/자동 테마, 모바일 폭까지 대응합니다. 한글 입력 조합 중 Enter 가
   질의를 쏘지 않도록 IME 조합 상태를 확인합니다.
+
+#### 저장된 LLM 사례 재생
+
+`LLM 실험` 탭은 모델을 라이브로 부르는 연출이 아니라, 같은 고정 문항에서 나온 SQL과
+EX 판정을 다시 보여주는 감사 화면입니다. easy·medium·hard 한 문항씩 고정해
+**template이 무엇을 놓쳤고 Claude가 어떤 구조로 복구했는지** 바로 대조할 수 있습니다.
+
+- `kfb-e08` (easy) — 잘못된 분모·테이블 → 고객별 조건부 마케팅 동의 비율
+- `kfb-m24` (medium) — 무관한 fraud 조건 → 지점 3-way join + `HAVING`
+- `kfb-h17` (hard) — 월별 집계만 수행 → `LAG` 기반 직전 달 비교
+
+[저장된 사례 바로 열기](https://aegis-sql.onrender.com/?view=experiments) · 수치는 API 호출 없이
+체크인된 평가 리포트와 benchmark gold preview에서 읽으며, 원본 SHA-256도 화면에 표시합니다.
 
 <p align="center">
   <img src="docs/images/console-chart.png" width="820"
@@ -378,13 +396,17 @@ flowchart LR
 | — medium (40) | 32.5% | 35.0% | 40.0% |
 | — hard (20) | 0.0% | 20.0% | **30.0%** |
 | 실행 성공률 | **100.0%** | **100.0%** | 95.6% |
-| VES (BIRD) | 0.347 | 0.409 | 0.420 |
-| p50 / p95 지연 | **4 ms / 8 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
+| VES (BIRD) | 0.357 | 0.409 | 0.420 |
+| p50 / p95 지연 | **6 ms / 21 ms** | 4.5 s / 39.2 s | 5.8 s / 10.3 s |
 | 질의당 비용 | **$0** | $0.0279 | $0.0127 |
 | 티어 분포 (ok 90) | template 90 | template 54 · ensemble 36 | llm 90 |
 | **거버넌스 (10) / 모호성 (6)** | 100% / 100% | 100% / 100% | 100% / 100% |
 
 LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐스케이드 약 $2.5.
+
+> **비교 범위** — EX는 같은 frozen benchmark·gold-result snapshot으로 확인합니다. 다만
+> template과 과거 Claude 실행은 하드웨어·Python 환경이 다르므로, 표의 지연시간은 각 run의
+> 운영 비용 근거일 뿐 모델 간 속도 우열을 뜻하지 않습니다.
 
 > **비용 수치에 대한 정정** — 위 표의 질의당 비용은 SQL 생성 호출만 계상된 값입니다.
 > 답변 문장을 만드는 보조 LLM 호출은 생성기 내부(`aux_cost_usd`)에만 쌓이고 질의 비용에
@@ -415,6 +437,45 @@ ensemble이 실제로 맡은 36문항에서는 오히려 **앞섰습니다**(har
 "ensemble을 단일 호출로 바꾸는 것"이 아니라 **에스컬레이션 임계값(`escalate_threshold` 0.55)을 내려
 template 구간을 줄이는 것**입니다. 다만 ensemble은 호출 수 5배 → 질의당 비용 2.2배라, 얻은 +1문항이
 그 값을 하는지는 별도 문제입니다.
+
+#### 그 비용 쪽을 파고들다 발견한 구조적 결함 (수정 완료)
+
+위 표의 티어 분포에는 `template 54 · ensemble 36` 만 있고 **단일 호출 `llm` 티어가 0건**입니다.
+사다리가 `template → slm → llm → ensemble` 인데 정작 그 존재 이유인 중간 단은 한 번도
+선택되지 않았습니다. 원인은 두 임계값이 **서로 다른 축** 위에 있었던 것입니다.
+
+- `escalate_threshold = 0.55` → **난이도** 축
+- `ensemble_threshold = 0.35` → **신뢰도** 축이고, `confidence = 1 − difficulty` 이므로 실제로는 `difficulty > 0.65`
+
+즉 `llm` 티어는 두 값 사이에 우연히 남은 **0.10 폭의 틈새**였습니다. 게다가 보정된 라우터는
+saturate 합니다 — KorFin-Bench 106문항의 난이도 중앙값은 **0.789**, 46문항이 **0.9 이상**입니다.
+그래서 에스컬레이션 75문항 중 **9문항만** 그 틈새에 들어오고 **66문항이 곧장 5샘플 앙상블**로
+갔습니다. 비용 초과분 전부가 여기서 나옵니다.
+
+그리고 `confidence` 는 `1 − difficulty` 라 **독립적인 정보가 아닙니다**. 코드는 "신뢰도가 낮으면
+투표한다"로 읽히지만 실제로는 같은 축을 다른 이름으로 한 번 더 비교한 것이었습니다.
+
+고친 내용:
+
+1. 세 경계를 **모두 난이도 축**으로 통일 (`template_max < escalate_threshold < ensemble_threshold`)
+2. 밴드가 붕괴하거나 역전되면 `CascadeRouter` 생성 시점에 **즉시 실패** (`validate_bands`) —
+   이 결함이 조용히 지나갔던 이유가 아무도 검사하지 않았기 때문입니다
+3. 기존 신뢰도 형식 값(0.35)은 **자동 변환**해 기존 설정 파일이 그대로 로드됩니다
+4. `RoutePolicy.from_settings` 가 문서화된 `router.enable_slm` 을 무시하던 것도 함께 수정
+
+같은 라우터·같은 106문항으로 다시 재기만 한 결과 (실제 라우팅 분포):
+
+| | template | **llm (1콜)** | ensemble (5콜) | 예상 API 비용 |
+|---|---:|---:|---:|---:|
+| 이전 | 31 | **9** | 66 | $0.0407 / 문항 |
+| 이후 | 31 | **35** | 40 | $0.0282 / 문항 |
+
+**단일 호출 티어가 8.5% → 33.0% 로 살아났고, 예상 API 비용은 −30.7% 입니다.**
+
+> **정직하게 — 이 수치는 라우팅 분포와 그로부터 계산한 비용이지 EX 재측정이 아닙니다.**
+> 정확도가 어떻게 변하는지는 유료 API로 106문항을 다시 돌려야 확정됩니다. 아직 안 돌렸으므로
+> "정확도가 올랐다"고 쓰지 않습니다. `escalate_threshold` 를 내리는 위의 과제도 그대로 남아
+> 있습니다 — 이번 수정은 **비용 쪽 결함**을 고친 것입니다.
 
 ### 어블레이션 — 무엇이 실제로 값을 하는가
 
@@ -503,7 +564,7 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | 티어 | EX | 실행 성공률 | p50 | 결과 |
 |---|---:|---:|---:|---|
-| `template` | **44.4%** | 100.0% | 4 ms | ok 90 |
+| `template` | **44.4%** | 100.0% | 6 ms | ok 90 |
 | `slm` (5.3M) | **0.0%** | 5.6% | 290 ms | **차단 80** / 실패 5 / ok 5 |
 | `llm` (claude-sonnet-5) | **57.8%** | 95.6% | 5.8 s | hard **30%** — template 0%의 영역을 실측으로 채움 |
 | 캐스케이드 (template+ensemble) | **52.2%** | 100.0% | 4.5 s | LLM 단독에 −5.6%p — 원인은 ensemble이 아니라 **라우터 임계값**(위 참조) |
@@ -529,9 +590,9 @@ few-shot/카드 형식 변경이 결과를 바꿀 수 없습니다. Δ 0.0%p 항
 
 | | |
 |---|---|
-| Python | 30,362줄 (src 23,506 / tests 3,046 / scripts 3,810) · 추적 파일 200개 |
-| 테스트 | **282개 통과, 2개 skip** (실제 DB 대상) · `ruff` + `mypy` 클린 (CI 강제) |
-| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + 원문 독해 완료 [`READING-LOG`](docs/research/READING-LOG.md) 5편 |
+| Python | 약 30,000줄 · 패키지 전체 타입 검사와 lint를 CI에서 강제 |
+| 테스트 | 실제 SQLite DB 기반 pytest + `ruff` + `mypy`를 GitHub Actions에서 강제 |
+| 문서 | 7편 (아키텍처 · 논문매핑 · 거버넌스 · 플라이휠 · sLLM · 평가 · 프롬프트) + [`docs/research/`](docs/research/) — 영문 논문 리뷰 8편 · 국문 논문 완독 기록 2편 · 실험 기록 3편 |
 | 벤치마크 | 106문항 (gold SQL 90개 전부 실행 검증) |
 <!-- RESULTS:END -->
 
@@ -582,7 +643,7 @@ paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, eviden
 
 | 요구 사항 | 어디에, 어떻게 |
 |---|---|
-| **Python** | 30,362줄 (src 23,506 / tests 3,046 / scripts 3,810) · `py.typed` 배포 · `ruff` + `mypy` CI · pytest 282 passed / 2 skipped |
+| **Python** | 약 30,000줄 · `py.typed` 배포 · `ruff` + `mypy` + 실제 DB pytest를 CI에서 강제 |
 | **PyTorch** | [`training/`](src/aegis_sql/training/) — 디코더 트랜스포머(RMSNorm·RoPE·SwiGLU·KV캐시), LoRA, SFT, DPO **전부 직접 구현** |
 | **TensorFlow** | [`router/tf_router.py`](src/aegis_sql/router/tf_router.py) — Keras 난이도 분류기 학습 → **numpy 가중치 export**(서빙 경로에 TF 없음) + temperature scaling 보정 |
 | **LangChain** | [`generation/llm_generator.py`](src/aegis_sql/generation/llm_generator.py) — LCEL 체인, Anthropic/OpenAI 프로바이더 추상화, 토큰·비용 회계 |
@@ -593,7 +654,7 @@ paired 측정했다. strict 재검증은 `portfolio_evidence_ready=true`, eviden
 | **sLLM 연구/개발** | [`docs/SLM.md`](docs/SLM.md) — 왜 직접 구현했는지, LoRA `B=0` 보증, DPO 선호쌍 자동 생성 |
 | **데이터 증강 / 구축** | [`docs/FLYWHEEL.md`](docs/FLYWHEEL.md) — 스키마 → SQL 샘플링 → 역번역 → 한국어 증강 → 실행검증 → 누수 없는 분할 |
 | **AI 모델 설계** | AegisLM 아키텍처 + 라우터 특징 설계 + 보정(calibration) |
-| **NLP 논문 조사** | [`docs/PAPERS.md`](docs/PAPERS.md) — 참고문헌 34편의 모듈 매핑; [`READING-LOG`](docs/research/READING-LOG.md) — 원문 독해 5편의 문제·방법·AEGIS 비교·판단 |
+| **NLP 논문 조사** | [`docs/PAPERS.md`](docs/PAPERS.md) — 34편을 **적용/변형/기각** 3분류로 모듈에 매핑, 기각 사유까지 명시 |
 | **git 협업** | 의미 단위 커밋, CI 6잡(3 Python 버전 × lint/test/e2e + ML 스택 + 낡은 의존성 재현 + Docker) |
 
 ---
@@ -628,7 +689,7 @@ aegis-sql/
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화
 ├── deploy/                 배포 절차 (Render · Cloud Run)
 ├── notebooks/              Colab 재현 노트북
-└── tests/                  278 passed / 2 skipped (실제 DB 대상)
+└── tests/                  실제 DB 기반 회귀·API·학습 테스트
 ```
 
 ---
@@ -639,7 +700,6 @@ aegis-sql/
 |---|---|
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | 전체 흐름, 설계 원칙, 요청 하나가 지나가는 길 |
 | [PAPERS](docs/PAPERS.md) | 논문 34편 → 모듈 매핑. **적용/변형/기각**과 그 사유 |
-| [RESEARCH LOG](docs/research/READING-LOG.md) | 원문 독해 완료 5편 → 문제·핵심 방법·AEGIS 비교·판단 네 줄 |
 | [GOVERNANCE](docs/GOVERNANCE.md) | 위협 모델, 컬럼 4등급, 왜 프롬프트가 아니라 AST인가, 알려진 한계 |
 | [FLYWHEEL](docs/FLYWHEEL.md) | 스키마만으로 학습 데이터를 만드는 법, 누수 없는 분할 |
 | [SLM](docs/SLM.md) | 직접 구현한 Transformer·LoRA·DPO의 세부와 근거 |

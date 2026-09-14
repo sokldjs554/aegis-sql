@@ -97,7 +97,9 @@ class RoutePolicy:
     """The knobs that govern one routing decision (a view over ``RouterConfig``)."""
 
     escalate_threshold: float = 0.55
-    ensemble_threshold: float = 0.35
+    #: Difficulty at or above which we vote an ensemble.  Same axis as
+    #: ``escalate_threshold`` — see ``RouterConfig.ensemble_threshold``.
+    ensemble_threshold: float = 0.95
     budget_usd: float = 0.05
     allow_llm: bool = True
     allow_slm: bool = True
@@ -109,11 +111,36 @@ class RoutePolicy:
             escalate_threshold=float(cfg.escalate_threshold),
             ensemble_threshold=float(cfg.ensemble_threshold),
             budget_usd=float(cfg.budget_usd),
+            # Without this the documented `router.enable_slm: false` was dropped
+            # on the floor by anyone building a policy straight from settings —
+            # the pipeline happened to compensate via `available_tiers`.
+            allow_slm=bool(cfg.enable_slm),
         )
 
     @property
     def template_max(self) -> float:
         return self.escalate_threshold * TEMPLATE_MAX_RATIO
+
+    @property
+    def bands(self) -> tuple[float, float, float]:
+        """The three boundaries that split the difficulty axis into four tiers."""
+        return (self.template_max, self.escalate_threshold, self.ensemble_threshold)
+
+    def validate_bands(self) -> None:
+        """Fail loudly when a knob collapses a tier out of the ladder.
+
+        Every boundary lives on the difficulty axis, so they must be strictly
+        increasing.  They used to live on two different axes — ``escalate`` on
+        difficulty, ``ensemble`` on confidence — which meant a perfectly
+        innocent-looking pair (0.55 and 0.35) left the single-call LLM tier a
+        0.10-wide sliver, and nothing anywhere said so.
+        """
+        tmax, esc, ens = self.bands
+        if not (tmax < esc < ens):
+            raise ValueError(
+                "route policy bands must strictly increase, got "
+                f"template_max={tmax:.4f} escalate={esc:.4f} ensemble={ens:.4f}"
+            )
 
     def permits(self, tier: Tier) -> bool:
         if tier is Tier.SLM:
@@ -137,6 +164,7 @@ class CascadeRouter:
     ) -> None:
         self.settings = settings
         self.policy = RoutePolicy.from_settings(settings)
+        self.policy.validate_bands()
         self._router = router
         self._calibrator = calibrator if calibrator is not None else self._autoload_calibrator(settings)
         self._available: set[Tier] = set(available_tiers) if available_tiers is not None else set(LADDER)
@@ -316,8 +344,12 @@ class CascadeRouter:
             return Tier.TEMPLATE, "결정적 템플릿으로 충분"
         if difficulty < self.policy.escalate_threshold:
             return Tier.SLM, "자체 sLLM 범위"
-        if confidence < self.policy.ensemble_threshold:
-            return Tier.ENSEMBLE, "신뢰도 낮아 자기일관성 투표"
+        # Compared on the difficulty axis, like every other boundary.  The old
+        # form tested `confidence < ensemble_threshold`, and since confidence is
+        # exactly `1 - difficulty` that was the same axis wearing a disguise —
+        # it read as an independent uncertainty signal but was not one.
+        if difficulty >= self.policy.ensemble_threshold:
+            return Tier.ENSEMBLE, "난이도 최상위 구간이라 자기일관성 투표"
         return Tier.LLM, "난이도 높아 프런티어 모델"
 
     def _fit(

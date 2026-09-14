@@ -25,6 +25,15 @@ def test_model_evidence_keeps_live_and_recorded_scopes_separate():
     assert runs["llm_only"]["correct"] == 52
     assert runs["template"]["by_difficulty"]["hard"] == 0.0
     assert runs["llm_only"]["by_difficulty"]["hard"] == 0.3
+    assert "서로 다른 실행 환경" in evidence["tier_comparison"]["comparison_scope_ko"]
+
+    replays = evidence["tier_comparison"]["replays"]
+    assert [case["difficulty"] for case in replays] == ["easy", "medium", "hard"]
+    assert [case["id"] for case in replays] == ["kfb-e08", "kfb-m24", "kfb-h17"]
+    assert all(case["template"]["correct"] is False for case in replays)
+    assert all(case["llm"]["correct"] is True for case in replays)
+    assert all(case["gold"]["columns"] for case in replays)
+    assert all(case["gold"]["preview"] for case in replays)
 
 
 def test_model_evidence_discloses_both_evidence_boundaries():
@@ -41,6 +50,8 @@ def test_model_evidence_discloses_both_evidence_boundaries():
     assert r3["baseline"]["correct"] == 47
     assert r3["policy"]["correct"] == 46
     assert r3["decision"] == "rejected"
+    assert "Python 3.13.15" in r3["run_scope_ko"]
+    assert "few-shot 0" in r3["run_scope_ko"]
     assert r3["evidence"]["raw_rows_archived"] == 90
     assert r3["evidence"]["row_level_bundle_archived"] is True
 

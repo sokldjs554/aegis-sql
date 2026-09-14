@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ _PUBLISHED = Path("data/research/model_experiment_evidence.json")
 _TEMPLATE = Path("reports/eval_template.json")
 _CASCADE = Path("reports/eval_llm.json")
 _LLM_ONLY = Path("reports/eval_llm_only.json")
+_BENCHMARK = Path("data/benchmark/korfin_bench.jsonl")
 _QWEN = Path("data/research/qwen_t4_full_console_evidence.json")
 _R3_SUMMARY = Path("data/research/r3_selective_resampling_full/r3-selective-resampling-summary.json")
 _R3_RAW = Path("data/research/r3_selective_resampling_full/r3-selective-resampling-raw.jsonl")
@@ -44,6 +46,87 @@ def _full_run(report: dict[str, Any]) -> dict[str, Any]:
     if len(runs) != 1:
         raise ValueError("evaluation report must contain exactly one full run")
     return runs[0]
+
+
+def _benchmark(path: Path) -> dict[str, dict[str, Any]]:
+    rows = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    return {row["id"]: row for row in rows}
+
+
+_GOLD_SHAPE_RE = re.compile(r"gold (?P<rows>\d+)행 × (?P<columns>\d+)열")
+_REPLAY_IDS = ("kfb-e08", "kfb-m24", "kfb-h17")
+
+
+def _validate_data_snapshot(
+    run: dict[str, Any],
+    benchmark: dict[str, dict[str, Any]],
+) -> None:
+    """Reject reports whose observed gold shape came from another data scale."""
+
+    for item in run["items"]:
+        if item["expect"] != "ok":
+            continue
+        match = _GOLD_SHAPE_RE.search(str(item.get("error", "")))
+        if match is None:
+            continue
+        gold = benchmark[item["id"]]
+        observed = (int(match["rows"]), int(match["columns"]))
+        expected = (int(gold["gold_row_count"]), len(gold["gold_columns"]))
+        if observed != expected:
+            raise ValueError(
+                f'{item["id"]} gold shape {observed} does not match '
+                f"frozen benchmark {expected}"
+            )
+
+
+def _find_item(run: dict[str, Any], item_id: str) -> dict[str, Any]:
+    matches = [item for item in run["items"] if item["id"] == item_id]
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one result for {item_id}")
+    return matches[0]
+
+
+def _candidate(label: str, item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "label": label,
+        "correct": bool(item["correct"]),
+        "status": item["status"],
+        "sql": item["pred_sql"],
+        "latency_ms": float(item["latency_ms"]),
+        "cost_usd": float(item["cost_usd"]),
+        "outcome_ko": "EX PASS" if item["correct"] else "EX FAIL",
+        "error": item.get("error", ""),
+    }
+
+
+def _replays(
+    template: dict[str, Any],
+    llm_only: dict[str, Any],
+    benchmark: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item_id in _REPLAY_IDS:
+        gold = benchmark[item_id]
+        rows.append(
+            {
+                "id": item_id,
+                "difficulty": gold["difficulty"],
+                "question": gold["question"],
+                "template": _candidate("Template", _find_item(template, item_id)),
+                "llm": _candidate("Claude 단독", _find_item(llm_only, item_id)),
+                "gold": {
+                    "sql": gold["gold_sql"],
+                    "row_count": int(gold["gold_row_count"]),
+                    "columns": list(gold["gold_columns"]),
+                    "preview": list(gold["gold_preview"]),
+                },
+            }
+        )
+    return rows
 
 
 def _difficulty(run: dict[str, Any]) -> dict[str, float]:
@@ -112,6 +195,7 @@ def build_model_experiment_evidence(root: Path = PROJECT_ROOT) -> dict[str, Any]
     llm_report = _json(root / _LLM_ONLY)
     qwen = _json(root / _QWEN)
     r3 = _json(root / _R3_SUMMARY)
+    benchmark = _benchmark(root / _BENCHMARK)
 
     template = _full_run(template_report)
     cascade = _full_run(cascade_report)
@@ -119,6 +203,8 @@ def build_model_experiment_evidence(root: Path = PROJECT_ROOT) -> dict[str, Any]
     qbase, qadapted = qwen["base"], qwen["adapted"]
     r3_metrics = r3["metrics"]
     total_items, answerable_items = _validate_comparable_runs(template, cascade, llm_only)
+    for run in (template, cascade, llm_only):
+        _validate_data_snapshot(run, benchmark)
 
     raw_path = root / _R3_RAW
     raw = [json.loads(line) for line in raw_path.read_text(encoding="utf-8").splitlines() if line]
@@ -144,6 +230,7 @@ def build_model_experiment_evidence(root: Path = PROJECT_ROOT) -> dict[str, Any]
         _source(root, "template", "Template 평가", _TEMPLATE),
         _source(root, "cascade", "Claude 캐스케이드 평가", _CASCADE),
         _source(root, "llm_only", "Claude LLM 단독 평가", _LLM_ONLY),
+        _source(root, "benchmark", "KorFin-Bench frozen gold", _BENCHMARK),
         _source(root, "qwen", "Qwen T4 복구 증거", _QWEN),
         _source(root, "r3_summary", "R³ paired-run 요약", _R3_SUMMARY),
         _source(root, "r3_raw", "R³ 90문항 원본", _R3_RAW),
@@ -174,6 +261,11 @@ def build_model_experiment_evidence(root: Path = PROJECT_ROOT) -> dict[str, Any]
                 "LLM 단독은 template이 도달하지 못한 hard 문항을 30% 해결했지만, "
                 "캐스케이드는 LLM 단독보다 5문항 낮아 라우터 임계값 재조정이 필요합니다."
             ),
+            "comparison_scope_ko": (
+                "EX는 동일 frozen benchmark와 gold-result snapshot을 검증해 비교합니다. "
+                "지연은 서로 다른 실행 환경에서 측정돼 모델 간 속도 우열로 해석하지 않습니다."
+            ),
+            "replays": _replays(template, llm_only, benchmark),
             "cost_scope_ko": (
                 "Claude 비용은 보관된 당시 리포트의 SQL 생성 호출 기준입니다. "
                 "당시 누락된 보조 답변 합성 비용은 포함하지 않으므로 전체 비용으로 해석하지 않습니다."
@@ -260,6 +352,11 @@ def build_model_experiment_evidence(root: Path = PROJECT_ROOT) -> dict[str, Any]
             "decision_ko": (
                 "추가 비용과 p95 지연이 늘었지만 gain 0·regression 1이어서 기본 정책 채택을 기각했습니다. "
                 "후속 가설은 trigger와 새 후보 acceptance를 분리하는 것입니다."
+            ),
+            "run_scope_ko": (
+                f'{r3["manifest"]["runtime"]["platform"]} · '
+                f'Python {r3["manifest"]["runtime"]["python"]} · '
+                "answer synthesis OFF · few-shot 0 · 같은 run의 paired 비교"
             ),
             "evidence": {
                 "portfolio_evidence_ready": bool(r3["portfolio_evidence_ready"]),
