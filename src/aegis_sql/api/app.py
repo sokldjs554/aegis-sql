@@ -20,6 +20,7 @@ import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 
 from aegis_sql import __version__
+from aegis_sql.api.runtime import QueryCapacityExceeded, QueryRuntimeGate, QueryTimedOut
 from aegis_sql.api.schemas import (
     EvidenceModel,
     FeedbackRequest,
@@ -76,6 +78,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging(settings.log_level, settings.log_json)
     started = time.perf_counter()
     _ENGINE = await asyncio.to_thread(AegisEngine.build, settings)
+    app.state.query_gate = QueryRuntimeGate(
+        max_concurrent=settings.server.max_concurrent_queries,
+        timeout_s=settings.server.query_timeout_s,
+    )
     log.info("api ready", startup_ms=round((time.perf_counter() - started) * 1000, 1))
     try:
         yield
@@ -130,9 +136,24 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
     async def query(req: QueryRequest, engine=Depends(get_engine)) -> QueryResponse:
         """자연어 질문 → SQL → 실행 결과."""
         tier = Tier(req.tier) if req.tier else None
-        bundle = await asyncio.to_thread(
-            engine.ask, req.question, req.context, req.allow_clarify, tier
-        )
+        try:
+            bundle = await app.state.query_gate.run(
+                partial(engine.ask, req.question, req.context, req.allow_clarify, tier)
+            )
+        except QueryCapacityExceeded as exc:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "QUERY_CAPACITY_EXCEEDED",
+                    "message": "all query workers are busy; retry shortly",
+                },
+                headers={"Retry-After": "1"},
+            ) from exc
+        except QueryTimedOut as exc:
+            raise HTTPException(
+                status_code=504,
+                detail={"code": "QUERY_TIMEOUT", "message": str(exc)},
+            ) from exc
         return QueryResponse.from_bundle(bundle, explain=req.explain, max_rows=req.max_rows)
 
     # ------------------------------------------------------------------ #
@@ -148,12 +169,33 @@ def _register_routes(app: FastAPI) -> None:  # noqa: C901 - a route table is nat
         async def run() -> None:
             tier = Tier(req.tier) if req.tier else None
             try:
-                bundle = await asyncio.to_thread(
-                    engine.ask, req.question, req.context, req.allow_clarify, tier, on_stage
+                bundle = await app.state.query_gate.run(
+                    partial(
+                        engine.ask,
+                        req.question,
+                        req.context,
+                        req.allow_clarify,
+                        tier,
+                        on_stage,
+                    )
                 )
                 await queue.put(
                     ("done", QueryResponse.from_bundle(
                         bundle, explain=req.explain, max_rows=req.max_rows).model_dump())
+                )
+            except QueryCapacityExceeded:
+                await queue.put(
+                    (
+                        "error",
+                        {
+                            "code": "QUERY_CAPACITY_EXCEEDED",
+                            "message": "all query workers are busy; retry shortly",
+                        },
+                    )
+                )
+            except QueryTimedOut as exc:
+                await queue.put(
+                    ("error", {"code": "QUERY_TIMEOUT", "message": str(exc)})
                 )
             except Exception as exc:  # pragma: no cover
                 await queue.put(("error", {"message": str(exc)}))

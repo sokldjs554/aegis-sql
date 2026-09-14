@@ -201,6 +201,10 @@ class ServerConfig(BaseModel):
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
     enable_docs: bool = True
     request_log: bool = True
+    #: Whole-pipeline budget seen by HTTP callers; must exceed a single provider timeout.
+    query_timeout_s: float = Field(default=75.0, gt=0)
+    #: Synchronous engine workers admitted at once. Extra requests fail fast instead of queueing.
+    max_concurrent_queries: int = Field(default=4, ge=1)
 
 
 class Settings(BaseModel):
