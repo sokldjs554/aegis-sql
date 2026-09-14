@@ -15,3 +15,10 @@
 - 핵심 방법: 최초 SQL의 실행 결과를 0행·1행 이상·DBMS 오류로 나눠 각각 self-feedback과 유사 성공 이력, SQL 키워드별 교정 지침, 오류 메시지별 팁을 검색해 반복 교정하고, 테이블·컬럼 관계·FK 위반·NULL 여부를 조회하는 DB-as-a-Tool을 보탠다; BIRD dev에서 refinement는 EX 64.54%→67.76%, SR-DB 업데이트는 교정 성공률 20.3%→30.0%를 기록했다.
 - AEGIS와 같은 점/다른 점: 둘 다 실행 결과와 스키마·값·FK 정보를 이용해 SQL을 다시 검증하지만, PB-SQL은 세 실행 분기에 LLM 교정과 PromptBase 이력 검색·갱신을 결합하는 반면 AEGIS는 DBMS 실패 또는 세 가지 알려진 silent defect만 교정 대상으로 삼고 8종 deterministic AST rewrite를 먼저 실행한 뒤 LLM을 마지막 fallback으로 둔다.
 - 적용·변형·기각 판단: **변형 적용** — repair log에 `empty/nonempty/error` 분기와 오류 유형을 남기고 검증된 성공 이력만 오프라인 검색 후보로 쓰되, 정상 실행 SQL을 전부 LLM으로 재작성하거나 0행 탈출만으로 성공 처리하는 방식은 기각한다; 고정 KorFin에서 `no-repair` 대비 EX·교정 trigger/성공/회귀율·비용·p50/p95를 함께 측정한 뒤 채택한다.
+
+## E1 · [Lee and Kim, *SafeQL: Search-based Refinement for Safe and Efficient LLM-based Text-to-SQL*](https://arxiv.org/pdf/2608.09260) (원문 검토: 2026-09-12)
+
+- 해결하는 문제: 실행 실패 때마다 SQL 전체를 LLM으로 재생성하면 이미 맞는 구조까지 버리고 같은 오류를 다시 만들 수 있으며 token·latency가 누적되는데, 기존 방식은 DBMS를 오류 문자열만 주는 수동적 검사기로 제한한다.
+- 핵심 방법: PostgreSQL의 parser·binder·type analyzer가 실패한 AST component를 찾고 relation·join·attribute·value·function 단위 후보를 만든 뒤, AST tree-edit distance와 embedding 거리를 섞은 best-first search에 type/top-K pruning·cache·HNSW index를 적용하고 100회 탐색 실패 때만 LLM 재생성으로 전환한다; GPT-OSS-120B의 BIRD full dev에서 prompt baseline 57.5%를 search-only 62.5%(추가 token 0), hybrid 63.3%로 높였고 agent baseline 64.2%는 hybrid 69.4%가 됐다.
+- AEGIS와 같은 점/다른 점: 둘 다 실행 피드백으로 맞는 조각을 보존한 작은 AST 수정을 먼저 하고 LLM을 마지막 fallback으로 두지만, SafeQL은 PostgreSQL 내부에서 오류 위치별 복수 후보를 만들고 거리순으로 탐색하는 반면 AEGIS는 SQLite 바깥의 sqlglot AST에서 8종 규칙을 고정 순서로 한 번씩 적용해 첫 실행 성공안을 택하며 component label·후보 순위·safe-query-space 탐색은 없다.
+- 적용·변형·기각 판단: **변형 적용** — AEGIS repair log에 오류 component와 탐색 budget을 추가하고 복수 deterministic 후보를 AST 변화량·도메인 evidence·guard 통과 여부로 순위화하되 PostgreSQL extension 이식과 모든 0행의 자동 교정은 기각한다; 실행 가능성은 의미 정답 보장이 아니므로 고정 KorFin fault set에서 현행 first-match 대비 repair 성공률·회귀율·EX·LLM 호출·p50/p95를 함께 통과한 경우에만 채택한다.
