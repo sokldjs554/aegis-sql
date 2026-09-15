@@ -34,30 +34,136 @@ engine:
 #   masked    : 조회 시 마스킹 함수로 대체 (부분 마스킹)
 #   internal  : 개별 행 조회 불가, 집계 함수 안에서만 허용
 #   public    : 제한 없음
+#
+# 모든 현재 스키마 컬럼을 아래에 명시한다. 새 컬럼이 정책에 추가되기 전에
+# 실수로 노출되더라도 fail-open 되지 않도록 미분류 기본값은 forbidden 이다.
+# CI의 test_policy_completeness.py가 스키마와 이 목록의 완전성을 함께 검사한다.
 # ---------------------------------------------------------------------
-default_sensitivity: public
+default_sensitivity: forbidden
 
 columns:
+  # --- 공통코드 -------------------------------------------------------
+  TB_COMM_CD.CD_GRP:     public
+  TB_COMM_CD.CD:         public
+  TB_COMM_CD.CD_NM:      public
+  TB_COMM_CD.CD_DESC:    public
+  TB_COMM_CD.SORT_ORD:   public
+  TB_COMM_CD.USE_YN:     public
+
+  # --- 지점 -----------------------------------------------------------
+  TB_BRCH.BRCH_CD:       public
+  TB_BRCH.BRCH_NM:       public
+  TB_BRCH.RGN_CD:        public
+  TB_BRCH.OPEN_DT:       public
+  TB_BRCH.CLS_DT:        public
+  TB_BRCH.MNG_EMP_CNT:   public
+
+  # --- 설계사 ---------------------------------------------------------
+  TB_AGNT.AGNT_ID:       public
+  TB_AGNT.AGNT_NM:       public        # 사내 조직 정보로 취급
+  TB_AGNT.BRCH_CD:       public
+  TB_AGNT.HIRE_DT:       public
+  TB_AGNT.RSGN_DT:       public
+  TB_AGNT.GRD_CD:        public
+  TB_AGNT.LIC_NO:        masked
+  TB_AGNT.TELNO:         masked
+
   # --- 고객 개인정보 -------------------------------------------------
-  TB_CUST.RRNO_ENC:   forbidden     # 주민등록번호(암호화) — 고유식별정보
-  TB_CUST.TELNO:      masked        # 휴대전화번호
-  TB_CUST.EMAIL:      masked        # 이메일
-  TB_CUST.ADDR:       masked        # 상세주소 (지역코드 RGN_CD는 public 유지)
-  TB_CUST.CUST_NM:    masked        # 성명
-  TB_CUST.BRDT:       internal      # 생년월일 — 연령 집계는 허용, 개별 조회 불가
-  TB_CUST.ZIP_CD:     masked
+  TB_CUST.CUST_ID:       public
+  TB_CUST.CUST_NM:       masked        # 성명
+  TB_CUST.RRNO_ENC:      forbidden     # 주민등록번호(암호화) — 고유식별정보
+  TB_CUST.BRDT:          internal      # 생년월일 — 연령 집계는 허용, 개별 조회 불가
+  TB_CUST.GNDR_CD:       public
+  TB_CUST.ZIP_CD:        masked
+  TB_CUST.ADDR:          masked        # 상세주소 (지역코드 RGN_CD는 public 유지)
+  TB_CUST.TELNO:         masked        # 휴대전화번호
+  TB_CUST.EMAIL:         masked        # 이메일
+  TB_CUST.JOIN_DT:       public
+  TB_CUST.VIP_GRD_CD:    public
+  TB_CUST.MKT_AGR_YN:    public
+  TB_CUST.RGN_CD:        public
 
-  # --- 설계사 개인정보 -----------------------------------------------
-  TB_AGNT.TELNO:      masked
-  TB_AGNT.LIC_NO:     masked
-  TB_AGNT.AGNT_NM:    public        # 사내 조직 정보로 취급
+  # --- 상품 -----------------------------------------------------------
+  TB_PROD.PROD_CD:       public
+  TB_PROD.PROD_NM:       public
+  TB_PROD.PROD_TYP_CD:   public
+  TB_PROD.SALE_STRT_DT:  public
+  TB_PROD.SALE_END_DT:   public
+  TB_PROD.BASE_PRM:      public
+  TB_PROD.MIN_AGE:       public
+  TB_PROD.MAX_AGE:       public
+  TB_PROD.RNW_YN:        public
 
-  # --- 민감 업무정보 -------------------------------------------------
-  TB_CS_TCKT.CNTN:    masked        # 상담 원문 (민감정보 혼입 가능)
-  TB_UW.RMRK:         internal      # 심사 의견 — 개별 계약 노출 시 분쟁 소지
-  TB_CLM.DIAG_CD:     internal      # 진단코드 — 건강정보(민감정보)
-  TB_CLM.HOSP_NM:     internal      # 병원명 — 건강정보 추론 가능
-  TB_CLM.FRAUD_SCR:   internal      # 이상징후 점수 — 내부 스코어 비공개
+  # --- 계약 -----------------------------------------------------------
+  TB_CTRT.CTRT_NO:       public
+  TB_CTRT.CUST_ID:       public
+  TB_CTRT.PROD_CD:       public
+  TB_CTRT.AGNT_ID:       public
+  TB_CTRT.CTRT_DT:       public
+  TB_CTRT.EXPR_DT:       public
+  TB_CTRT.CTRT_STAT_CD:  public
+  TB_CTRT.MON_PRM:       public
+  TB_CTRT.TOT_INSD_AMT:  public
+  TB_CTRT.PAY_CYCL_CD:   public
+  TB_CTRT.PAY_TERM_YR:   public
+  TB_CTRT.CHNL_CD:       public
+  TB_CTRT.TERM_DT:       public
+  TB_CTRT.RVIV_CNT:      public
+
+  # --- 담보 -----------------------------------------------------------
+  TB_CVRG.CVRG_ID:       public
+  TB_CVRG.CTRT_NO:       public
+  TB_CVRG.CVRG_CD:       public
+  TB_CVRG.CVRG_NM:       public
+  TB_CVRG.INSD_AMT:      public
+  TB_CVRG.CVRG_PRM:      public
+  TB_CVRG.STRT_DT:       public
+  TB_CVRG.END_DT:        public
+
+  # --- 수납 -----------------------------------------------------------
+  TB_PAY.PAY_ID:         public
+  TB_PAY.CTRT_NO:        public
+  TB_PAY.PAY_DT:         public
+  TB_PAY.DUE_DT:         public
+  TB_PAY.PAY_AMT:        public
+  TB_PAY.PAY_MTHD_CD:    public
+  TB_PAY.DLQ_YN:         public
+  TB_PAY.DLQ_DAYS:       public
+
+  # --- 보험금청구 -----------------------------------------------------
+  TB_CLM.CLM_NO:         public
+  TB_CLM.CTRT_NO:        public
+  TB_CLM.CLM_TYP_CD:     public
+  TB_CLM.ACDN_DT:        public
+  TB_CLM.CLM_DT:         public
+  TB_CLM.DEDT_DT:        public
+  TB_CLM.CLM_AMT:        public
+  TB_CLM.PAY_AMT:        public
+  TB_CLM.CLM_STAT_CD:    public
+  TB_CLM.HOSP_NM:        internal      # 건강정보 추론 가능
+  TB_CLM.DIAG_CD:        internal      # 진단코드 — 건강정보(민감정보)
+  TB_CLM.FRAUD_SCR:      internal      # 이상징후 점수 — 내부 스코어 비공개
+
+  # --- 인수심사 -------------------------------------------------------
+  TB_UW.UW_ID:           public
+  TB_UW.CTRT_NO:         public
+  TB_UW.UW_DT:           public
+  TB_UW.UW_RSLT_CD:      public
+  TB_UW.RISK_SCR:        public
+  TB_UW.UW_EMP_ID:       public
+  TB_UW.RMRK:            internal      # 심사 의견 — 개별 계약 노출 시 분쟁 소지
+
+  # --- 고객상담/민원 --------------------------------------------------
+  TB_CS_TCKT.TCKT_ID:       public
+  TB_CS_TCKT.CUST_ID:       public
+  TB_CS_TCKT.CTRT_NO:       public
+  TB_CS_TCKT.RCPT_DT:       public
+  TB_CS_TCKT.CMPL_DT:       public
+  TB_CS_TCKT.CHNL_CD:       public
+  TB_CS_TCKT.CTGY_CD:       public
+  TB_CS_TCKT.PROC_STAT_CD:  public
+  TB_CS_TCKT.CNTN:          masked    # 상담 원문 (민감정보 혼입 가능)
+  TB_CS_TCKT.SATIS_SCR:     public
 
 masking:
   strategy: partial                 # partial | hash | null

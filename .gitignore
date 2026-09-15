@@ -12,7 +12,7 @@ htmlcov/
 dist/
 build/
 
-# Generated artefacts — reproducible via `make setup` / `make flywheel` / `make train`
+# Generated artefacts — reproducible via `make setup` / `make flywheel` / `make train-slm`
 data/demo/*.sqlite
 data/generated/
 

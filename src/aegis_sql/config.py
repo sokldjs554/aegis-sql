@@ -154,7 +154,7 @@ class PolicyConfig(BaseModel):
     enabled: bool = True
     path: str = str(CONFIG_DIR / "policy" / "insurance.yaml")
     #: Deny by default when a column has no explicit classification.
-    default_sensitivity: str = "public"
+    default_sensitivity: str = "forbidden"
     mask_strategy: str = "partial"  # partial | hash | null
 
 

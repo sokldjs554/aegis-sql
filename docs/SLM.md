@@ -3,7 +3,7 @@
 > **왜 직접 구현했는가.** `peft.get_peft_model(AutoModelForCausalLM.from_pretrained(...))`
 > 두 줄은 LoRA를 이해했다는 증거가 되지 못한다. 이 디렉터리는 토크나이저·트랜스포머·LoRA·SFT·DPO를
 > **PyTorch만으로 처음부터** 구현한다. 모델 다운로드가 없고, `transformers` 의존이 없고,
-> 4코어 CPU에서 몇 분 안에 학습이 끝난다. 스케일업 시 그대로 확장되는 코드다.
+> 빠른 스모크 경로는 4코어 CPU에서 약 2분, 공개 5.3M 체크포인트의 전체 SFT+DPO 실측은 약 61분이다. 스케일업 시 같은 학습 코드를 사용한다.
 
 ```
 src/aegis_sql/training/

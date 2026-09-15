@@ -11,7 +11,7 @@ particular question right, and buys the expensive tier only for the ones where
 it will not.  Four tiers, cheapest first:
 
     TEMPLATE  → deterministic grammar, $0, ~8 ms
-    SLM       → in-house 15M-parameter model, $0 marginal, ~200 ms
+    SLM       → in-house 5.3M-parameter model, local, default-disabled until promoted
     LLM       → hosted frontier model, ~$0.009, ~2 s
     ENSEMBLE  → n samples on the LLM tier + execution voting, ~n × $0.009
 
