@@ -1,0 +1,112 @@
+name: apply-final-evidence
+
+on:
+  push:
+    branches:
+      - research/spider-ko-final-evidence
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/spider-ko-final-evidence
+          fetch-depth: 0
+
+      - name: Patch measured evidence into docs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          flywheel = Path('docs/FLYWHEEL.md')
+          text = flywheel.read_text(encoding='utf-8')
+          old = '''실측(4,000 프로그램 × 증강 3, CPU 138초):
+
+```
+16,000쌍  → 실행 검증  −460  (빈 결과)
+          → 퇴화 제거  −916  (단일 NULL / 항상 0 / 상수)
+          → 중복 제거 −1,585 (스켈레톤+마스킹질문 3-gram Jaccard)
+          → 난이도 균형 −499
+          = 12,540쌍   train 9,998 / dev 1,212 / test 1,330
+
+train↔test 스켈레톤 중복: 0건       (클러스터 단위 분할)
+독립 난이도 분류기와의 일치도: 0.835
+```'''
+          new = '''실측(4,000 프로그램 × 증강 3, CPU 113초):
+
+```
+16,000쌍  → 실행 검증  −460  (빈 결과)
+          → 퇴화 제거  −944  (단일 NULL / 항상 0 / 상수)
+          → 중복 제거 −1,702 (스켈레톤+마스킹질문 3-gram Jaccard)
+          → 난이도 균형 −478
+          = 12,416쌍   train 9,914 / dev 1,192 / test 1,310
+
+train↔test 스켈레톤 중복: 0건       (클러스터 단위 분할)
+독립 난이도 분류기와의 일치도: 0.833
+```'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one stale flywheel block, found {text.count(old)}')
+          text = text.replace(old, new)
+          text = text.replace('H -.-> I["운영 중 자가교정 로그"]', 'H -.-> I["실행·교정 로그"]')
+          old_dpo = '''- **DPO**: 선호쌍을 **엔진이 운영 중에 스스로 만든다**.
+  `chosen` = 검증을 통과한 gold SQL, `rejected` = 자가교정 로그에 남은 실패 SQL.
+  사람 라벨링 0건으로 "실패했던 패턴을 덜 만들도록" 정렬된다. 이것이 플라이휠이 도는 부분이다.'''
+          new_dpo = '''- **DPO**: 실행·교정 로그를 선호쌍으로 되돌릴 수 있는 경로를 구현했다.
+  `chosen` = 검증을 통과한 gold SQL, `rejected` = 교정 로그에 남은 실패 SQL.
+  현재 공개 5.3M 체크포인트는 실제 운영 교정 로그가 없어 합성 선호쌍으로 DPO 구현 경로만 검증했으며,
+  런타임에서 모델이 스스로 가중치를 바꾸는 시스템은 아니다.'''
+          if text.count(old_dpo) != 1:
+              raise SystemExit(f'expected one DPO paragraph, found {text.count(old_dpo)}')
+          flywheel.write_text(text.replace(old_dpo, new_dpo), encoding='utf-8')
+
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          text = text.replace('사내 용어사전', '보험 도메인 용어사전')
+          marker = '**hard 티어는 실측이 설계를 증명합니다.**'
+          section = '''### 외부 일반화 — Spider-KO 1,034문항
+
+내부 보험 스키마에만 맞춘 시스템인지 확인하기 위해, 학습·데모에 사용하지 않은 Spider 데이터베이스에서
+`Qwen2.5-Coder-1.5B-Instruct`를 NF4 4-bit로 고정해 한국어 1,034문항을 평가했습니다.
+이 수치는 **공식 Spider leaderboard 점수가 아니라 AEGIS `execution_match` 기준 외부 일반화 실험**입니다.
+
+| 구성 | EX | 실행 실패 | schema-reference 실패 |
+|---|---:|---:|---:|
+| `slm` schema | 35.69% (369/1,034) | 337 | 319 |
+| `ddl` schema | 37.52% (388/1,034) | 318 | **294** |
+| `compact` schema | 35.30% (365/1,034) | 368 | 344 |
+| `mschema` | 38.01% (393/1,034) | 320 | 304 |
+| `mschema` + **1회 bounded repair** | **41.97% (434/1,034)** | **224** | **209** |
+
+`mschema`만으로 `slm` 대비 **+2.32%p**, 실행 실패에만 한 번 허용한 repair가 다시 **+3.97%p**를 더했습니다.
+repair는 307건에서 발동해 96건을 실행 가능하게 만들었고 그중 41건이 최종 정답이 됐습니다.
+기존 정답 회귀는 **0건**입니다. 반면 total generation p95는 4.16초 → 7.58초로 늘어,
+정확도 개선과 tail latency 비용을 함께 기록합니다.
+
+재현 조건·실패 분석·provenance: [`docs/SPIDER_KO.md`](docs/SPIDER_KO.md) ·
+compact evidence: [`data/research/spider_ko_bounded_repair_evidence.json`](data/research/spider_ko_bounded_repair_evidence.json)
+
+'''
+          if section in text:
+              raise SystemExit('Spider-KO section already present')
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected one README marker, found {text.count(marker)}')
+          readme.write_text(text.replace(marker, section + marker), encoding='utf-8')
+
+          evaluation = Path('docs/EVALUATION.md')
+          text = evaluation.read_text(encoding='utf-8').replace('사내 용어사전', '보험 도메인 용어사전')
+          evaluation.write_text(text, encoding='utf-8')
+          PY
+
+          rm .github/workflows/apply-final-evidence.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md docs/FLYWHEEL.md docs/EVALUATION.md .github/workflows/apply-final-evidence.yml
+          git diff --cached --check
+          git commit -m 'docs: publish Spider-KO bounded repair evidence'
+          git push origin HEAD:research/spider-ko-final-evidence
