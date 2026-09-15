@@ -98,6 +98,31 @@ fi
 
 REPORT="$RUN_DIR/spider-ko-mschema-bounded-repair.json"
 
+add_summary_metrics() {
+  local report="$1"
+  python - "$report" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+report = json.loads(path.read_text(encoding="utf-8"))
+rows = report.get("rows") or []
+markers = ("no such column", "no such table")
+
+def is_schema_reference_failure(value):
+    error = str(value or "").lower()
+    return any(marker in error for marker in markers)
+
+initial = sum(is_schema_reference_failure(row.get("initial_pred_error")) for row in rows)
+final = sum(is_schema_reference_failure(row.get("pred_error")) for row in rows)
+report["initial_schema_reference_failures"] = initial
+report["schema_reference_failures"] = final
+report["schema_reference_failures_reduced"] = initial - final
+path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
 is_complete_report() {
   local report="$1"
   python - "$report" "$CURRENT_GIT_SHA" "$MODEL" "$EXPECTED_ITEMS" <<'PY'
@@ -115,6 +140,9 @@ except (OSError, json.JSONDecodeError):
     raise SystemExit(1)
 evaluation = report.get("evaluation") or {}
 rows = report.get("rows")
+initial_schema = report.get("initial_schema_reference_failures")
+final_schema = report.get("schema_reference_failures")
+reduced_schema = report.get("schema_reference_failures_reduced")
 valid = (
     report.get("portfolio_evidence_ready") is True
     and report.get("items") == expected
@@ -123,6 +151,10 @@ valid = (
     and report.get("model") == model
     and isinstance(report.get("initial_execution_accuracy"), (int, float))
     and isinstance(report.get("execution_accuracy"), (int, float))
+    and isinstance(initial_schema, int)
+    and isinstance(final_schema, int)
+    and isinstance(reduced_schema, int)
+    and reduced_schema == initial_schema - final_schema
     and evaluation.get("schema_style") == "mschema"
     and evaluation.get("bounded_repair") is True
     and evaluation.get("repair_max_attempts") == 1
@@ -132,6 +164,10 @@ valid = (
 raise SystemExit(0 if valid else 1)
 PY
 }
+
+if [[ -f "$REPORT" ]]; then
+  add_summary_metrics "$REPORT"
+fi
 
 if [[ -f "$REPORT" ]] && is_complete_report "$REPORT"; then
   echo "complete bounded-repair report already archived; resume skip"
@@ -146,6 +182,7 @@ else
     --bounded-repair \
     --load-4bit \
     --out "$REPORT"
+  add_summary_metrics "$REPORT"
   if ! is_complete_report "$REPORT"; then
     echo "ERROR: bounded repair did not produce a complete portfolio_evidence_ready report." >&2
     exit 3
@@ -173,6 +210,11 @@ print(f"delta:      {(final - initial) * 100:+.2f} pp")
 print(
     "execution failures: "
     f"{report['initial_execution_failures']} -> {report['execution_failures']}"
+)
+print(
+    "schema-reference failures: "
+    f"{report['initial_schema_reference_failures']} -> {report['schema_reference_failures']} "
+    f"(reduced={report['schema_reference_failures_reduced']})"
 )
 print(
     "repair: "
