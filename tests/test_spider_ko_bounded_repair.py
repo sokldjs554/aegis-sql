@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 
 import pytest
+
+EVALUATOR = Path("scripts/eval_spider_ko_hf.py")
 
 
 def test_bounded_repair_targets_only_selected_sqlite_errors_and_only_once():
@@ -49,3 +52,29 @@ def test_repair_prompt_contains_only_runtime_evidence_not_gold_sql():
     assert "no such column: singer_name" in prompt
     assert "실패" in prompt or "오류" in prompt
     assert "정답 SQL" not in prompt
+
+
+def test_evaluator_wires_one_shot_repair_and_preserves_initial_final_evidence():
+    text = EVALUATOR.read_text(encoding="utf-8")
+
+    assert "--bounded-repair" in text
+    assert "validate_bounded_repair_experiment" in text
+    assert "bounded_repair_reason" in text
+    assert "build_bounded_repair_prompt" in text
+    assert '"repair_max_attempts": 1' in text
+
+    for field in (
+        '"initial_pred_sql"',
+        '"initial_correct"',
+        '"initial_pred_execution_ok"',
+        '"initial_pred_error"',
+        '"repair_attempted"',
+        '"repair_reason"',
+        '"repaired_sql"',
+        '"repair_latency_ms"',
+        '"repair_execution_recovered"',
+        '"repair_correct"',
+        '"initial_execution_accuracy"',
+        '"total_generation_latency_ms"',
+    ):
+        assert field in text
