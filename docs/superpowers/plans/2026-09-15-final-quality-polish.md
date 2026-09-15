@@ -4,11 +4,13 @@
 
 **Goal:** Remove the remaining governance fail-open path and reconcile code/documentation with the measured AEGIS-SQL evidence before application materials are finalized.
 
-**Architecture:** Keep runtime behavior unchanged except for one deliberate safety invariant: when governance is enabled, every physical schema column must have an explicit sensitivity grade. Preserve `PolicyDocument.permissive()` for policy-disabled test/dev flows. Documentation fixes are evidence-only changes: no new performance claims and no retroactive provenance edits.
+**Architecture:** Keep query behavior unchanged while making governance fail closed in two layers: unclassified columns default to `forbidden` at runtime, and CI requires every demo schema column to have an explicit grade. Documentation fixes are evidence-only changes: no new performance claims and no retroactive provenance edits.
 
 **Tech Stack:** Python 3.10+, Pydantic, sqlglot, YAML, pytest, GitHub Actions.
 
 **Spec:** Current repository evidence plus the final application review checklist discussed on 2026-09-15.
+
+> **Implementation review note:** The initial plan proposed a runtime startup exception for incomplete classification. Review found the safer current design already supports a `forbidden` fallback, so the final implementation uses that fail-closed runtime default plus an explicit CI completeness test instead of adding unnecessary startup coupling.
 
 ## Global Constraints
 
