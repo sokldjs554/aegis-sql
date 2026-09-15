@@ -6,7 +6,6 @@ import copy
 
 import pytest
 
-
 STYLES = ("slm", "ddl", "compact", "mschema")
 
 
