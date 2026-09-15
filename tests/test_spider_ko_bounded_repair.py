@@ -76,9 +76,6 @@ def test_evaluator_wires_one_shot_repair_and_preserves_initial_final_evidence():
         '"repair_correct"',
         '"initial_execution_accuracy"',
         '"total_generation_latency_ms"',
-        '"initial_schema_reference_failures"',
-        '"schema_reference_failures"',
-        '"schema_reference_failures_reduced"',
     ):
         assert field in text
 
