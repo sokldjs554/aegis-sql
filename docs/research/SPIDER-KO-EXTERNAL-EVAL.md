@@ -80,6 +80,59 @@ That single command prepares the pinned Spider DB archive, exports the pinned Sp
 
 Default model: `Qwen/Qwen2.5-Coder-1.5B-Instruct` in NF4 4-bit inference. `MODEL` and `ADAPTER` may be overridden, but different runs must be reported separately.
 
+## Archived 1.5B baseline — 2026-09-15
+
+The first complete external baseline was archived from a Tesla T4 run with no adapter:
+
+- model: `Qwen/Qwen2.5-Coder-1.5B-Instruct`
+- schema style: `slm`
+- quantization: NF4 4-bit
+- evaluated rows: **1,034 / 1,034**
+- AEGIS execution match: **369 / 1,034 = 35.7%**
+- execution failures recorded by the evaluator: **337**
+- latency: **p50 2,375.84 ms / p95 4,263.76 ms** (`model.generate` only, CUDA synchronized)
+- report Git SHA: `8be61dbc0b8146df094eebcefe9e5ef7ce66e391`
+- dataset SHA-256: `db802bab717deb2e16f2fa6cbb493712ac294515e68a69f1a243c5238cf99b52`
+- `portfolio_evidence_ready=true`
+
+The row-level audit showed that execution failure is dominated by schema-reference errors: **312 `no such column`** and **7 `no such table`** prediction errors. Two WTA rows fail for both prediction and gold because the SQLite text cannot be decoded as UTF-8, so the headline execution-failure count must not be described as 337 pure model failures.
+
+This baseline is retained as historical evidence. It is **not** silently reused as the `slm` arm of later ablations because the evaluator Git SHA and runtime provenance must be identical across all arms.
+
+## Schema representation ablation
+
+The next controlled experiment keeps the model, decoding, quantization, dataset, database files, evaluator commit, package versions, and GPU identity fixed while changing only the schema representation:
+
+- `slm`
+- `ddl`
+- `compact`
+- `mschema`
+
+Run it from the Colab notebook:
+
+`notebooks/spider_ko_schema_ablation.ipynb`
+
+or after mounting Google Drive:
+
+```bash
+ARCHIVE_DIR=/content/drive/MyDrive/AEGIS-SQL \
+bash scripts/run_spider_ko_schema_ablation_colab.sh
+```
+
+The runner writes each completed 1,034-row report directly to persistent storage before starting the next style. If Colab disconnects, a rerun skips complete styles. `run-meta.json` pins the experiment to one Git SHA and runtime stack; a changed runtime is rejected instead of mixing incomparable evidence. Set `FORCE=1` only when intentionally discarding the entire prior four-arm run.
+
+After all four reports are complete, `scripts/summarize_spider_ko_schema_ablation.py` verifies provenance equality and writes `spider-ko-schema-ablation-summary.json`. The comparison reports:
+
+- execution accuracy and delta vs `slm`
+- total execution failures
+- prediction/gold execution failures separately
+- `no such column`
+- `no such table`
+- combined schema-reference failures
+- p50 / p95 generation latency
+
+The winner is selected by execution accuracy first, then fewer schema-reference failures, fewer execution failures, and lower p95 latency as tie-breakers.
+
 ## Evidence gate
 
 A report is marked `portfolio_evidence_ready=true` only when all of these are true:
@@ -97,4 +150,6 @@ The report additionally keeps per-item latency and execution errors, dataset SHA
 
 Do not claim the score as official Spider leaderboard accuracy. This runner uses the original per-database SQLite files but AEGIS's execution-result comparator rather than Spider's official evaluator. Its purpose is a reproducible **external generalisation check** inside this project.
 
-If the result is poor, that is still useful evidence. It separates domain-specialised performance from cross-domain generalisation and gives a concrete basis for the next ablation: schema representation, model scale, adaptation data, or decoding strategy. A larger model should only be tested after the 1.5B external baseline is archived successfully.
+Do not merge KorFin-Bench and Spider-KO into one headline metric. The former measures the project-specific finance/insurance system; the latter measures external cross-domain generalisation.
+
+Model scale is not the next variable while schema-reference failures dominate the 1.5B baseline. First measure whether schema representation reduces those failures. Then test a bounded execution-guided repair on the best representation. Move to 3B only if compositional reasoning failures remain after those controls; preserve the 1.5B baseline throughout.
