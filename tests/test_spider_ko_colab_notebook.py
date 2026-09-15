@@ -1,7 +1,5 @@
 """Contract tests for the one-click Spider-KO Colab full-run notebook."""
 
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
