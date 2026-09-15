@@ -9,7 +9,7 @@ prediction with the gold query by executing both against that same database.
 When ``--bounded-repair`` is enabled, the experiment keeps the winning
 ``mschema`` representation fixed and permits at most one additional generation
 for a narrow set of SQLite execution errors.  The repair prompt never receives
-the gold SQL.
+the gold SQL, and the repair decision is made before the gold query is executed.
 """
 
 from __future__ import annotations
@@ -214,33 +214,19 @@ def main() -> int:  # noqa: C901 - one explicit research loop keeps the evidence
 
             executor = executors[item.db_id]
             initial_pred_result = executor.execute(initial_pred_sql) if initial_pred_sql else None
-            gold_result = executor.execute(item.gold_sql)
-            initial_item_correct = execution_match(
-                initial_pred_result,
-                gold_result,
-                item.gold_sql,
-            )
-            if initial_item_correct:
-                initial_correct += 1
-            if initial_pred_result is None or not initial_pred_result.ok or not gold_result.ok:
-                initial_execution_failures += 1
-
             pred_sql = initial_pred_sql
             pred_result = initial_pred_result
-            item_correct = initial_item_correct
             item_repair_attempted = False
             item_repair_reason = ""
             repaired_sql: str | None = None
             repair_latency_ms = 0.0
             item_repair_execution_recovered = False
-            item_repair_correct = False
 
             initial_error = "" if initial_pred_result is None else (initial_pred_result.error or "")
             reason = (
                 bounded_repair_reason(initial_error, attempts=0)
                 if (
                     args.bounded_repair
-                    and gold_result.ok
                     and initial_pred_result is not None
                     and not initial_pred_result.ok
                 )
@@ -265,10 +251,24 @@ def main() -> int:  # noqa: C901 - one explicit research loop keeps the evidence
                 item_repair_execution_recovered = bool(pred_result and pred_result.ok)
                 if item_repair_execution_recovered:
                     repair_execution_recovered += 1
-                item_repair_correct = execution_match(pred_result, gold_result, item.gold_sql)
-                if item_repair_correct:
-                    repair_correct += 1
-                item_correct = item_repair_correct
+
+            # Gold is executed only after the generation path is final.  It is
+            # evaluation evidence, never an input or gate for the repair policy.
+            gold_result = executor.execute(item.gold_sql)
+            initial_item_correct = execution_match(
+                initial_pred_result,
+                gold_result,
+                item.gold_sql,
+            )
+            item_correct = execution_match(pred_result, gold_result, item.gold_sql)
+            item_repair_correct = bool(item_repair_attempted and item_correct)
+
+            if initial_item_correct:
+                initial_correct += 1
+            if initial_pred_result is None or not initial_pred_result.ok or not gold_result.ok:
+                initial_execution_failures += 1
+            if item_repair_correct:
+                repair_correct += 1
 
             total_generation_latency_ms = initial_latency_ms + repair_latency_ms
             total_generation_latencies.append(total_generation_latency_ms)
@@ -345,7 +345,7 @@ def main() -> int:  # noqa: C901 - one explicit research loop keeps the evidence
                 "p50": round(percentile(repair_latencies, 0.50), 2),
                 "p95": round(percentile(repair_latencies, 0.95), 2),
             },
-            "gold_execution_failures_are_not_repaired": True,
+            "repair_decision_uses_gold": False,
         },
         "evaluation": {
             "git_sha": git_sha(),
