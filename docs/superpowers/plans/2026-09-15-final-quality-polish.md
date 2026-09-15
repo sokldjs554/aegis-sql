@@ -10,60 +10,49 @@
 
 **Spec:** Current repository evidence plus the final application review checklist discussed on 2026-09-15.
 
-> **Implementation review note:** The initial plan proposed a runtime startup exception for incomplete classification. Review found the safer current design already supports a `forbidden` fallback, so the final implementation uses that fail-closed runtime default plus an explicit CI completeness test instead of adding unnecessary startup coupling.
+> **Implementation review note:** The initial plan proposed a runtime startup exception for incomplete classification. Review found that the safer and simpler invariant is already available: unknown columns can fail closed as `forbidden`. The final implementation therefore combines that runtime fallback with a CI completeness test, so schema drift is blocked in CI without introducing unnecessary startup coupling.
 
 ## Global Constraints
 
 - Do not change historical experiment SHA/provenance values.
 - Do not claim bounded-repair Spider-KO gains before the 1,034-row GPU run exists.
-- Keep existing query semantics and benchmark outputs unchanged apart from stricter policy completeness validation.
-- Use TDD for governance behavior; run the full CI matrix before merge.
+- Keep existing query semantics and benchmark outputs unchanged.
+- Use TDD/evidence checks for governance behavior; run the full CI matrix before merge.
 
 ---
 
 ### Task 1: Fail closed on missing column classifications
 
 **Files:**
-- Modify: `src/aegis_sql/verify/ast_guard.py`
 - Modify: `src/aegis_sql/config.py`
+- Modify: `configs/default.yaml`
 - Modify: `configs/policy/insurance.yaml`
-- Test: `tests/test_governance.py`
+- Create: `tests/test_policy_completeness.py`
 
-**Interfaces:**
-- Consumes: `SchemaGraph.all_columns`, `PolicyDocument.columns`
-- Produces: `PolicyDocument.unclassified_columns(schema) -> tuple[str, ...]`; `PolicyGuard` startup validation
+**Final invariant:**
+- Runtime fallback for an unclassified physical column is `Sensitivity.FORBIDDEN`.
+- Every current demo-schema column is explicitly classified in `insurance.yaml`.
+- CI fails if the schema adds a column without adding a policy grade.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Add a policy-completeness test**
 
-```python
-def test_policy_explicitly_classifies_every_demo_column(schema, guard):
-    assert guard.policy.unclassified_columns(schema) == ()
+The test compares every `SchemaGraph.all_columns` entry with the explicit policy keys.
 
+- [x] **Step 2: Confirm the original RED state**
 
-def test_policy_guard_rejects_incomplete_classification(schema, settings):
-    from aegis_sql.verify.ast_guard import PolicyDocument, PolicyGuard
-    incomplete = PolicyDocument(columns={"TB_CUST.RRNO_ENC": Sensitivity.FORBIDDEN})
-    with pytest.raises(ValueError, match="unclassified schema columns"):
-        PolicyGuard(schema, incomplete, settings)
-```
+The first draft expected a runtime completeness helper that did not exist, and CI failed as expected. Review then simplified the design to avoid unnecessary startup coupling.
 
-- [ ] **Step 2: Run tests and confirm RED**
+- [x] **Step 3: Make the runtime fallback fail closed**
 
-Run: `pytest tests/test_governance.py -q`
-Expected: missing `unclassified_columns` and/or no startup rejection.
+Set both typed config and YAML/default config to `forbidden` for unclassified columns.
 
-- [ ] **Step 3: Implement minimal completeness gate**
+- [x] **Step 4: Explicitly grade every demo column**
 
-Add `strict_classification: bool = True` to the parsed policy document and YAML. Add an `unclassified_columns` helper that compares `schema.all_columns` against explicit `columns` keys. In `PolicyGuard.__init__`, raise `ValueError` when strict mode is enabled and any physical column is missing. `PolicyDocument.permissive()` must set strict mode off.
+Keep existing sensitive grades unchanged and add explicit `public` entries for every remaining column in `data/demo/schema.sql`.
 
-- [ ] **Step 4: Explicitly grade every demo column**
+- [x] **Step 5: Keep CI as the schema-drift gate**
 
-Keep current sensitive grades unchanged and add explicit `public` entries for every remaining column in `data/demo/schema.sql`. Do not rely on a table wildcard because a newly added column must fail CI until someone classifies it.
-
-- [ ] **Step 5: Run governance + full core tests**
-
-Run: `pytest tests/test_governance.py -q` then `pytest -q -m "not slow" --maxfail=1`.
-Expected: GREEN.
+`tests/test_policy_completeness.py` verifies explicit coverage and forbidden fallback behavior.
 
 ### Task 2: Reconcile router and sLLM documentation with measured implementation
 
@@ -72,15 +61,15 @@ Expected: GREEN.
 - Modify: `docs/SLM.md`
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Replace stale router size**
+- [x] **Step 1: Replace stale router size**
 
-Change the cascade docstring from `15M-parameter` to the shipped/measured `5.3M-parameter` checkpoint description and note that the SLM tier is disabled by default until promotion criteria are met.
+Change `15M-parameter` to the shipped/measured `5.3M-parameter` checkpoint description and state that the SLM tier is default-disabled until promotion criteria are met.
 
-- [ ] **Step 2: Separate smoke duration from full training duration**
+- [x] **Step 2: Separate smoke duration from full training duration**
 
-Change the opening SLM claim from “4-core CPU in a few minutes” to explicitly distinguish the ~2-minute quick smoke path from the measured full 5.3M run (~61 minutes including DPO).
+Distinguish the ~2-minute quick smoke path from the measured full 5.3M SFT+DPO run (~61 minutes).
 
-- [ ] **Step 3: Fix stale Make target comment**
+- [x] **Step 3: Fix stale Make target comment**
 
 Use `make train-slm`, not `make train`.
 
@@ -89,25 +78,25 @@ Use `make train-slm`, not `make train`.
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Clarify cascade terminology**
+- [x] **Step 1: Clarify cascade terminology**
 
-Describe the architecture as a four-tier ladder (`TEMPLATE → SLM → LLM → ENSEMBLE`) while explaining that the default active path excludes the unpromoted SLM.
+Describe the architecture as a four-tier ladder (`TEMPLATE → SLM → LLM → ENSEMBLE`), while the unpromoted SLM remains disabled by default.
 
-- [ ] **Step 2: Clarify self-improvement claim**
+- [x] **Step 2: Clarify the improvement loop**
 
-Define “자가개선” as an offline feedback/training loop, not runtime self-modification, and disclose that the published DPO checkpoint currently uses synthetic preference pairs because production repair logs do not yet exist.
+Remove the ambiguous runtime “self-improving” tagline and define the loop as offline feedback/retraining. Disclose that the published 5.3M DPO checkpoint uses 900 synthetic preference pairs because production repair logs do not yet exist.
 
-- [ ] **Step 3: Separate historical full-scale evidence from current CI scale**
+- [x] **Step 3: Separate historical full-scale evidence from current CI scale**
 
-State that saved full-scale benchmark evidence uses the full demo DB, while PR CI deliberately builds a 0.25-scale DB for regression speed. Do not relabel one as the other.
+State that the saved full-scale template report used the full 373,778-row DB on Ubuntu/Python 3.13, while current PR CI deliberately builds a 0.25-scale 93,703-row DB and runs Python 3.10/3.11/3.12 for regression speed.
 
-- [ ] **Step 4: Keep current measured flywheel count**
+- [x] **Step 4: Keep current measured flywheel count**
 
-Use 12,416 pairs (train 9,914 / dev 1,192 / test 1,310) wherever the current flywheel is described; preserve older experiment-specific manifests as historical snapshots.
+Keep 12,416 pairs (train 9,914 / dev 1,192 / test 1,310) in current README descriptions; preserve older experiment-specific manifests as historical snapshots.
 
 ### Task 4: Verify and merge
 
-- [ ] **Step 1: Open PR and run CI**
-- [ ] **Step 2: Review the full diff for evidence/provenance regressions**
+- [x] **Step 1: Open PR and run CI**
+- [x] **Step 2: Review the full diff for evidence/provenance regressions**
 - [ ] **Step 3: Merge only after all six CI jobs pass**
 - [ ] **Step 4: Verify post-merge `main` CI**
