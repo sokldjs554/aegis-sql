@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 EVIDENCE = Path("data/research/spider_ko_bounded_repair_evidence.json")
 
 
