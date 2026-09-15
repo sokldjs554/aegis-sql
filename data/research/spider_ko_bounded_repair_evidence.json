@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "benchmark": {
+    "name": "huggingface-KREW/spider-ko",
+    "split": "validation",
+    "question_language": "ko",
+    "items": 1034,
+    "comparison": "AEGIS execution_match on the official per-db SQLite database",
+    "official_leaderboard": false
+  },
+  "model": {
+    "name": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "adapter": null,
+    "schema_style": "mschema",
+    "quantization": "NF4 4-bit",
+    "bounded_repair": true,
+    "repair_max_attempts": 1
+  },
+  "result": {
+    "initial_correct": 393,
+    "initial_execution_accuracy": 0.38007736943907156,
+    "final_correct": 434,
+    "final_execution_accuracy": 0.4197292069632495,
+    "delta_ex_percentage_points": 3.9652,
+    "gained_correct": 41,
+    "regressed_correct": 0,
+    "initial_execution_failures": 320,
+    "final_execution_failures": 224,
+    "execution_failures_reduced": 96,
+    "initial_schema_reference_failures": 304,
+    "final_schema_reference_failures": 209,
+    "schema_reference_failures_reduced": 95
+  },
+  "repair": {
+    "enabled": true,
+    "max_attempts": 1,
+    "attempted": 307,
+    "execution_recovered": 96,
+    "correct_after_repair": 41,
+    "reasons": {
+      "no_such_column": 289,
+      "no_such_table": 15,
+      "syntax_error": 3
+    },
+    "reason_outcomes": {
+      "no_such_column": {
+        "attempted": 289,
+        "recovered": 95,
+        "correct": 41
+      },
+      "no_such_table": {
+        "attempted": 15,
+        "recovered": 0,
+        "correct": 0
+      },
+      "syntax_error": {
+        "attempted": 3,
+        "recovered": 1,
+        "correct": 0
+      }
+    },
+    "latency_ms": {
+      "p50": 2700.39,
+      "p95": 4832.67
+    },
+    "repair_decision_uses_gold": false
+  },
+  "latency_ms": {
+    "initial_generation": {
+      "p50": 2327.92,
+      "p95": 4155.52
+    },
+    "total_generation": {
+      "p50": 2533.56,
+      "p95": 7579.65
+    }
+  },
+  "provenance": {
+    "git_sha": "f2b8ccacb164caf5ccb7061ec4d768e5bab92791",
+    "dataset_sha256": "db802bab717deb2e16f2fa6cbb493712ac294515e68a69f1a243c5238cf99b52",
+    "python": "3.13.15",
+    "torch": "2.11.0+cu128",
+    "cuda_runtime": "12.8",
+    "gpu": "Tesla T4",
+    "packages": {
+      "transformers": "5.16.1",
+      "peft": "0.20.0",
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.2"
+    },
+    "raw_report_sha256": "9cc36de92c5fbf18d97c704b60cd5ae1fe0509950670c1aee63c053d5d06a8c2",
+    "raw_report_bytes": 1308093,
+    "portfolio_evidence_ready": true
+  },
+  "decision": {
+    "status": "keep",
+    "decision_ko": "mschema 기준선을 정확히 재현한 동일 1,034문항 run에서 one-shot bounded repair가 EX를 38.01%에서 41.97%로 +3.97%p 높였고 기존 정답 회귀가 0건이므로 외부 일반화 근거로 채택한다.",
+    "limitation_ko": "repair가 실행을 복구한 96건 중 최종 정답은 41건이므로 남은 병목은 단순 실행 가능성뿐 아니라 조인·중첩·집합연산 등 의미/구성 추론에도 있다. 공식 Spider leaderboard 수치가 아니라 AEGIS execution_match 기준이다."
+  }
+}
