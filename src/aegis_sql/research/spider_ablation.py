@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 SCHEMA_STYLES = ("slm", "ddl", "compact", "mschema")
 _BASELINE_STYLE = "slm"
