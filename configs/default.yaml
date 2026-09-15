@@ -63,7 +63,7 @@ verify:
 policy:
   enabled: true
   path: configs/policy/insurance.yaml
-  default_sensitivity: public
+  default_sensitivity: forbidden
   mask_strategy: partial
 
 flywheel:

@@ -2,7 +2,7 @@
 
 # AEGIS-SQL
 
-**한국 금융·보험사의 레거시 스키마 위에서 동작하는<br/>거버넌스 내장형 자가개선 Text-to-SQL 엔진**
+**한국 금융·보험사의 레거시 스키마 위에서 동작하는<br/>거버넌스 내장형 Text-to-SQL 엔진**
 
 <sub>
 Adaptive · Execution-Guided · Intelligent SQL —<br/>
@@ -368,6 +368,8 @@ flowchart LR
 
 자세한 내용: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
+> **오프라인 개선 루프의 범위:** 실행·교정 로그를 선호 데이터로 되돌려 재학습하는 구조이지, 런타임에서 모델이 스스로 가중치를 바꾸는 시스템이 아닙니다. 현재 공개 5.3M 체크포인트는 실제 운영 교정 로그가 없어 DPO 900쌍을 합성 선호쌍으로 구성했으며, 이는 DPO 구현 검증 범위로만 해석합니다.
+
 ### 설계 원칙 4가지
 
 1. **LLM은 마지막에 부른다.** 정규화·링킹·난이도 판정·예시 선택·대부분의 오류 수리는 결정론으로 푼다.
@@ -405,7 +407,7 @@ flowchart LR
 | 티어 분포 (ok 90) | template 90 | template 54 · ensemble 36 | llm 90 |
 | **거버넌스 (10) / 모호성 (6)** | 100% / 100% | 100% / 100% | 100% / 100% |
 
-template은 GitHub Actions의 Ubuntu·Python 3.13에서 전체 373,778행 DB로 다시 측정했습니다.
+보관된 template full-scale 리포트는 Ubuntu·Python 3.13, 전체 373,778행 DB에서 측정한 역사적 증거입니다. 현재 PR CI는 회귀 속도를 위해 0.25배 DB(93,703행)를 새로 빌드해 Python 3.10/3.11/3.12에서 검증하며, 두 측정 조건을 섞지 않습니다.
 LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐스케이드 약 $2.5.
 
 > **비교 범위** — EX는 같은 frozen benchmark·gold-result snapshot으로 확인합니다. 다만
@@ -675,7 +677,7 @@ aegis-sql/
 │   ├── schema/             인트로스펙션 · FK 조인 그래프 · 값 프로파일링 · 프롬프트 카드
 │   ├── nlu/                한국어 정규화 · 모호성 탐지 · 질의 분해
 │   ├── retrieval/          임베더 · 벡터스토어 · 용어사전 · 스키마 링킹 · few-shot
-│   ├── generation/         template / sLLM / LLM 3티어 + SQL 스켈레톤
+│   ├── generation/         TEMPLATE / SLM / LLM / ENSEMBLE 4티어 ladder + SQL 스켈레톤
 │   ├── verify/             AST 거버넌스 · 정적검사 · 샌드박스 실행 · 자가교정 · 투표
 │   ├── router/             난이도 특징 · Keras 라우터 · 보정 · 캐스케이드
 │   ├── flywheel/           SQL 샘플러 · 역번역 · 증강 · 품질필터 · 데이터셋 빌드
