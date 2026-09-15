@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,88 +21,7 @@ jobs:
       - name: Patch measured evidence into docs
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          flywheel = Path('docs/FLYWHEEL.md')
-          text = flywheel.read_text(encoding='utf-8')
-          old = '''실측(4,000 프로그램 × 증강 3, CPU 138초):
-
-```
-16,000쌍  → 실행 검증  −460  (빈 결과)
-          → 퇴화 제거  −916  (단일 NULL / 항상 0 / 상수)
-          → 중복 제거 −1,585 (스켈레톤+마스킹질문 3-gram Jaccard)
-          → 난이도 균형 −499
-          = 12,540쌍   train 9,998 / dev 1,212 / test 1,330
-
-train↔test 스켈레톤 중복: 0건       (클러스터 단위 분할)
-독립 난이도 분류기와의 일치도: 0.835
-```'''
-          new = '''실측(4,000 프로그램 × 증강 3, CPU 113초):
-
-```
-16,000쌍  → 실행 검증  −460  (빈 결과)
-          → 퇴화 제거  −944  (단일 NULL / 항상 0 / 상수)
-          → 중복 제거 −1,702 (스켈레톤+마스킹질문 3-gram Jaccard)
-          → 난이도 균형 −478
-          = 12,416쌍   train 9,914 / dev 1,192 / test 1,310
-
-train↔test 스켈레톤 중복: 0건       (클러스터 단위 분할)
-독립 난이도 분류기와의 일치도: 0.833
-```'''
-          if text.count(old) != 1:
-              raise SystemExit(f'expected one stale flywheel block, found {text.count(old)}')
-          text = text.replace(old, new)
-          text = text.replace('H -.-> I["운영 중 자가교정 로그"]', 'H -.-> I["실행·교정 로그"]')
-          old_dpo = '''- **DPO**: 선호쌍을 **엔진이 운영 중에 스스로 만든다**.
-  `chosen` = 검증을 통과한 gold SQL, `rejected` = 자가교정 로그에 남은 실패 SQL.
-  사람 라벨링 0건으로 "실패했던 패턴을 덜 만들도록" 정렬된다. 이것이 플라이휠이 도는 부분이다.'''
-          new_dpo = '''- **DPO**: 실행·교정 로그를 선호쌍으로 되돌릴 수 있는 경로를 구현했다.
-  `chosen` = 검증을 통과한 gold SQL, `rejected` = 교정 로그에 남은 실패 SQL.
-  현재 공개 5.3M 체크포인트는 실제 운영 교정 로그가 없어 합성 선호쌍으로 DPO 구현 경로만 검증했으며,
-  런타임에서 모델이 스스로 가중치를 바꾸는 시스템은 아니다.'''
-          if text.count(old_dpo) != 1:
-              raise SystemExit(f'expected one DPO paragraph, found {text.count(old_dpo)}')
-          flywheel.write_text(text.replace(old_dpo, new_dpo), encoding='utf-8')
-
-          readme = Path('README.md')
-          text = readme.read_text(encoding='utf-8')
-          text = text.replace('사내 용어사전', '보험 도메인 용어사전')
-          marker = '**hard 티어는 실측이 설계를 증명합니다.**'
-          section = '''### 외부 일반화 — Spider-KO 1,034문항
-
-내부 보험 스키마에만 맞춘 시스템인지 확인하기 위해, 학습·데모에 사용하지 않은 Spider 데이터베이스에서
-`Qwen2.5-Coder-1.5B-Instruct`를 NF4 4-bit로 고정해 한국어 1,034문항을 평가했습니다.
-이 수치는 **공식 Spider leaderboard 점수가 아니라 AEGIS `execution_match` 기준 외부 일반화 실험**입니다.
-
-| 구성 | EX | 실행 실패 | schema-reference 실패 |
-|---|---:|---:|---:|
-| `slm` schema | 35.69% (369/1,034) | 337 | 319 |
-| `ddl` schema | 37.52% (388/1,034) | 318 | **294** |
-| `compact` schema | 35.30% (365/1,034) | 368 | 344 |
-| `mschema` | 38.01% (393/1,034) | 320 | 304 |
-| `mschema` + **1회 bounded repair** | **41.97% (434/1,034)** | **224** | **209** |
-
-`mschema`만으로 `slm` 대비 **+2.32%p**, 실행 실패에만 한 번 허용한 repair가 다시 **+3.97%p**를 더했습니다.
-repair는 307건에서 발동해 96건을 실행 가능하게 만들었고 그중 41건이 최종 정답이 됐습니다.
-기존 정답 회귀는 **0건**입니다. 반면 total generation p95는 4.16초 → 7.58초로 늘어,
-정확도 개선과 tail latency 비용을 함께 기록합니다.
-
-재현 조건·실패 분석·provenance: [`docs/SPIDER_KO.md`](docs/SPIDER_KO.md) ·
-compact evidence: [`data/research/spider_ko_bounded_repair_evidence.json`](data/research/spider_ko_bounded_repair_evidence.json)
-
-'''
-          if section in text:
-              raise SystemExit('Spider-KO section already present')
-          if text.count(marker) != 1:
-              raise SystemExit(f'expected one README marker, found {text.count(marker)}')
-          readme.write_text(text.replace(marker, section + marker), encoding='utf-8')
-
-          evaluation = Path('docs/EVALUATION.md')
-          text = evaluation.read_text(encoding='utf-8').replace('사내 용어사전', '보험 도메인 용어사전')
-          evaluation.write_text(text, encoding='utf-8')
-          PY
-
+          python -c "import base64; exec(base64.b64decode('ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCgpmbHl3aGVlbCA9IFBhdGgoImRvY3MvRkxZV0hFRUwubWQiKQp0ZXh0ID0gZmx5d2hlZWwucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCm9sZCA9ICcnJ+yLpOy4oSg0LDAwMCDtlITroZzqt7jrnqggw5cg7Kad6rCVIDMsIENQVSAxMzjstIgpOgoKYGBgCjE2LDAwMOyMjSAg4oaSIOyLpO2WiSDqsoDspp0gIOKIkjQ2MCAgKOu5iCDqsrDqs7wpCiAgICAgICAgICDihpIg7Ye07ZmUIOygnOqxsCAg4oiSOTE2ICAo64uo7J28IE5VTEwgLyDtla3sg4EgMCAvIOyDgeyImCkKICAgICAgICAgIOKGkiDspJHrs7Ug7KCc6rGwIOKIkjEsNTg1ICjsiqTsvIjroIjthqQr66eI7Iqk7YK57KeI66y4IDMtZ3JhbSBKYWNjYXJkKQogICAgICAgICAg4oaSIOuCnOydtOuPhCDqt6DtmJUg4oiSNDk5CiAgICAgICAgICA9IDEyLDU0MOyMjSAgIHRyYWluIDksOTk4IC8gZGV2IDEsMjEyIC8gdGVzdCAxLDMzMAoKdHJhaW7ihpR0ZXN0IOyKpOy8iOugiO2GpCDspJHrs7U6IDDqsbQgICAgICAgKO2BtOufrOyKpO2EsCDri6jsnIQg67aE7ZWgKQrrj4Xrpr0g64Kc7J2064+EIOu2hOulmOq4sOyZgOydmCDsnbzsuZjrj4Q6IDAuODM1CmBgYCcnJwpuZXcgPSAnJyfsi6TsuKEoNCwwMDAg7ZSE66Gc6re4656oIMOXIOymneqwlSAzLCBDUFUgMTEz7LSIKToKCmBgYAoxNiwwMDDsjI0gIOKGkiDsi6Ttlokg6rKA7KadICDiiJI0NjAgICjruYgg6rKw6rO8KQogICAgICAgICAg4oaSIO2HtO2ZlCDsoJzqsbAgIOKIkjk0NCAgKOuLqOydvCBOVUxMIC8g7ZWt7IOBIDAgLyDsg4HsiJgpCiAgICAgICAgICDihpIg7KSR67O1IOygnOqxsCDiiJIxLDcwMiAo7Iqk7LyI66CI7YakK+uniOyKpO2CueyniOusuCAzLWdyYW0gSmFjY2FyZCkKICAgICAgICAgIOKGkiDrgpzsnbTrj4Qg6reg7ZiVIOKIkjQ3OAogICAgICAgICAgPSAxMiw0MTbsjI0gICB0cmFpbiA5LDkxNCAvIGRldiAxLDE5MiAvIHRlc3QgMSwzMTAKCnRyYWlu4oaUdGVzdCDsiqTsvIjroIjthqQg7KSR67O1OiAw6rG0ICAgICAgICjtgbTrn6zsiqTthLAg64uo7JyEIOu2hO2VoCkK64+F66a9IOuCnOydtOuPhCDrtoTrpZjquLDsmYDsnZgg7J287LmY64+EOiAwLjgzMwpgYGAnJycKaWYgdGV4dC5jb3VudChvbGQpICE9IDE6CiAgICByYWlzZSBTeXN0ZW1FeGl0KGYiZXhwZWN0ZWQgb25lIHN0YWxlIGZseXdoZWVsIGJsb2NrLCBmb3VuZCB7dGV4dC5jb3VudChvbGQpfSIpCnRleHQgPSB0ZXh0LnJlcGxhY2Uob2xkLCBuZXcpCnRleHQgPSB0ZXh0LnJlcGxhY2UoJ0ggLS4tPiBJWyLsmrTsmIEg7KSRIOyekOqwgOq1kOyglSDroZzqt7giXScsICdIIC0uLT4gSVsi7Iuk7ZaJwrfqtZDsoJUg66Gc6re4Il0nKQpvbGRfZHBvID0gJycnLSAqKkRQTyoqOiDshKDtmLjsjI3snYQgKirsl5Tsp4TsnbQg7Jq07JiBIOykkeyXkCDsiqTsiqTroZwg66eM65Og64ukKiouCiAgYGNob3NlbmAgPSDqsoDspp3snYQg7Ya16rO87ZWcIGdvbGQgU1FMLCBgcmVqZWN0ZWRgID0g7J6Q6rCA6rWQ7KCVIOuhnOq3uOyXkCDrgqjsnYAg7Iuk7YyoIFNRTC4KICDsgqzrnowg652867Ko66eBIDDqsbTsnLzroZwgIuyLpO2MqO2WiOuNmCDtjKjthLTsnYQg642cIOunjOuTpOuPhOuhnSIg7KCV66Cs65Cc64ukLiDsnbTqsoPsnbQg7ZSM65287J207Zyg7J20IOuPhOuKlCDrtoDrtoTsnbTri6QuJycnCm5ld19kcG8gPSAnJyctICoqRFBPKio6IOyLpO2WicK36rWQ7KCVIOuhnOq3uOulvCDshKDtmLjsjI3snLzroZwg65CY64+M66a0IOyImCDsnojripQg6rK966Gc66W8IOq1rO2YhO2WiOuLpC4KICBgY2hvc2VuYCA9IOqygOymneydhCDthrXqs7ztlZwgZ29sZCBTUUwsIGByZWplY3RlZGAgPSDqtZDsoJUg66Gc6re47JeQIOuCqOydgCDsi6TtjKggU1FMLgogIO2YhOyerCDqs7XqsJwgNS4zTSDssrTtgaztj6zsnbjtirjripQg7Iuk7KCcIOyatOyYgSDqtZDsoJUg66Gc6re46rCAIOyXhuyWtCDtlanshLEg7ISg7Zi47IyN7Jy866GcIERQTyDqtaztmIQg6rK966Gc66eMIOqygOymne2WiOycvOupsCwKICDrn7Dtg4DsnoTsl5DshJwg66qo64247J20IOyKpOyKpOuhnCDqsIDspJHsuZjrpbwg67CU6r6464qUIOyLnOyKpO2FnOydgCDslYTri4jri6QuJycnCmlmIHRleHQuY291bnQob2xkX2RwbykgIT0gMToKICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJleHBlY3RlZCBvbmUgRFBPIHBhcmFncmFwaCwgZm91bmQge3RleHQuY291bnQob2xkX2Rwbyl9IikKZmx5d2hlZWwud3JpdGVfdGV4dCh0ZXh0LnJlcGxhY2Uob2xkX2RwbywgbmV3X2RwbyksIGVuY29kaW5nPSJ1dGYtOCIpCgpyZWFkbWUgPSBQYXRoKCJSRUFETUUubWQiKQp0ZXh0ID0gcmVhZG1lLnJlYWRfdGV4dChlbmNvZGluZz0idXRmLTgiKQp0ZXh0ID0gdGV4dC5yZXBsYWNlKCLsgqzrgrQg7Jqp7Ja07IKs7KCEIiwgIuuztO2XmCDrj4TrqZTsnbgg7Jqp7Ja07IKs7KCEIikKbWFya2VyID0gIioqaGFyZCDti7DslrTripQg7Iuk7Lih7J20IOyEpOqzhOulvCDspp3rqoXtlanri4jri6QuKioiCnNlY3Rpb24gPSAnJycjIyMg7Jm467aAIOydvOuwmO2ZlCDigJQgU3BpZGVyLUtPIDEsMDM066y47ZWtCgrrgrTrtoAg67O07ZeYIOyKpO2CpOuniOyXkOunjCDrp57stpgg7Iuc7Iqk7YWc7J247KeAIO2ZleyduO2VmOq4sCDsnITtlbQsIO2VmeyKtcK3642w66qo7JeQIOyCrOyaqe2VmOyngCDslYrsnYAgU3BpZGVyIOuNsOydtO2EsOuyoOydtOyKpOyXkOyEnApgUXdlbjIuNS1Db2Rlci0xLjVCLUluc3RydWN0YOulvCBORjQgNC1iaXTroZwg6rOg7KCV7ZW0IO2VnOq1reyWtCAxLDAzNOusuO2VreydhCDtj4nqsIDtlojsirXri4jri6QuCuydtCDsiJjsuZjripQgKirqs7Xsi50gU3BpZGVyIGxlYWRlcmJvYXJkIOygkOyImOqwgCDslYTri4jrnbwgQUVHSVMgYGV4ZWN1dGlvbl9tYXRjaGAg6riw7KSAIOyZuOu2gCDsnbzrsJjtmZQg7Iuk7ZeYKirsnoXri4jri6QuCgp8IOq1rOyEsSB8IEVYIHwg7Iuk7ZaJIOyLpO2MqCB8IHNjaGVtYS1yZWZlcmVuY2Ug7Iuk7YyoIHwKfC0tLXwtLS06fC0tLTp8LS0tOnwKfCBgc2xtYCBzY2hlbWEgfCAzNS42OSUgKDM2OS8xLDAzNCkgfCAzMzcgfCAzMTkgfAp8IGBkZGxgIHNjaGVtYSB8IDM3LjUyJSAoMzg4LzEsMDM0KSB8IDMxOCB8ICoqMjk0KiogfAp8IGBjb21wYWN0YCBzY2hlbWEgfCAzNS4zMCUgKDM2NS8xLDAzNCkgfCAzNjggfCAzNDQgfAp8IGBtc2NoZW1hYCB8IDM4LjAxJSAoMzkzLzEsMDM0KSB8IDMyMCB8IDMwNCB8CnwgYG1zY2hlbWFgICsgKiox7ZqMIGJvdW5kZWQgcmVwYWlyKiogfCAqKjQxLjk3JSAoNDM0LzEsMDM0KSoqIHwgKioyMjQqKiB8ICoqMjA5KiogfAoKYG1zY2hlbWFg66eM7Jy866GcIGBzbG1gIOuMgOu5hCAqKysyLjMyJXAqKiwg7Iuk7ZaJIOyLpO2MqOyXkOunjCDtlZwg67KIIO2XiOyaqe2VnCByZXBhaXLqsIAg64uk7IucICoqKzMuOTclcCoq66W8IOuNlO2WiOyKteuLiOuLpC4KcmVwYWly64qUIDMwN+qxtOyXkOyEnCDrsJzrj5ntlbQgOTbqsbTsnYQg7Iuk7ZaJIOqwgOuKpe2VmOqyjCDrp4zrk6Tsl4jqs6Ag6re47KSRIDQx6rG07J20IOy1nOyihSDsoJXri7XsnbQg65CQ7Iq164uI64ukLgrquLDsobQg7KCV64u1IO2ajOq3gOuKlCAqKjDqsbQqKuyeheuLiOuLpC4g67CY66m0IHRvdGFsIGdlbmVyYXRpb24gcDk164qUIDQuMTbstIgg4oaSIDcuNTjstIjroZwg64qY7Ja0LArsoJXtmZXrj4Qg6rCc7ISg6rO8IHRhaWwgbGF0ZW5jeSDruYTsmqnsnYQg7ZWo6ruYIOq4sOuhne2VqeuLiOuLpC4KCuyerO2YhCDsobDqsbTCt+yLpO2MqCDrtoTshJ3Ct3Byb3ZlbmFuY2U6IFtgZG9jcy9TUElERVJfS08ubWRgXShkb2NzL1NQSURFUl9LTy5tZCkgwrcKY29tcGFjdCBldmlkZW5jZTogW2BkYXRhL3Jlc2VhcmNoL3NwaWRlcl9rb19ib3VuZGVkX3JlcGFpcl9ldmlkZW5jZS5qc29uYF0oZGF0YS9yZXNlYXJjaC9zcGlkZXJfa29fYm91bmRlZF9yZXBhaXJfZXZpZGVuY2UuanNvbikKCicnJwppZiBzZWN0aW9uIGluIHRleHQ6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCJTcGlkZXItS08gc2VjdGlvbiBhbHJlYWR5IHByZXNlbnQiKQppZiB0ZXh0LmNvdW50KG1hcmtlcikgIT0gMToKICAgIHJhaXNlIFN5c3RlbUV4aXQoZiJleHBlY3RlZCBvbmUgUkVBRE1FIG1hcmtlciwgZm91bmQge3RleHQuY291bnQobWFya2VyKX0iKQpyZWFkbWUud3JpdGVfdGV4dCh0ZXh0LnJlcGxhY2UobWFya2VyLCBzZWN0aW9uICsgbWFya2VyKSwgZW5jb2Rpbmc9InV0Zi04IikKCmV2YWx1YXRpb24gPSBQYXRoKCJkb2NzL0VWQUxVQVRJT04ubWQiKQp0ZXh0ID0gZXZhbHVhdGlvbi5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikucmVwbGFjZSgi7IKs64K0IOyaqeyWtOyCrOyghCIsICLrs7Ttl5gg64+E66mU7J24IOyaqeyWtOyCrOyghCIpCmV2YWx1YXRpb24ud3JpdGVfdGV4dCh0ZXh0LCBlbmNvZGluZz0idXRmLTgiKQo='))"
           rm .github/workflows/apply-final-evidence.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
