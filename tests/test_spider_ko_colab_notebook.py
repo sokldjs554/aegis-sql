@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-
 NOTEBOOK = Path("notebooks/spider_ko_full_run.ipynb")
 
 
