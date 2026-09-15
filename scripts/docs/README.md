@@ -29,8 +29,14 @@ node scripts/docs/capture.mjs
 
 # ② 웹 콘솔 3막 GIF (조회 → 차단 → 되묻기)
 #    ⚠ README 맨 위 히어로(docs/images/console-demo.gif)를 덮어쓰지 않는다.
-#    지금 그 자리에 있는 것은 사람이 직접 조작해 녹화한 83초짜리이고,
+#    지금 그 자리에 있는 것은 사람이 직접 조작해 녹화한 58초짜리이고,
 #    아래 스크립트는 뷰포트 1200x1000 을 820 으로 줄인 14초짜리를 만든다.
+#
+#    원래 83초였는데 마지막 ⑤막(BR001·마케팅 행 정책 비교)을 잘라냈다.
+#    MKT_CONSENT 에 propagate 가 붙으면서(99fefdc) 정책이 두 개 걸리게 되어
+#    화면의 346 이 143 으로 바뀌었는데, 손으로 녹화한 것이라 다시 찍을 수
+#    없었다.  그 장면은 capture.mjs 가 찍는 console-compare.png 가 대신한다
+#    — 그쪽은 코드가 바뀌면 같이 갱신된다.
 node scripts/docs/demo_console.mjs
 scripts/docs/gif.sh /tmp/aegis-frames/console /tmp/console-3막.gif 820
 
