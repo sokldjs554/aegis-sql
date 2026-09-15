@@ -40,9 +40,11 @@ def test_spider_ko_bounded_repair_evidence_is_complete_and_auditable() -> None:
     assert repair["repair_decision_uses_gold"] is False
 
     provenance = report["provenance"]
+    assert provenance["git_sha"] == "f2b8ccacb164caf5ccb7061ec4d768e5bab92791"
     assert provenance["dataset_sha256"] == (
         "db802bab717deb2e16f2fa6cbb493712ac294515e68a69f1a243c5238cf99b52"
     )
     assert provenance["gpu"] == "Tesla T4"
+    assert provenance["raw_report_bytes"] == 1_308_093
     assert provenance["portfolio_evidence_ready"] is True
     assert len(provenance["raw_report_sha256"]) == 64
