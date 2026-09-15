@@ -25,6 +25,12 @@ SPIDER_KO_DATASET = "huggingface-KREW/spider-ko"
 SPIDER_KO_SPLIT = "validation"
 SPIDER_KO_DEV_ITEMS = 1034
 _DB_ID = re.compile(r"^[A-Za-z0-9_-]+$")
+_REPAIRABLE_SQLITE_ERRORS: tuple[tuple[str, str], ...] = (
+    ("no_such_column", "no such column"),
+    ("no_such_table", "no such table"),
+    ("ambiguous_column", "ambiguous column name"),
+    ("syntax_error", "syntax error"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +142,50 @@ def spider_schema_card(db_path: str | Path, *, style: Style = "slm") -> str:
     return SchemaCardBuilder(graph).render(style=style, include_code_dict=False)
 
 
+def bounded_repair_reason(error: str, *, attempts: int = 0) -> str | None:
+    """Classify a narrow SQLite execution failure eligible for one repair call."""
+    if attempts >= 1:
+        return None
+    normalized = str(error or "").strip().lower()
+    if not normalized:
+        return None
+    for reason, marker in _REPAIRABLE_SQLITE_ERRORS:
+        if marker in normalized:
+            return reason
+    return None
+
+
+def validate_bounded_repair_experiment(*, enabled: bool, schema_style: Style) -> None:
+    """Keep the repair experiment single-variable by pinning the winning schema style."""
+    if enabled and schema_style != "mschema":
+        raise ValueError("bounded repair requires schema_style='mschema'")
+
+
+def build_bounded_repair_prompt(
+    *,
+    question: str,
+    schema_card: str,
+    initial_sql: str,
+    execution_error: str,
+) -> str:
+    """Build a one-shot repair prompt from runtime evidence only.
+
+    Gold SQL is intentionally absent from both the function signature and the
+    prompt.  The model may use only the original Korean question, the same
+    schema representation, its failed SQL, and SQLite's execution error.
+    """
+    return (
+        "첫 SQL이 SQLite 실행에 실패했습니다. 아래 실행 오류만 근거로 SQL을 한 번 수정하세요.\n"
+        "스키마에 실제로 존재하는 테이블과 컬럼만 사용하고, 질문의 의미는 바꾸지 마세요.\n"
+        "설명이나 마크다운 없이 단일 읽기 전용 SQLite SQL만 출력하세요.\n\n"
+        f"### 스키마\n{schema_card}\n"
+        f"### 질문\n{question}\n"
+        f"### 실패한 SQL\n{initial_sql}\n"
+        f"### SQLite 실행 오류\n{execution_error}\n"
+        "### 수정 SQL"
+    )
+
+
 def compare_execution(
     db_path: str | Path,
     pred_sql: str,
@@ -183,9 +233,12 @@ __all__ = [
     "SPIDER_KO_DEV_ITEMS",
     "SPIDER_KO_SPLIT",
     "SpiderKoExample",
+    "bounded_repair_reason",
+    "build_bounded_repair_prompt",
     "compare_execution",
     "load_spider_ko",
     "portfolio_evidence_ready",
     "resolve_spider_db",
     "spider_schema_card",
+    "validate_bounded_repair_experiment",
 ]
