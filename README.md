@@ -87,7 +87,7 @@ AEGIS-SQL은 이 여섯 가지를 **각각 다른 층에서** 해결합니다.
 
 | | 흔한 구현 | AEGIS-SQL |
 |---|---|---|
-| **도메인 지식** | 스키마만 프롬프트에 투입 | 사내 용어사전 41종(별칭 151개, SQL 조각 32개)을 **스키마 링킹 단계에서 주입** |
+| **도메인 지식** | 스키마만 프롬프트에 투입 | 보험 도메인 용어사전 41종(별칭 151개, SQL 조각 32개)을 **스키마 링킹 단계에서 주입** |
 | **검색** | 임베딩 top-k | dense + **직접 구현한 BM25** + 용어사전 + **프로파일된 실제 값·코드명** 하이브리드 |
 | **모델 선택** | 항상 최상위 모델 | **TensorFlow로 학습한 난이도 라우터**가 티어 선택 → **numpy 가중치로 export해 서빙**(런타임에 TF 없음) |
 | **소형 모델** | `peft` + HF 체크포인트 | **PyTorch로 직접 구현한 Transformer + LoRA + SFT + DPO** (RoPE/RMSNorm/SwiGLU/KV캐시, 다운로드 0) |
@@ -421,6 +421,28 @@ LLM 열의 모델은 `claude-sonnet-5`. 실측 총비용은 단독 약 $1.1, 캐
 > 지출은 위 표보다 큽니다.** 아카이브된 리포트는 수정 이전 측정치라 그대로 두고 이렇게
 > 밝혀 둡니다.
 
+### 외부 일반화 — Spider-KO 1,034문항
+
+내부 보험 스키마에만 맞춘 시스템인지 확인하기 위해, 학습·데모에 사용하지 않은 Spider 데이터베이스에서
+`Qwen2.5-Coder-1.5B-Instruct`를 NF4 4-bit로 고정해 한국어 1,034문항을 평가했습니다.
+이 수치는 **공식 Spider leaderboard 점수가 아니라 AEGIS `execution_match` 기준 외부 일반화 실험**입니다.
+
+| 구성 | EX | 실행 실패 | schema-reference 실패 |
+|---|---:|---:|---:|
+| `slm` schema | 35.69% (369/1,034) | 337 | 319 |
+| `ddl` schema | 37.52% (388/1,034) | 318 | **294** |
+| `compact` schema | 35.30% (365/1,034) | 368 | 344 |
+| `mschema` | 38.01% (393/1,034) | 320 | 304 |
+| `mschema` + **1회 bounded repair** | **41.97% (434/1,034)** | **224** | **209** |
+
+`mschema`만으로 `slm` 대비 *++2.32%p**, 실행 실패에만 한 번 허용한 repair가 다시 **+3.97%p**를 더했습니다.
+repair는 307건에서 발동해 96건을 실행 가능하게 만들었고 그중 41건이 최종 정답이 됐습니다.
+기존 정답 회귀는 **0건**입니다. 반면 total generation p95는 4.16초 → 7.58초로 늘어,
+정확도 개선과 tail latency 비용을 함께 기록합니다.
+
+재현 조건·실패 분석·provenance: [`docs/SPIDER_KO.md`](docs/SPIDER_KO.md) ·
+compact evidence: [`data/research/spider_ko_bounded_repair_evidence.json`](data/research/spider_ko_bounded_repair_evidence.json)
+
 **hard 티어는 실측이 설계를 증명합니다.** 문법 기반 template은 hard 0% —
 집계값과 비교하는 스칼라 서브쿼리·2단 CTE는 구조적으로 도달할 수 없는 형태
 (생성기가 렌더하는 중첩 SELECT 는 팬아웃 조인을 바꾼 상관 `EXISTS` 하나뿐입니다) — 지만, LLM 티어를 켜면
@@ -492,14 +514,14 @@ saturate 합니다 — KorFin-Bench 106문항의 난이도 중앙값은 **0.789*
 | 구성 | EX | Δ | medium |
 |---|---:|---:|---:|
 | `full` (기준선) | 44.4% | — | 32.5% |
-| `no-glossary` — 사내 용어사전 제거 | 34.4% | **−10.0%p** | 20.0% |
+| `no-glossary` — 보험 도메인 용어사전 제거 | 34.4% | **−10.0%p** | 20.0% |
 | `dense-only` — BM25 제거 | 41.1% | −3.3%p | 30.0% |
 | `no-schema-linking` — 전체 스키마 투입 | 43.3% | −1.1%p | 30.0% |
 | `no-value-link` / `lexical-only` / `no-repair` | 44.4% | ±0.0%p | 32.5% |
 | `no-fk-expand` — 기준선이 이미 `fk_expand_hops: 0` 이라 끌 것이 없는 동일 구성 (어블레이션이 아닙니다) | 44.4% | — | 32.5% |
 | `no-fewshot` / `card-compact` | 44.4% | n/a | 32.5% |
 
-**41개짜리 사내 용어사전이 10%p를 만듭니다.** 이 도메인에서 정확도를 가르는 것은
+**41개짜리 보험 도메인 용어사전이 10%p를 만듭니다.** 이 도메인에서 정확도를 가르는 것은
 모델 크기가 아니라 도메인 지식이 검색 단계에 주입되는지 여부라는 이 프로젝트의 전제를,
 스스로의 어블레이션이 지지합니다.
 
@@ -691,7 +713,7 @@ aegis-sql/
 │   ├── policy/             데이터 거버넌스 정책 (컬럼 4등급 · 마스킹 · 행정책 · k-익명성)
 │   └── prompts/            버전·해시 관리되는 프롬프트 세트
 ├── data/
-│   ├── demo/               레거시 스키마 DDL · 사내 용어사전 41종
+│   ├── demo/               레거시 스키마 DDL · 보험 도메인 용어사전 41종
 │   └── benchmark/          KorFin-Bench 106문항
 ├── docs/                   ARCHITECTURE · PAPERS · GOVERNANCE · FLYWHEEL · SLM · EVALUATION · PROMPT_ENGINEERING
 ├── scripts/                데모DB · 벤치마크 · 라우터학습 · sLLM학습 · 프롬프트최적화

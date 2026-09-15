@@ -20,7 +20,7 @@ flowchart LR
     E["⑤ 누수 없는 분할<br/>스켈레톤 클러스터 단위"] --> F
     F["train / dev / test.jsonl<br/>+ manifest.json"] --> G
     G["⑥ SFT → DPO (LoRA 선택)<br/>(PyTorch, CPU)"] --> H["sLLM 체크포인트"]
-    H -.-> I["운영 중 자가교정 로그"]
+    H -.-> I["실행·교정 로그"]
     I -.-> J["DPO 선호쌍<br/>chosen=gold, rejected=실패 SQL"]
     J --> G
 ```
@@ -94,9 +94,10 @@ API 키가 있으면 `backtranslate.user` 프롬프트로 한 번 더 다듬지�
 
 - **SFT**: 프롬프트 구간은 `-100`으로 마스킹해 **SQL 토큰에만** 손실을 준다.
 - **LoRA**(선택): `q_proj / v_proj / o_proj`에 rank 16 어댑터. 학습 파라미터 5% 미만(테스트 강제).
-- **DPO**: 선호쌍을 **엔진이 운영 중에 스스로 만든다**.
-  `chosen` = 검증을 통과한 gold SQL, `rejected` = 자가교정 로그에 남은 실패 SQL.
-  사람 라벨링 0건으로 "실패했던 패턴을 덜 만들도록" 정렬된다. 이것이 플라이휠이 도는 부분이다.
+- **DPO**: 실행·교정 로그를 선호쌍으로 되돌릴 수 있는 경로를 구현했다.
+  `chosen` = 검증을 통과한 gold SQL, `rejected` = 교정 로그에 남은 실패 SQL.
+  현재 공개 5.3M 체크포인트는 실제 운영 교정 로그가 없어 합성 선호쌍으로 DPO 구현 경로만 검증했으며,
+  런타임에서 모델이 스스로 가중치를 바꾸는 시스템은 아니다.
 
 ## 재현
 
@@ -106,17 +107,17 @@ cat data/generated/flywheel/manifest.json
 make train-slm                      # SFT → DPO (LoRA 없음 — docs/SLM.md 참조)
 ```
 
-실측(4,000 프로그램 × 증강 3, CPU 138초):
+실측(4,000 프로그램 × 증강 3, CPU 113초):
 
 ```
 16,000쌍  → 실행 검증  −460  (빈 결과)
-          → 퇴화 제거  −916  (단일 NULL / 항상 0 / 상수)
-          → 중복 제거 −1,585 (스켈레톤+마스킹질문 3-gram Jaccard)
-          → 난이도 균형 −499
-          = 12,540쌍   train 9,998 / dev 1,212 / test 1,330
+          → 퇴화 제거  −944  (단일 NULL / 항상 0 / 상수)
+          → 중복 제거 −1,702 (스켈레톤+마스킹질문 3-gram Jaccard)
+          → 난이도 균형 −478
+          = 12,416쌍   train 9,914 / dev 1,192 / test 1,310
 
 train↔test 스켈레톤 중복: 0건       (클러스터 단위 분할)
-독립 난이도 분류기와의 일치도: 0.835
+독립 난이도 분류기와의 일치도: 0.833
 ```
 
 `manifest.json`에는 split별 건수, 난이도 분포, 템플릿별 건수, 각 필터 단계의 탈락 수,
