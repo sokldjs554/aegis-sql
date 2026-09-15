@@ -78,3 +78,13 @@ def test_evaluator_wires_one_shot_repair_and_preserves_initial_final_evidence():
         '"total_generation_latency_ms"',
     ):
         assert field in text
+
+
+def test_repair_decision_is_independent_of_gold_query_execution():
+    text = EVALUATOR.read_text(encoding="utf-8")
+    decision = text.index("bounded_repair_reason(initial_error")
+    gold_execution = text.index("gold_result = executor.execute(item.gold_sql)")
+
+    assert decision < gold_execution
+    decision_block = text[decision:gold_execution]
+    assert "gold_result" not in decision_block
