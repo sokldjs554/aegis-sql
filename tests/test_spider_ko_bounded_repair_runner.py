@@ -40,6 +40,9 @@ def test_runner_requires_persistent_archive_and_validates_complete_evidence():
     assert 'evaluation.get("schema_style") == "mschema"' in text
     assert "initial_execution_accuracy" in text
     assert "execution_accuracy" in text
+    assert "initial_schema_reference_failures" in text
+    assert "schema_reference_failures" in text
+    assert "schema_reference_failures_reduced" in text
 
 
 def test_colab_notebook_checks_gpu_mounts_drive_runs_repair_and_prints_metrics():
@@ -53,5 +56,6 @@ def test_colab_notebook_checks_gpu_mounts_drive_runs_repair_and_prints_metrics()
     assert "run_spider_ko_bounded_repair_colab.sh" in text
     assert "initial_execution_accuracy" in text
     assert "execution_accuracy" in text
+    assert "schema_reference_failures_reduced" in text
     assert "repair" in text
     assert "공식 Spider leaderboard" in text
